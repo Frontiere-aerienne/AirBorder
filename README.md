@@ -14,7 +14,9 @@ The central design choice is to keep decision evidence explicit. Time estimates 
 
 **Technologies:** Swift, SwiftUI, MapKit, Vision, ARKit, XCTest, JavaScript, Cloudflare Workers, and Node's test runner.
 
-**Evaluation and status:** the repository includes deterministic decision/routing tests, simulator UI tests, and Worker tests for authentication, input handling, provider behavior, and policy boundaries. The Worker suite passed 37/37 tests on September 30, 2026. The iOS build and simulator suites were not rerun for this documentation update. These test implementation behavior. Real-airport field performance, calibrated missed-flight probabilities, physical-device AR tracking, and passenger-study outcomes remain separate validation work. The later local HCI survey is not bundled in this repository.
+**Evaluation and status (October 11, 2026):** a fresh locked Worker rerun passed 37/37 tests. The [hosted run at the inspected code commit](https://github.com/MayFairMI6/AirBorder/actions/runs/36787086841) passed the build and 106 unit tests; 17 UI tests ran with 10 failures, so the overall run failed. The [dated verification note](Documentation/Verification-2026-10-11.md) records the commands, environment and scope. No new full iOS/device run was performed for this documentation update.
+
+The Wilson interval quantifies Monte Carlo sampling uncertainty conditional on the modeled segment-time inputs. Real-airport calibration, configured-provider validation, physical-device AR and participant-study outcomes require separate evidence. The later local HCI survey is not bundled in this repository.
 
 ## What is implemented
 
