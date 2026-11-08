@@ -58,3 +58,7 @@ test('saved and pending steps are restored even when replay is offline or confli
  await s.start();assert.equal(published.phase,'arrival');assert.deepEqual(published.status.arrival,{landed:'done',passport:'done',bags:'done'});assert.equal(s.queue.length,1);assert.equal(s.record.revision,5);
  }
 });
+test('same-owner reauthentication retains a memory-only outbox when storage fails',async()=>{
+ let expired=true,posts=0;const s=new Sync({url:'/memory-auth',storage:{getItem(){return null;},setItem(){throw Error('quota');}},fetcher:async(u,i)=>{if(!i.method)return Response.json(record);posts++;return expired?Response.json({}, {status:401}):Response.json({...record,revision:1,status:{...record.status,arrival:{landed:'done'}}});}});
+ await s.start();s.enqueue({phase:'arrival',step:'landed',value:'done'});await new Promise(r=>setTimeout(r,0));assert.equal(s.queue.length,1);expired=false;await s.start();assert.equal(posts,2);assert.equal(s.record.status.arrival.landed,'done');assert.equal(s.queue.length,0);
+});
