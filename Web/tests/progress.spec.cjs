@@ -145,5 +145,5 @@ test('logout closes and clears the account checklist and editor return state',as
  await page.addInitScript(()=>{window.AIRBORDER_JOURNEY={trip:'logout',leg:'leg'};});
  await page.route('**/v1/journeys/logout/leg',r=>r.fulfill({json:{owner:'e'.repeat(64),revision:1,phase:'arrival',status:{arrival:{landed:'done'},departure:{},transfer:{}}}}));
  await page.goto('/');await expect(page.getByRole('region',{name:'Journey steps'})).toContainText('Arrival checklist');await page.getByRole('button',{name:'View steps'}).click();await expandSteps(page);await expect(page.getByRole('button',{name:'Undo Confirm landing'})).toBeVisible();
- await page.evaluate(()=>window.dispatchEvent(new Event('airborder:logout')));await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('#dialog')).toBeEmpty();expect(await page.evaluate(()=>progressReturnEdit)).toBeNull();
+ await page.evaluate(()=>{Storage.prototype.removeItem=()=>{throw Error('storage blocked');};window.dispatchEvent(new Event('airborder:logout'));});await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('#dialog')).toBeEmpty();expect(await page.evaluate(()=>progressReturnEdit)).toBeNull();expect(await page.evaluate(()=>journeyProgress)).toEqual({phase:'transfer',status:{departure:{},arrival:{},transfer:{}}});
 });

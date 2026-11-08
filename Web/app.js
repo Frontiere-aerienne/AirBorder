@@ -238,6 +238,6 @@ if(window.AIRBORDER_JOURNEY?.trip && window.AIRBORDER_JOURNEY?.leg){
    onRecord(record){journeyProgress={phase:record.phase,status:record.status};saveProgress();render();if(document.querySelector('#dialog[open] .progress-sheet'))showProgress();},
    onStatus(text){if(window.AIRBORDER_JOURNEY&&!progressSync.owner&&!progressSync.stopped)text='Sign in and load saved journey progress before updating steps';progressSyncStatus=text;const label=document.querySelector('.sync-status');if(label){label.textContent=text;if(text.startsWith('Progress changed'))showProgress();}}});
   void progressSync.start();window.addEventListener('online',()=>progressSync.owner&&!progressSync.authRequired?progressSync.flush():progressSync.start());
-  window.addEventListener('airborder:logout',()=>{const dialog=document.querySelector('#dialog');dialog.close();dialog.replaceChildren();progressReturnEdit=null;progressSync.stop();sessionStorage.removeItem(progressStorageKey);journeyProgress={phase:'transfer',status:{departure:{},arrival:{},transfer:{}}};render();});
+  window.addEventListener('airborder:logout',()=>{const dialog=document.querySelector('#dialog');dialog.close();dialog.replaceChildren();progressReturnEdit=null;progressSync.stop();try{sessionStorage.removeItem(progressStorageKey);}catch{}journeyProgress={phase:'transfer',status:{departure:{},arrival:{},transfer:{}}};render();});
  }
 }
