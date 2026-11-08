@@ -6,6 +6,8 @@ Updated November 7, 2026 (America/New_York). This checkpoint supersedes older **
 
 ### Current review fixes
 
+Additional owner-safety fix: authenticated journeys no longer restore an unowned trip cache, and editing waits until authenticated initialization finishes. Existing fixture/local-only editing remains available. Initial record refreshes an open checklist to enable its controls. Final 47 browser tests passed, including delayed-load/account-cache regression; 32 engine/API/client tests passed. No stylesheet/assets/native source changes.
+
 Codex reviewed 5d2f00d and reported two P2 sync issues: edits during initial GET were dropped, and idempotent replay rolled the client revision backward. Both are fixed locally with explicit regressions: pre-owner edits are queued until authenticated initialization, historical acknowledgements cannot replace a newer fetched record, and successful outbox recovery publishes reconciled state. Reconnect retries initial authentication loading. Local regression: 46 browser and 32 engine/API/client tests passed; no visual/style changes. Hosted HCI checks passed for 5d2f00d; native CI was still running when fixes were prepared. Fresh checks/review are required for the new push. PR1 stays unmerged.
 
 ### Latest backend integration checkpoint

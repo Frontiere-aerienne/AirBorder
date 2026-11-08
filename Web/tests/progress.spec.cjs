@@ -124,3 +124,12 @@ test('authenticated trip progress connects overlay to server without changing se
  await page.getByRole('button',{name:'Done',exact:true}).click();await page.reload();
  await expect(tracker).toContainText('Confirm baggage collection');
 });
+
+test('account checklist waits for initial load and does not restore another owner cache',async({page})=>{
+ let release;const gate=new Promise(r=>release=r);
+ await page.addInitScript(()=>{window.AIRBORDER_JOURNEY={trip:'slow-trip',leg:'leg'};sessionStorage.setItem('airborder-progress:slow-trip:leg',JSON.stringify({phase:'arrival',status:{arrival:{landed:'done'},departure:{},transfer:{}}}));});
+ await page.route('**/v1/journeys/slow-trip/leg',async route=>{await gate;await route.fulfill({json:{owner:'c'.repeat(64),revision:0,phase:'arrival',status:{arrival:{},departure:{},transfer:{}}}});});
+ await page.goto('/');await page.getByRole('button',{name:'View steps'}).click();
+ await expect(page.getByLabel('Journey stage')).toBeDisabled();await expect(page.getByRole('button',{name:'Confirm arrival',exact:true})).toBeDisabled();
+ release();await expect(page.getByLabel('Journey stage')).toHaveValue('arrival');await expect(page.getByRole('button',{name:'Confirm landing',exact:true})).toBeEnabled();
+});
