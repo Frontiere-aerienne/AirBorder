@@ -31,3 +31,20 @@ threads.
 
 Runtime model, permission, or administrator policy can override repository defaults. If a
 pinned model is unavailable, report the failure; do not silently substitute a different model.
+
+## Code Review Rules
+
+### Passenger decisions and state
+
+- Recommendations may change only selected, incomplete, optional stops, and only after explicit Apply. Preserve order, required stops, and user changes across flight/weather updates. Reject stale recommendations after any relevant plan, observation, or clock change; support Undo. Missing, stale, or invalid timing inputs are unknown, never zero or confident permission to proceed. A departure delay must not silently move the boarding deadline.
+- Gate updates are notifications, not passenger-selected flight statuses. Keep the complete gate identifier (including `108A`) consistent across ticket, alert, map, and guidance. Back returns to the originating page; camera always has a direct exit; map/camera preserve route progress; the final route step has an End action. Onboarding runs once with an explicit replay option.
+
+### Design and evidence
+
+- Preserve the approved AirBorder navy/blue/yellow semantic palette, Outfit typography, and genuine Haneda image provenance. Do not replace airport images with unrelated stock imagery, clip gate suffixes, invent live AR/location accuracy, or expose internal implementation language in passenger UI. Check narrow screens, visible focus, labeled controls, adequate touch targets, and readable contrast. See `Documentation/HCI/` for acceptance criteria and coverage limitations.
+- Do not call a feature complete solely because a mock or fixture passes. Keep synthetic and live sources visibly distinct. Health-derived walking estimates require consent and revocation fallback; airport-specific history and average estimates must retain provenance. LLM text cannot override deterministic timing, eligibility, or provider evidence.
+
+### Merge evidence and boundaries
+
+- Preserve native iOS build/unit/UI tests, backend contract/authentication tests, and browser integration/design checks. Never skip, delete, loosen assertions, blindly regenerate screenshots, or remove required checks to turn a failed PR green. Changes to workflows, tests, baselines, or these rules need explicit rationale and independent reviewer scrutiny.
+- Review the affected completed flows as well as the diff. Report uncovered requirements and residual risks honestly. Do not claim a clean review guarantees a bug-free app. Provider secrets remain server-side, protected endpoints retain authentication, and public endpoints accept only bounded non-sensitive inputs.

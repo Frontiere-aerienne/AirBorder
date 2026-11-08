@@ -981,7 +981,7 @@ async function searchActivities(url, env) {
   return capabilityJSON({ activities, query }, amadeusSource(env, "amadeusActivities", CACHE_TTLS.activitiesSeconds));
 }
 
-function airportFacilities(rawCode) {
+export function airportFacilities(rawCode) {
   const airportCode = rawCode.toUpperCase();
   if (!/^[A-Z0-9]{3,4}$/.test(airportCode)) return json({ error: "invalid_airport" }, 400);
   if (airportCode !== "HND") {

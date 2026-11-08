@@ -4,6 +4,33 @@ Airport XR Companion is a native iPhone research prototype for long-haul interna
 
 > Research prototype - simulated or research data.
 
+## HCI browser prototype and pull-request checks
+
+The `Web/` prototype makes the ordered-plan and synthetic disruption scenarios available in a browser alongside the native app. It reuses the canonical backend directory through a small public API adapter. It is not a claim of feature parity with the native app or live airport navigation.
+
+```bash
+npm ci --prefix Backend
+npm ci --prefix Web
+node Web/dev-server.mjs
+```
+
+Open `http://127.0.0.1:4173`; use `/?presenter=1` for explicitly synthetic replay controls. Run the deterministic and browser checks with:
+
+```bash
+npm test --prefix Backend
+node --test Web/backend/test/*.test.mjs
+npm run test:engine --prefix Web
+cd Web
+npx playwright install chromium
+npm run test:ui
+```
+
+Pull requests run the existing iOS build/unit/UI suite and the HCI engine, backend, and browser suites. The `HCI required tests` check fails if any HCI suite fails, is cancelled, or is skipped. Browser failure screenshots/traces and native test results are uploaded for review. The main branch requires both `Build and test` and `HCI required tests`, an up-to-date branch, one independent approval after the latest push, and resolved review discussions; administrator bypass is disabled.
+
+Codex review uses the connected ChatGPT plan and repository `AGENTS.md` guidance. It complements required tests; neither a clean AI review nor passing tests proves the absence of all defects. Acceptance criteria, uncovered cases, design references, and implementation planning are maintained in [Documentation/HCI](Documentation/HCI).
+
+The current HCI design reference is [AirBorder Travel Companion in Figma](https://www.figma.com/design/zQaZKxZ1rrX4EMYQkY3j00/AirBorder-Travel-Companion?node-id=858-8324). Figma holds editable design intent; GitHub holds executable code, tests, and review evidence. This link does not imply automatic two-way synchronization or an installed Code Connect mapping.
+
 ## Technical overview
 
 The problem is deciding which layover activities fit between an inbound arrival and an onward gate close when travel times and required steps are uncertain. Airport changes, stale provider data, accessibility needs, and missing entry information all affect that decision.
