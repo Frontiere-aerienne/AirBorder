@@ -33,3 +33,21 @@ test('confirmation during conflict recovery waits for GET before posting and pub
  assert.equal(posts,0);release(Response.json(record));await recovery;
  assert.equal(posts,1);assert.equal(s.record.revision,1);assert.equal(published.at(-1).status.arrival.landed,'done');assert.equal(s.queue.length,0);
 });
+test('failed recovery drains staged confirmations before later updates',async()=>{
+ let reject,recover=false,sent=[],snapshot=structuredClone(record);
+ const s=new Sync({url:'/failed-recovery',storage:storage(),fetcher:async(u,init)=>{
+  if(!init.method)return recover?new Promise((_,r)=>reject=r):Response.json(snapshot);
+  const e=JSON.parse(init.body);sent.push(e);snapshot={...snapshot,revision:snapshot.revision+1,status:structuredClone(snapshot.status)};snapshot.status[e.phase][e.step]=e.value;return Response.json(snapshot);
+ }});
+ await s.start();recover=true;const recovery=s.useSaved();s.enqueue({phase:'arrival',step:'landed',value:'done'});reject(Error('offline'));await recovery;
+ s.enqueue({phase:'arrival',step:'passport',value:'done'});await new Promise(r=>setTimeout(r,0));await s.flush();
+ assert.deepEqual(sent.map(e=>e.step),['landed','passport']);assert.equal(s.record.status.arrival.landed,'done');assert.equal(s.record.status.arrival.passport,'done');assert.equal(s.queue.length,0);
+});
+test('unavailable storage does not drop staged edits',async()=>{
+ let release,sent=[];const s=new Sync({url:'/no-storage',storage:{getItem(){return null;},setItem(){throw Error('quota');}},fetcher:async(u,i)=>{if(!i.method)return new Promise(r=>release=r);sent.push(JSON.parse(i.body));return Response.json({...record,revision:sent.length});}});
+ const load=s.start();s.enqueue({phase:'arrival',step:'landed',value:'done'});s.enqueue({phase:'arrival',step:'passport',value:'done'});release(Response.json(record));await load;assert.deepEqual(sent.map(e=>e.step),['landed','passport']);
+});
+test('expired authentication preserves owner outbox until same-owner reauthentication',async()=>{
+ const disk=storage();let expired=true;const s=new Sync({url:'/auth',storage:disk,fetcher:async(u,i)=>Response.json(!i.method?record:expired?{}:{...record,revision:1},{status:i.method&&expired?401:200})});
+ await s.start();s.enqueue({phase:'arrival',step:'landed',value:'done'});await new Promise(r=>setTimeout(r,0));assert.equal(s.queue.length,1);assert.equal(JSON.parse(disk.getItem(s.key())).length,1);expired=false;await s.start();assert.equal(s.queue.length,0);assert.equal(s.record.revision,1);
+});

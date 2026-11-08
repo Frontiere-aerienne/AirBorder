@@ -4,6 +4,10 @@
 
 Updated November 7, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
 
+### Latest remaining-review fixes
+
+57c1a00 hosted HCI checks passed. Codex found failed recovery GET could strand staged edits (4504999937). Fixed by draining staged edits to the ordered outbox on failed recovery. Independent follow-up also fixed quota/unavailable storage interrupting queueing and expired authentication deleting queued progress. Auth interruptions retain the owner-scoped queue; same-owner initialization resumes it. Explicit logout clears active persisted state. Added regressions; 36 engine/API/client and 47 browser tests pass. Native app, colors and styles remain unchanged. Fresh hosted checks/review required after push; PR1 remains unmerged.
+
 ### Current review fixes
 
 Additional owner-safety fix: authenticated journeys no longer restore an unowned trip cache, and editing waits until authenticated initialization finishes. Existing fixture/local-only editing remains available. Initial record refreshes an open checklist to enable its controls. Final 47 browser tests passed, including delayed-load/account-cache regression; 32 engine/API/client tests passed. No stylesheet/assets/native source changes.
