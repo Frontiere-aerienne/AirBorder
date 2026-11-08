@@ -234,7 +234,7 @@ loadDirectory();
 if(window.AIRBORDER_JOURNEY?.trip && window.AIRBORDER_JOURNEY?.leg){
  const {trip,leg}=window.AIRBORDER_JOURNEY;
  if(/^[A-Za-z0-9_-]{1,80}$/.test(trip)&&/^[A-Za-z0-9_-]{1,80}$/.test(leg)){
-  progressSync=new JourneySync({url:`${backend.base}/v1/journeys/${trip}/${leg}`,
+  progressSync=new JourneySync({onReset(){const dialog=document.querySelector('#dialog');dialog.close();dialog.replaceChildren();progressReturnEdit=null;journeyProgress={phase:'transfer',status:{departure:{},arrival:{},transfer:{}}};try{sessionStorage.removeItem(progressStorageKey);}catch{}render();},url:`${backend.base}/v1/journeys/${trip}/${leg}`,
    onRecord(record){journeyProgress={phase:record.phase,status:record.status};saveProgress();render();if(document.querySelector('#dialog[open] .progress-sheet'))showProgress();},
    onStatus(text){if(window.AIRBORDER_JOURNEY&&!progressSync.owner&&!progressSync.stopped)text='Sign in and load saved journey progress before updating steps';progressSyncStatus=text;const label=document.querySelector('.sync-status');if(label){label.textContent=text;if(text.startsWith('Progress changed'))showProgress();}}});
   void progressSync.start();window.addEventListener('online',()=>progressSync.owner&&!progressSync.authRequired?progressSync.flush():progressSync.start());

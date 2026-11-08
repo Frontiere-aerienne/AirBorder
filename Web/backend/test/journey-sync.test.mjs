@@ -62,3 +62,6 @@ test('same-owner reauthentication retains a memory-only outbox when storage fail
  let expired=true,posts=0;const s=new Sync({url:'/memory-auth',storage:{getItem(){return null;},setItem(){throw Error('quota');}},fetcher:async(u,i)=>{if(!i.method)return Response.json(record);posts++;return expired?Response.json({}, {status:401}):Response.json({...record,revision:1,status:{...record.status,arrival:{landed:'done'}}});}});
  await s.start();s.enqueue({phase:'arrival',step:'landed',value:'done'});await new Promise(r=>setTimeout(r,0));assert.equal(s.queue.length,1);expired=false;await s.start();assert.equal(posts,2);assert.equal(s.record.status.arrival.landed,'done');assert.equal(s.queue.length,0);
 });
+test('owner mismatch clears published UI while retaining the old owner outbox',async()=>{
+ let changed=false,reset=0;const s=new Sync({url:'/switch',storage:storage(),onReset:()=>reset++,fetcher:async()=>Response.json({...record,owner:changed?'b'.repeat(64):owner})});await s.start();changed=true;await s.start();assert.equal(reset,1);assert.equal(s.stopped,true);assert.equal(s.owner,null);
+});
