@@ -58,7 +58,7 @@ test('gate suffix propagates during navigation and guide reaches its end', async
   await expect(page.locator('[aria-label="Selected route stops"] li').last()).toHaveText('Gate 108A');
   await page.locator('[data-action="start-route"]').first().click();
   await expect(page.locator('.guide-stage')).toContainText('STEP 2');
-  while (await page.locator('[data-action="next-step"]').count()) await page.locator('[data-action="next-step"]').click();
+  while (await page.locator('[data-action="next-step"], [data-action="complete-stop"]').count()) await page.locator('[data-action="next-step"], [data-action="complete-stop"]').click();
   await expect(page.locator('.guide-stage')).toContainText('Arrive at Gate 108A');
   await page.locator('[data-action="finish-route"]').click();
   await expect(page.getByRole('heading', {name:'Your journey'})).toBeVisible();
@@ -196,4 +196,36 @@ for(const mode of ['desktop','mobile']) test(`${mode} guide entry retains progre
   await expect(page.locator('[data-action="start-route"]')).toContainText('Continue route guide');
   await page.locator('[data-action="start-route"]').click();
   await expect(page.locator('.guide-stage')).toContainText('STEP 2');
+});
+
+
+test('finishing a stop updates the remaining route and retains the completed plan entry', async ({page}) => {
+  await page.goto('/?presenter=1'); await fixture(page,'gate');
+  await page.locator('[data-action="start-route"]').first().click();
+  await page.locator('[data-action="next-step"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('A coffee before boarding');
+  await expect(page.getByRole('button',{name:'Finish stop'})).toBeVisible();
+  await nav(page,'journey');
+  await expect(page.locator('#my-plan article').first()).toContainText('25 min visit');
+  await nav(page,'guide');
+  await page.getByRole('button',{name:'Finish stop'}).click();
+  await expect(page.locator('.guide-stage')).toContainText('A little time to focus');
+  await nav(page,'map');
+  await expect(page.locator('[aria-label="Selected route stops"] li')).toHaveText(['A little time to focus','Gate 105']);
+  await nav(page,'journey');
+  await expect(page.locator('#my-plan article').first()).toContainText('Completed');
+  await expect(page.locator('#my-plan article').nth(1)).toContainText('40 min visit');
+  const remaining=await page.evaluate(()=>({estimate:J.estimate(journeyState),position:journeyState.position,recommendations:J.recommendations(journeyState)}));
+  expect(remaining.estimate.dwell).toBe(40); expect(remaining.position).toBe(7);
+  expect(remaining.recommendations.every(r=>r.stopId!=='stop-coffee')).toBe(true);
+});
+
+test('direct gate route does not complete saved stops', async ({page}) => {
+  await page.goto('/?presenter=1'); await fixture(page,'queue');
+  for(let i=0;i<3;i++) await page.locator('#age-fixture').click();
+  await page.locator('.hero [data-action="direct-route"]').click();
+  while(await page.locator('[data-action="next-step"]').count()) await page.locator('[data-action="next-step"]').click();
+  await page.locator('[data-action="finish-route"]').click();
+  await expect(page.locator('#my-plan article')).toHaveCount(2);
+  await expect(page.locator('#my-plan')).not.toContainText('Completed');
 });
