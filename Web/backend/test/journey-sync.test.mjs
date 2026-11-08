@@ -23,3 +23,13 @@ test('replayed historical acknowledgement retains and publishes the newer fetche
  const s=new Sync({url:'/replay',storage:disk,onRecord:r=>published=r,fetcher:async(u,init)=>Response.json(init.method?{...record,revision:1}:latest)});
  await s.start();assert.equal(s.record.revision,2);assert.equal(published.phase,'departure');assert.equal(s.queue.length,0);
 });
+test('confirmation during conflict recovery waits for GET before posting and publishing',async()=>{
+ let release,loading=false,posts=0,published=[];
+ const s=new Sync({url:'/recover',storage:storage(),onRecord:r=>published.push(r),fetcher:async(u,init)=>{
+  if(!init.method)return loading?new Promise(r=>release=r):Response.json(record);
+  posts++;return Response.json({...record,revision:1,status:{...record.status,arrival:{landed:'done'}}});
+ }});
+ await s.start();loading=true;const recovery=s.useSaved();s.enqueue({phase:'arrival',step:'landed',value:'done'});
+ assert.equal(posts,0);release(Response.json(record));await recovery;
+ assert.equal(posts,1);assert.equal(s.record.revision,1);assert.equal(published.at(-1).status.arrival.landed,'done');assert.equal(s.queue.length,0);
+});
