@@ -1,6 +1,10 @@
 const { test, expect } = require('@playwright/test');
 
-async function nav(page, view) { await page.locator(`[data-view="${view}"]:visible`).first().click(); }
+async function nav(page, view) {
+  if(view==='guide'){await page.locator('.bottom-nav [data-view="settings"]').click(); await page.locator('[data-view="guide"]:visible').first().click(); return;}
+  if(view==='flights'){await page.locator('.bottom-nav [data-view="journey"]').click(); await page.locator('[data-view="flights"]:visible').first().click(); return;}
+  await page.locator(`[data-view="${view}"]:visible`).first().click();
+}
 async function fixture(page, name) { await page.locator('#fixture').selectOption(name); await page.locator('#load-fixture').click(); }
 
 test.beforeEach(async ({ page }) => {
@@ -61,7 +65,7 @@ test('gate suffix propagates during navigation and guide reaches its end', async
   while (await page.locator('[data-action="next-step"], [data-action="complete-stop"]').count()) await page.locator('[data-action="next-step"], [data-action="complete-stop"]').click();
   await expect(page.locator('.guide-stage')).toContainText('Arrive at Gate 108A');
   await page.locator('[data-action="finish-route"]').click();
-  await expect(page.getByRole('heading', {name:'Your journey'})).toBeVisible();
+  await expect(page.getByRole('heading', {name:'Your flight',level:2})).toBeVisible();
   await expect(page.locator('#toast')).toContainText('Gate 108A');
 });
 
@@ -87,7 +91,7 @@ test('restored palette, accessible controls, and traveller isolation', async ({p
     return ['400','600','700'].every(weight => document.fonts.check(`${weight} 16px Outfit`)) && getComputedStyle(document.body).fontFamily.startsWith('Outfit');
   })).toBe(true);
   expect(colors).toEqual(['#17364a','#173247','#225e79','#e9f0f1','#fdfeff','#f9cb41','#8ec1d6','#ed9e38','#db5247']);
-  await expect(page.getByRole('button',{name:'AV, traveler profile'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Profile',exact:true})).toBeVisible();
   await expect(page.getByRole('navigation',{name:'Main'})).toBeVisible();
   await expect(page.locator('.primary').first()).toHaveCSS('color','rgb(255, 255, 255)');
   const contrast = await page.locator('.primary').first().evaluate(el => {
@@ -189,7 +193,7 @@ for(const mode of ['desktop','mobile']) test(`${mode} guide entry retains progre
   if(mode==='mobile') await page.setViewportSize({width:375,height:800});
   await page.goto('/');
   if(mode==='desktop') await nav(page,'guide');
-  else {await page.getByRole('button',{name:'More: route guide and preferences'}).click(); await page.locator('dialog [data-view="guide"]').click();}
+  else {await page.getByRole('button',{name:'Profile',exact:true}).click(); await page.locator('[data-view="guide"]:visible').click();}
   await page.locator('[data-action="next-step"]').click();
   await expect(page.locator('.guide-stage')).toContainText('STEP 2');
   await page.locator('.text-button[data-view="map"]:visible').first().click();
@@ -228,4 +232,40 @@ test('direct gate route does not complete saved stops', async ({page}) => {
   await page.locator('[data-action="finish-route"]').click();
   await expect(page.locator('#my-plan article')).toHaveCount(2);
   await expect(page.locator('#my-plan')).not.toContainText('Completed');
+});
+
+
+test('adding a stop after arriving at the gate resets the active route', async ({page}) => {
+  await page.goto('/'); await nav(page,'guide');
+  await page.locator('[data-action="next-step"]').click(); await page.locator('[data-action="next-step"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('Arrive at Gate 105');
+  await nav(page,'explore'); await page.locator('[data-plan="coffee"]').click();
+  await nav(page,'guide');
+  await expect(page.locator('.guide-stage')).toContainText('STEP 1');
+  await page.locator('[data-action="next-step"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('A coffee before boarding');
+  await expect(page.getByRole('button',{name:'Finish stop'})).toBeVisible();
+});
+
+test('iPhone 13 flight ticket preserves the Figma gate and four tabs', async ({page},testInfo) => {
+  await page.setViewportSize({width:390,height:844}); await page.goto('/?presenter=1');
+  await expect(page.locator('.flight-ticket')).toHaveCSS('background-color','rgb(23, 54, 74)');
+  await expect(page.locator('.gate-sign')).toHaveCSS('background-color','rgb(249, 203, 65)');
+  await expect(page.locator('.gate-sign')).toContainText('Gate 105');
+  await expect(page.locator('.bottom-nav button')).toHaveText(['Flight','Layover','Route','Profile']);
+  await page.locator('#fixture').selectOption('gate'); await page.locator('#load-fixture').click(); await page.locator('#step-fixture').click();
+  await expect(page.locator('.gate-sign')).toContainText('108A');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const gate=await page.locator('.gate-sign').boundingBox(), ticket=await page.locator('.flight-ticket').boundingBox();
+  expect(gate.x+gate.width).toBeLessThanOrEqual(ticket.x+ticket.width);
+  const heading=await page.locator('.flight-title').boundingBox(), plan=await page.locator('.flight-plan-title').boundingBox();
+  expect(heading.y+heading.height).toBeLessThanOrEqual(ticket.y);
+  expect(ticket.y+ticket.height).toBeLessThanOrEqual(plan.y);
+  await expect(page.locator('.sidebar')).toHaveCount(0);
+  await testInfo.attach('iphone13-flight.png',{body:await page.screenshot(),contentType:'image/png'});
+  await page.setViewportSize({width:1280,height:900});
+  const shell=await page.locator('.shell').boundingBox();
+  expect(shell.width).toBeLessThanOrEqual(402); expect(Math.abs(shell.x-(1280-shell.width)/2)).toBeLessThan(1);
+  await expect(page.locator('.bottom-nav button')).toHaveText(['Flight','Layover','Route','Profile']);
+  await testInfo.attach('wide-flight.png',{body:await page.screenshot(),contentType:'image/png'});
 });

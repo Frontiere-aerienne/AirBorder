@@ -8,7 +8,7 @@ import sys
 import unittest
 import uuid
 
-TARGET = "iPhone 17 Pro"
+TARGET = "iPhone 13"
 
 
 def available(item):
@@ -23,7 +23,7 @@ def runtime_version(runtime):
 
 
 def select_simulator(runtimes, devices, device_types):
-    """Return (runtime, existing device or None, device type or None, fallback)."""
+    """Return (runtime, existing device or None, device type or None)."""
     compatible = [r for r in runtimes if available(r) and
                   r.get("identifier", "").startswith("com.apple.CoreSimulator.SimRuntime.iOS-") and
                   runtime_version(r) and runtime_version(r) >= (26,)]
@@ -37,14 +37,16 @@ def select_simulator(runtimes, devices, device_types):
         candidates = sorted((d for d in devices.get(runtime["identifier"], [])
                              if available(d) and d.get("name") == TARGET and d.get("udid")),
                             key=lambda d: d["udid"])
-        return runtime, candidates[0] if candidates else None, target_type, False
+        return runtime, candidates[0] if candidates else None, target_type
+    # Some inventories omit an unavailable device type while retaining a usable
+    # device. Require the requested model; another iPhone would not verify it.
     for runtime in compatible:
         candidates = sorted((d for d in devices.get(runtime["identifier"], [])
-                             if available(d) and str(d.get("name", "")).startswith("iPhone ") and d.get("udid")),
-                            key=lambda d: (d["name"] != TARGET, d["name"], d["udid"]))
+                             if available(d) and d.get("name") == TARGET and d.get("udid")),
+                            key=lambda d: d["udid"])
         if candidates:
-            return runtime, candidates[0], None, True
-    raise ValueError("iPhone 17 Pro device type is unavailable and no compatible iPhone simulator exists")
+            return runtime, candidates[0], None
+    raise ValueError(f"{TARGET} device type and available simulator are absent")
 
 
 def command(*args, timeout=60):
@@ -61,11 +63,9 @@ def main():
     try:
         for kind in ("runtimes", "devices", "devicetypes"):
             snapshots[kind] = inventory(kind)
-        runtime, device, device_type, fallback = select_simulator(
+        runtime, device, device_type = select_simulator(
             snapshots["runtimes"]["runtimes"], snapshots["devices"]["devices"],
             snapshots["devicetypes"]["devicetypes"])
-        if fallback:
-            print(f"iPhone 17 Pro device type unavailable; using available {device['name']} on {runtime['name']}", flush=True)
         if device is None:
             udid = command("create", "AirBorderCI", device_type["identifier"], runtime["identifier"]).strip()
             print(f"Created AirBorderCI ({TARGET}) on {runtime['name']}", flush=True)
@@ -100,34 +100,31 @@ class SelectionTests(unittest.TestCase):
             {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-2", "version": "26.2", "isAvailable": True},
             {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-0", "version": "27.0", "isAvailable": False},
         ]
-        self.types = [{"name": TARGET, "identifier": "type-17pro"}]
+        self.types = [{"name": TARGET, "identifier": "type-13"}]
         self.devices = {r["identifier"]: [] for r in self.runtimes}
 
     def test_newest_runtime_existing_device(self):
         key = self.runtimes[2]["identifier"]
         self.devices[key] = [{"name": TARGET, "udid": "B", "isAvailable": True},
                              {"name": TARGET, "udid": "A", "isAvailable": True}]
-        runtime, device, _, fallback = select_simulator(self.runtimes, self.devices, self.types)
+        runtime, device, _ = select_simulator(self.runtimes, self.devices, self.types)
         self.assertEqual(runtime["version"], "26.2")
         self.assertEqual(device["udid"], "A")
-        self.assertFalse(fallback)
 
     def test_missing_target_creates_on_newest_runtime(self):
-        runtime, device, kind, fallback = select_simulator(self.runtimes, self.devices, self.types)
+        runtime, device, kind = select_simulator(self.runtimes, self.devices, self.types)
         self.assertEqual(runtime["version"], "26.2")
         self.assertIsNone(device)
-        self.assertEqual(kind["identifier"], "type-17pro")
-        self.assertFalse(fallback)
+        self.assertEqual(kind["identifier"], "type-13")
 
-    def test_fallback_requires_available_iphone(self):
+    def test_missing_type_requires_exact_available_model(self):
         key = self.runtimes[1]["identifier"]
         self.devices[key] = [{"name": "iPhone 16", "udid": "C", "isAvailable": True}]
-        runtime, device, _, fallback = select_simulator(self.runtimes, self.devices, [])
-        self.assertTrue(fallback)
-        self.assertEqual((runtime["version"], device["name"]), ("26.0", "iPhone 16"))
-        self.devices[key][0]["isAvailable"] = False
         with self.assertRaises(ValueError):
             select_simulator(self.runtimes, self.devices, [])
+        self.devices[key].append({"name": TARGET, "udid": "D", "isAvailable": True})
+        runtime, device, _ = select_simulator(self.runtimes, self.devices, [])
+        self.assertEqual((runtime["version"], device["name"]), ("26.0", TARGET))
 
     def test_old_and_unavailable_runtimes_rejected(self):
         with self.assertRaises(ValueError):

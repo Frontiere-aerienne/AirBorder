@@ -20,7 +20,6 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 35
     env:
-      SIMULATOR_NAME: iPhone 17 Pro
       DERIVED_DATA: ${{ github.workspace }}/build/DerivedData
     steps:
       - uses: actions/checkout@v4
