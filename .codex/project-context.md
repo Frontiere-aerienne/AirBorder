@@ -1,5 +1,46 @@
 # Project Context Ledger: AirportXRCompanion
 
+## Current handoff — HCI review and merge protection
+
+Updated November 7, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
+
+### Objective and durable decisions
+
+- Continue AirBorder as a programmed HCI prototype with an ordered plan, deterministic synthetic disruption driver, and preserved design intent. Keep all 14 substantive peer responses in scope; eight blank records are not suggestions. Duplicate suggestions share acceptance IDs instead of being discarded.
+- GitHub owns code, automated tests, review and collaboration; Figma owns design intent. Current authoritative HCI file: https://www.figma.com/design/zQaZKxZ1rrX4EMYQkY3j00/AirBorder-Travel-Companion?node-id=858-8324. Documentation/HCI/Figma-code-mapping.md is traceability, not automatic synchronization or installed Code Connect.
+- Existing native application and the new Web prototype coexist. Web is not native feature parity. Canonical providers remain in Backend/src/index.js; Web/backend/index.mjs exposes bounded public directory/timing routes while preserving protected-route authentication. Web/dev-server.mjs is local development/test infrastructure, not a production deployment.
+- Personalization acts only on selected, incomplete optional stops, with explicit Apply and Undo. Unknown/stale inputs cannot become zero or confident recommendations. Flight delays cannot silently extend airline deadlines. Preserve full gate suffixes, route progress, saved plans, and a direct-to-gate option.
+- Preserve navy/blue/yellow semantic colours, Outfit, and genuine Haneda image provenance. Current Web fonts are locally bundled with their OFL license. Existing Figma imagery was not edited by this PR setup. Do not claim full Figma fidelity from CSS-token checks.
+
+### Current branch, review and enforcement
+
+- Public repository: https://github.com/MayFairMI6/AirBorder
+- Open PR: https://github.com/MayFairMI6/AirBorder/pull/1
+- Branch: hci/implementation-evaluation-gates. Application/test implementation checkpoint: f11cc9ee90ecb1a36130e494e9dc2d9879ac14bd. Later documentation-only commits still need their own required GitHub checks.
+- Codex repository settings were visibly saved as automatic review ON, All PRs, On every push. Both PR-open and new-commit triggers were observed in the bot's review summary. This uses the connected ChatGPT plan; no API key or extra-credit spending was enabled. Do not infer remaining account quota from these observations.
+- Main branch protection was read back from GitHub: GitHub Actions app 15368 must supply successful `Build and test` and `HCI required tests`; branch must be up to date. One independent approval after the latest push and resolved conversations are required; stale approvals are dismissed. Administrators are included; force pushes and deletion are disabled. Do not bypass these rules to finish this task.
+- PR is open, not merged. Automatic Codex comments do not satisfy the independent human approval. A review's absence or a usage limit is not a clean review.
+
+### Verified evidence and unresolved work
+
+- Local f11cc9e implementation: 15 engine + 12 browser API/HTTP + 37 canonical Worker + 17 Chromium tests passed (81 total, no skips). Hosted HCI run https://github.com/MayFairMI6/AirBorder/actions/runs/42437108856 passed on that implementation revision. Re-check the exact latest head; older green runs do not authorize a new merge.
+- An isolated temporary mutation that treated unknown queue input as known made two existing engine tests fail. The repository was not mutated by that check. This verifies a specific regression detector, not all possible defects.
+- First GitHub Codex review identified missing synthetic-data disclosure, optional detours in urgent guidance, and guide progress resetting after Map. All three were fixed in f11cc9e, regression-tested, and independently rechecked. Replies identify each implementation and test. Check live thread-resolution state and the subsequent review before claiming closure.
+- Additional fixes cover unknown timing requests, expired gate observations, stale asynchronous responses, strict rate-limiter results, and explicitly enabled preview origins. Their regression tests are part of the counts above.
+- At this checkpoint, the refreshed native CI and second automatic Codex review were still pending. The historical October 11 native record had 106 passing unit tests and 10 failures among 17 UI tests. Preserve that evidence until a new run establishes each case's status; browser results cannot clear native failures.
+- Remaining acceptance work includes physical-device AR, actual Camera/recognition recovery, complete onboarding/Back paths, health consent/history, full EN/JA/FR, provider integration/calibration, accessible alternative routing, and visual comparison against approved Figma frames. Browser screenshots are review artifacts, not approved pixel-comparison baselines.
+
+### Resume checklist
+
+1. Read AGENTS.md, this current checkpoint, Documentation/HCI/Acceptance-and-review.md, and the PR's current head/checks/review threads. Inspect local changes before editing; do not reset or overwrite uncommitted work.
+2. Finish checking the current native run and automatic review. Fix concrete regressions with tests; report pre-existing or blocked cases accurately. Keep the PR unmerged until required checks and independent approval are satisfied.
+3. Use Documentation/HCI/Implementation-and-evaluation-plan.md for staged backend/live-source/optional-LLM work and assignment deliverables. The assignment requires a programmed prototype, 5–10-page ACM double-column report, 4–5-minute video, and an evaluation plan; do not fabricate participant results or a project-wide completion percentage.
+4. Update this checkpoint after material verified changes. Record commit, scope, test result, unresolved findings and next action. Link authoritative criteria rather than copying them into another competing summary. Never put credentials, raw peer data, private documents, or personal paths in the public ledger.
+
+This file is explicit repository handoff context. Its name does not configure Codex's history compaction, and it never replaces AGENTS.md, acceptance criteria, source code or enforced CI.
+
+## Historical context (retained)
+
 - Workspace: `/Users/anony/Downloads/AirportXRCompanion`
 - Objective: Deliver a polished native iPhone companion for long-haul international, same-airport, and inter-airport layovers with provider-neutral live data, conservative sourced recommendations, accessible guidance, offline behavior, tests, simulator evidence, and a reproducible research report.
 - Last evidence refresh: 2026-07-16T22:25:00Z

@@ -32,6 +32,10 @@ threads.
 Runtime model, permission, or administrator policy can override repository defaults. If a
 pinned model is unavailable, report the failure; do not silently substitute a different model.
 
+## Handoff and continuity
+
+At the start of implementation or after a handoff/context compaction, read the current checkpoint in `.codex/project-context.md` and the relevant acceptance criteria in `Documentation/HCI/Acceptance-and-review.md`. Treat older ledger sections as dated evidence, not current completion claims. Verify the current branch, changes, PR head, checks and unresolved reviews before resuming. Update the checkpoint after material verified progress; preserve decisions, scope, remaining defects and exact evidence. Do not create a second competing `compaction.md` or change compaction configuration merely to store project status. During code review, use the acceptance contract and applicable Code Review Rules; a ledger's statement that tests passed never substitutes for current CI.
+
 ## Code Review Rules
 
 ### Passenger decisions and state
