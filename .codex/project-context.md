@@ -4,6 +4,10 @@
 
 Updated November 7, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
 
+### Current review fixes
+
+Codex reviewed 5d2f00d and reported two P2 sync issues: edits during initial GET were dropped, and idempotent replay rolled the client revision backward. Both are fixed locally with explicit regressions: pre-owner edits are queued until authenticated initialization, historical acknowledgements cannot replace a newer fetched record, and successful outbox recovery publishes reconciled state. Reconnect retries initial authentication loading. Local regression: 46 browser and 32 engine/API/client tests passed; no visual/style changes. Hosted HCI checks passed for 5d2f00d; native CI was still running when fixes were prepared. Fresh checks/review are required for the new push. PR1 stays unmerged.
+
 ### Latest backend integration checkpoint
 
 Final local verification: 46 browser tests, 40 canonical backend tests, 30 engine/browser API/client tests and 4 simulator-selector checks passed. Native 123/123 passed for the unchanged native app plus test-harness fixes. Both Backend and combined Web Worker deployment dry runs passed. Changes are ready for PR1 push; fresh hosted checks/review remain required.

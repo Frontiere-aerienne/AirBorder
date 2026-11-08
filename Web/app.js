@@ -237,7 +237,7 @@ if(window.AIRBORDER_JOURNEY?.trip && window.AIRBORDER_JOURNEY?.leg){
   progressSync=new JourneySync({url:`${backend.base}/v1/journeys/${trip}/${leg}`,
    onRecord(record){journeyProgress={phase:record.phase,status:record.status};saveProgress();render();},
    onStatus(text){progressSyncStatus=text;const label=document.querySelector('.sync-status');if(label)label.textContent=text;}});
-  void progressSync.start();window.addEventListener('online',()=>progressSync.flush());
+  void progressSync.start();window.addEventListener('online',()=>progressSync.owner?progressSync.flush():progressSync.start());
   window.addEventListener('airborder:logout',()=>{progressSync.stop();sessionStorage.removeItem(progressStorageKey);journeyProgress={phase:'transfer',status:{departure:{},arrival:{},transfer:{}}};render();});
  }
 }
