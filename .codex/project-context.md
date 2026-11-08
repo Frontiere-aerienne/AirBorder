@@ -4,6 +4,10 @@
 
 Updated November 8, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
 
+### November 8 startup-readiness repair
+
+Head d7536e0: hosted HCI green; Codex completed clean. Native42460823519 passed106 unit and15/17UI, including earlier gate/audit fixes. Artifact videos show both AR-entry and Flights failures behind the opaque “Preparing your journey” screen, despite an underlying tab bar in the accessibility tree. Added a test-only bounded preparation-disappearance wait before navigation, retaining all feature assertions; no app source/design change. Focused2/2 passed iPhone13/iOS27.0 (/tmp/airborder-d7536-focused.log, /tmp/AirBorderD7536Focused.xcresult); root inspected screenshot evidence and patch. Fresh hosted results remain required after push. Original synthetic-banner thread resolved with owner’s revised requirement and accurate Help provenance; no unresolved review threads at that point. Relay default-branch readiness skip observed successfully in42460829832; automatic forwarding remains pending default-branch installation, not active. No merge.
+
 ### November 8 new-event replay revision repair
 
 Codex reviewed cd6af40 and found P2 discussion_r4505484807: a newly appended confirmation used an old replay queue revision despite a newer fetched record. New events now take the maximum of current fetched revision and queued successor revision; existing idempotent replay payloads remain unchanged, and conflicts are not rebased. Delayed-replay regression covers fetched5, old0, new5/6 and final7. Root independently reviewed the worker patch; combined relay/engine/API/client51 tests passed. No visual changes. Fresh hosted checks and Codex review required after this push; do not merge.

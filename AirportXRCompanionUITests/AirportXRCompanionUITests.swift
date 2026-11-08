@@ -101,7 +101,7 @@ final class AirportXRCompanionUITests: XCTestCase {
             "--uitesting", "--launch-mode", "demo", "--qa-simulated-walk"
         ]
         app.launch()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
+        waitForJourneyReady()
 
         app.buttons["universalReturnToGateButton"].tap()
         XCTAssertTrue(element("arGuideView").waitForExistence(timeout: 8))
@@ -127,6 +127,7 @@ final class AirportXRCompanionUITests: XCTestCase {
             "--uitesting", "--launch-mode", "demo", "--qa-walkthrough"
         ]
         app.launch()
+        waitForJourneyReady()
         XCTAssertTrue(element("automatedWalkthroughBanner").waitForExistence(timeout: 8))
         app.buttons["walkthroughPauseButton"].tap()
 
@@ -288,6 +289,7 @@ final class AirportXRCompanionUITests: XCTestCase {
         ]
         app.launchEnvironment["UIAccessibilityIsReduceMotionEnabled"] = "YES"
         app.launch()
+        waitForJourneyReady()
 
         XCTAssertTrue(element("longHaulJourneyDashboard").waitForExistence(timeout: 8))
         let persistentGate = app.buttons["universalReturnToGateButton"]
@@ -383,7 +385,15 @@ final class AirportXRCompanionUITests: XCTestCase {
         app.launchArguments = ["--uitesting", "--launch-mode", mode]
         if let scenario { app.launchArguments += ["--scenario", scenario] }
         app.launch()
+        waitForJourneyReady()
+    }
+
+    private func waitForJourneyReady() {
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
+        // The tab bar is present in the accessibility tree under the opaque
+        // preparation screen. Wait for that screen to leave before tapping.
+        XCTAssertTrue(app.staticTexts["Preparing your journey"].waitForNonExistence(timeout: 60),
+                      "Journey preparation must finish before navigation")
     }
 
     private func selectTab(_ name: String) {
