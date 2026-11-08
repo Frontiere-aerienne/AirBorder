@@ -1,9 +1,10 @@
 const { test, expect } = require('@playwright/test');
 
 async function nav(page, view) {
-  if(view==='guide'){await page.locator('.bottom-nav [data-view="settings"]').click(); await page.locator('[data-view="guide"]:visible').first().click(); return;}
+  if(view==='guide'){await page.locator('.bottom-nav [data-view="map"]').click(); await page.locator('.route-options summary').click(); await page.locator('[data-action="start-route"]:visible').first().click(); return;}
   if(view==='flights'){await page.locator('.bottom-nav [data-view="journey"]').click(); await page.locator('[data-view="flights"]:visible').first().click(); return;}
   await page.locator(`[data-view="${view}"]:visible`).first().click();
+  if(view==='map' && await page.locator('.route-options summary').count()) await page.locator('.route-options summary').click();
 }
 async function fixture(page, name) { await page.locator('#fixture').selectOption(name); await page.locator('#load-fixture').click(); }
 
@@ -20,7 +21,8 @@ test('selected stops can be added, ordered, removed and mapped', async ({ page }
   const rows = page.locator('#my-plan article');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText('A coffee before boarding');
-  await rows.nth(1).getByRole('button', { name:'Move earlier' }).click();
+  await rows.nth(1).getByRole('button', { name:/Edit/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name:'Move earlier' }).click();
   await expect(rows.nth(0)).toContainText('Quiet time near your gate');
   await nav(page, 'map');
   await expect(page.locator('[aria-label="Selected route stops"] li')).toHaveText(['Quiet time near your gate','A coffee before boarding','Gate 105']);
@@ -110,7 +112,7 @@ test('keyboard navigation and review captures', async ({page}, testInfo) => {
   await page.keyboard.press('Enter');
   await expect(page.locator('#main')).toBeFocused();
   for (const view of ['journey','explore','map','flights']) {
-    await nav(page,view);
+    if(view==='map') await page.locator('.bottom-nav [data-view="map"]').click(); else await nav(page,view);
     await expect(page.locator('#main')).toBeFocused();
     const buttons=page.locator('button:visible:not([disabled])');
     for(let i=0;i<await buttons.count();i++) await expect(buttons.nth(i)).toHaveAccessibleName(/\S+/);
@@ -138,13 +140,14 @@ test('visible enabled buttons provide usable targets at mobile size', async ({pa
 });
 
 
-test('demo disclosure remains visible in traveller views', async ({page}) => {
+test('source information is available in Help without a persistent banner', async ({page}) => {
   await page.goto('/');
   for (const view of ['journey','flights','explore','map','guide','settings']) {
-    await nav(page,view);
-    await expect(page.locator('.demo-disclosure')).toBeVisible();
-    await expect(page.locator('.demo-disclosure')).toContainText('Flight, timing and route information are simulated');
-    await expect(page.locator('.demo-disclosure')).toContainText('airport directory uses published airport information');
+    await nav(page,view); await expect(page.locator('.demo-disclosure')).toHaveCount(0);
+    await page.getByRole('button',{name:'Help & information'}).click();
+    await expect(page.getByRole('dialog')).toContainText('Flight, timing and route information in this demonstration are simulated');
+    await expect(page.getByRole('dialog')).toContainText('airport directory uses published airport information');
+    await page.getByRole('dialog').getByRole('button',{name:'Close dialog'}).click();
   }
 });
 
@@ -176,27 +179,27 @@ test('expired gate blocks guidance even with no selected stops', async ({page}) 
   await page.goto('/?presenter=1'); await fixture(page,'gate');
   await page.locator('#step-fixture').click();
   while(await page.locator('#my-plan [data-remove]').count()) await page.locator('#my-plan [data-remove]').first().click();
+  await nav(page,'guide'); await expect(page.locator('.guide-stage')).toBeVisible();
   for(let i=0;i<3;i++) await page.locator('#age-fixture').click();
-  await expect(page.locator('.hero')).toHaveCount(0);
-  await expect(page.locator('[aria-label="Your next action"]')).toContainText('Confirm your departure gate');
+  await expect(page.locator('main')).toContainText('Confirm your departure gate');
+  await expect(page.locator('.route-step, .guide-stage, [data-action="start-route"], [data-action="direct-route"]')).toHaveCount(0);
+  await nav(page,'journey');
   await expect(page.locator('[aria-label="Your next action"]')).toContainText('Last known gate: 108A');
-  for(const view of ['map','guide']) {
-    await nav(page,view);
-    await expect(page.locator('main')).toContainText('Confirm your departure gate');
-    await expect(page.locator('.route-step, .guide-stage, [data-action="start-route"], [data-action="direct-route"]')).toHaveCount(0);
-  }
-  await nav(page,'flights');
-  await expect(page.locator('main')).toContainText('Last known gate · confirm');
+  await nav(page,'map');
+  await expect(page.locator('main')).toContainText('Confirm your departure gate');
+  await expect(page.locator('.route-step, .guide-stage, [data-action="start-route"], [data-action="direct-route"]')).toHaveCount(0);
+  await nav(page,'flights'); await expect(page.locator('main')).toContainText('Last known gate · confirm');
 });
 
 for(const mode of ['desktop','mobile']) test(`${mode} guide entry retains progress after viewing map`,async ({page}) => {
   if(mode==='mobile') await page.setViewportSize({width:375,height:800});
   await page.goto('/');
   if(mode==='desktop') await nav(page,'guide');
-  else {await page.getByRole('button',{name:'Profile',exact:true}).click(); await page.locator('[data-view="guide"]:visible').click();}
+  else {await page.getByRole('button',{name:'Route',exact:true}).click(); await page.locator('.route-options summary').click(); await page.locator('[data-action="start-route"]:visible').click();}
   await page.locator('[data-action="next-step"]').click();
   await expect(page.locator('.guide-stage')).toContainText('STEP 2');
   await page.locator('.text-button[data-view="map"]:visible').first().click();
+  await page.locator('.route-options summary').click();
   await expect(page.locator('[data-action="start-route"]')).toContainText('Continue route guide');
   await page.locator('[data-action="start-route"]').click();
   await expect(page.locator('.guide-stage')).toContainText('STEP 2');
@@ -268,4 +271,60 @@ test('iPhone 13 flight ticket preserves the Figma gate and four tabs', async ({p
   expect(shell.width).toBeLessThanOrEqual(402); expect(Math.abs(shell.x-(1280-shell.width)/2)).toBeLessThan(1);
   await expect(page.locator('.bottom-nav button')).toHaveText(['Flight','Layover','Route','Profile']);
   await testInfo.attach('wide-flight.png',{body:await page.screenshot(),contentType:'image/png'});
+});
+
+
+test('Undo restores a removed stop and resets active route progress',async({page})=>{
+  await page.goto('/'); await nav(page,'explore'); await page.locator('[data-plan="rest"]').click(); await nav(page,'journey');
+  await page.locator('[data-apply]').click(); await nav(page,'guide');
+  await page.locator('[data-action="next-step"]').click(); await page.locator('[data-action="next-step"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('Arrive at Gate');
+  await nav(page,'journey'); await page.locator('[data-action="undo-plan"]').click(); await nav(page,'guide');
+  await expect(page.locator('.guide-stage')).toContainText('STEP 1'); await page.locator('[data-action="next-step"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('Quiet time near your gate');
+});
+
+test('route camera recovery and profile settings retain journey',async({page})=>{
+  await page.goto('/'); await nav(page,'map'); await page.locator('[data-action="map-next"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('STEP 2'); await page.locator('[data-action="camera-unavailable"]').click();
+  await expect(page.getByRole('dialog')).toContainText('Camera guidance is not available'); await page.getByRole('button',{name:'Back to map'}).click();
+  await expect(page.locator('.guide-stage')).toContainText('STEP 2');
+  await page.getByRole('button',{name:'Profile',exact:true}).click(); await page.getByRole('switch',{name:'Step-free routes'}).click();
+  await expect(page.getByRole('switch',{name:'Step-free routes'})).toHaveAttribute('aria-checked','true');
+  await expect(page.locator('#toast')).toContainText('Check route availability');
+  await page.getByRole('button',{name:'Connected accounts'}).click(); await expect(page.getByRole('dialog')).toContainText('No accounts are connected');
+});
+
+test('plan edit updates visit duration and keeps stop selected', async({page})=>{
+  await page.goto('/'); await nav(page,'explore'); await page.locator('[data-plan="coffee"]').click(); await nav(page,'journey');
+  await page.getByRole('button',{name:'Edit A coffee before boarding'}).click();
+  await page.getByLabel('Visit duration in minutes').fill('30'); await page.getByRole('button',{name:'Save stop'}).click();
+  await expect(page.locator('#my-plan article')).toContainText('30 min visit');
+  expect(await page.evaluate(()=>J.estimate(journeyState).dwell)).toBe(30);
+});
+
+test('reference assets load at natural dimensions in route and profile',async({page})=>{
+  await page.setViewportSize({width:390,height:844}); await page.goto('/');
+  for(const view of ['map','settings']){
+    await nav(page,view);
+    const issues=await page.locator('img:visible').evaluateAll(async nodes=>{
+      await Promise.all(nodes.map(n=>n.decode().catch(()=>{})));
+      return nodes.filter(n=>!n.naturalWidth||Math.abs(n.offsetWidth-n.naturalWidth)>1||Math.abs(n.offsetHeight-n.naturalHeight)>1).map(n=>({src:n.getAttribute('src'),size:[n.naturalWidth,n.naturalHeight,n.getBoundingClientRect().width,n.getBoundingClientRect().height]}));
+    });
+    expect(issues).toEqual([]);
+  }
+});
+
+test('plan timelines use chronological remaining-plan estimates and suppress unknown values',async({page})=>{
+  await page.goto('/?presenter=1');
+  let cells=page.locator('#my-plan .plan-timeline strong');
+  await expect(cells).toHaveText(['16:30','16:30','16:42','17:25']);
+  await fixture(page,'gate');
+  const expected=await page.evaluate(()=>[clockTime(journeyState.now),clockTime(stopLeaveTime(0)),clockTime(J.estimate(journeyState).arrival),clockTime(journeyState.deadline)]);
+  await expect(page.locator('#my-plan article').first().locator('.plan-timeline strong')).toHaveText(expected);
+  await fixture(page,'queue'); await page.locator('#step-fixture').click();
+  await expect(page.locator('#my-plan article').first().locator('.plan-timeline')).toContainText('late');
+  await fixture(page,'unknown'); await page.locator('#step-fixture').click();
+  await expect(page.locator('#my-plan .plan-timeline')).toHaveCount(0);
+  await expect(page.locator('#my-plan')).toContainText('information is unavailable');
 });
