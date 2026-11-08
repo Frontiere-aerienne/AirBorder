@@ -54,7 +54,10 @@ final class AirportXRCompanionUITests: XCTestCase {
             NSPredicate(format: "label == 'Example'")
         ).firstMatch.exists)
 
-        app.staticTexts["AX 204"].firstMatch.tap()
+        let result = app.buttons["flightSearchResult"].firstMatch
+        scrollToElement(result)
+        XCTAssertTrue(result.label.contains("AX 204"))
+        result.tap()
         XCTAssertTrue(element("flightDetailView").waitForExistence(timeout: 5))
         let exampleDetails = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS[c] 'Practice flight details'")
@@ -66,7 +69,9 @@ final class AirportXRCompanionUITests: XCTestCase {
     func testARGuidanceAndAccessibleMapAreAvailableForMappedGate() {
         launch()
 
-        app.buttons["universalReturnToGateButton"].tap()
+        let gateButton = app.buttons["universalReturnToGateButton"]
+        waitForHittable(gateButton)
+        gateButton.tap()
         XCTAssertTrue(element("arGuideView").waitForExistence(timeout: 8))
 
         app.buttons["arMapFallbackButton"].tap()
@@ -316,7 +321,7 @@ final class AirportXRCompanionUITests: XCTestCase {
                     let top = self.app.navigationBars.firstMatch.frame.maxY
                     let bottom = persistentGate.frame.minY
                     let visible = CGRect(x: 0, y: top, width: self.app.frame.width, height: bottom - top)
-                    if !reported.frame.intersects(visible) {
+                    if !visible.contains(reported.frame) {
                         let key = "\(reported.elementType.rawValue):\(reported.label)"
                         // Never conflate identical labels or suppress the
                         // finding currently being checked in view.
@@ -338,7 +343,7 @@ final class AirportXRCompanionUITests: XCTestCase {
         for _ in 0..<20 {
             guard let (key, target) = deferred.first else { break }
             deferred.removeValue(forKey: key)
-            scrollToElement(target, attempts: 80)
+            scrollToElement(target, attempts: 80, fullyVisible: true)
             XCTAssertTrue(target.isHittable, "A deferred contrast finding must be visible for recheck")
             activeRecheck = key
             try audit(.contrast)
@@ -364,27 +369,41 @@ final class AirportXRCompanionUITests: XCTestCase {
     private func selectTab(_ name: String) {
         let direct = app.tabBars.firstMatch.buttons[name].firstMatch
         if direct.waitForExistence(timeout: 1) {
+            waitForHittable(direct)
             direct.tap()
             return
         }
-        app.tabBars.firstMatch.buttons["More"].firstMatch.tap()
+        let more = app.tabBars.firstMatch.buttons["More"].firstMatch
+        waitForHittable(more)
+        more.tap()
         let item = app.tables.staticTexts[name]
         XCTAssertTrue(item.waitForExistence(timeout: 3), "Could not find the \(name) tab")
         item.tap()
+    }
+
+    private func waitForHittable(_ element: XCUIElement, timeout: TimeInterval = 15) {
+        XCTAssertTrue(element.waitForExistence(timeout: timeout))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: timeout), .completed,
+                       "Control must be hittable before interaction: \(element)")
     }
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
     }
 
-    private func scrollToElement(_ element: XCUIElement, attempts: Int = 24) {
+    private func scrollToElement(_ element: XCUIElement, attempts: Int = 24, fullyVisible: Bool = false) {
         // XCTest can report an offscreen child as hittable even beneath the
         // persistent gate action or tab bar. Keep taps inside passenger content.
         let top = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY : 100
         let gate = app.buttons["universalReturnToGateButton"]
         let bottom = gate.exists ? gate.frame.minY : app.tabBars.firstMatch.frame.minY
         func safelyVisible() -> Bool {
-            element.exists && element.isHittable && element.frame.midY > top + 8 && element.frame.midY < bottom - 8
+            guard element.exists && element.isHittable else { return false }
+            let frame = element.frame
+            return fullyVisible
+                ? frame.minY >= top + 8 && frame.maxY <= bottom - 8
+                : frame.midY > top + 8 && frame.midY < bottom - 8
         }
         for _ in 0..<attempts {
             if safelyVisible() { return }
@@ -392,7 +411,7 @@ final class AirportXRCompanionUITests: XCTestCase {
                 .withOffset(CGVector(dx: 0, dy: bottom - 24))
             let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
                 .withOffset(CGVector(dx: 0, dy: top + 60))
-            if element.exists && !element.frame.isEmpty && element.frame.minY != 0 && element.frame.midY <= top + 8 {
+            if element.exists && !element.frame.isEmpty && element.frame.minY != 0 && (fullyVisible ? element.frame.minY < top + 8 : element.frame.midY <= top + 8) {
                 end.press(forDuration: 0.05, thenDragTo: start)
             } else {
                 start.press(forDuration: 0.05, thenDragTo: end)

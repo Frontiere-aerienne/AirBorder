@@ -1,3 +1,4 @@
+export { JourneyStore } from '../../Backend/src/journey-store.js';
 import provider, { airportFacilities } from '../../Backend/src/index.js';
 
 // Public routes return only public directory data or arithmetic over bounded

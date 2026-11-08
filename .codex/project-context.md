@@ -4,6 +4,20 @@
 
 Updated November 7, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
 
+### Latest backend integration checkpoint
+
+Final local verification: 46 browser tests, 40 canonical backend tests, 30 engine/browser API/client tests and 4 simulator-selector checks passed. Native 123/123 passed for the unchanged native app plus test-harness fixes. Both Backend and combined Web Worker deployment dry runs passed. Changes are ready for PR1 push; fresh hosted checks/review remain required.
+
+User switched to Sol and authorized backend integration, tests and push to PR1; no merge. Native local full suite now PASSED 123/123 (106 unit +17 UI), /tmp/airborder-hostedfix-full.log. Journey backend and browser adapter implemented with authenticated owner/trip/leg isolation, atomic revision/idempotency, explicit confirmation, owner-bound outbox and conflict recovery. See Web/docs/journey-backend-integration.md for exact implemented/deployment/pending boundaries. Cloudflare deployment is not performed; real Access configuration and authenticated host trip IDs remain required. Original colors and iPhone13 design retained. Earlier instructions to pause implementation are superseded by current approval.
+
+### November 7 overlay implementation handoff — switch to Sol
+
+User approved the Heathrow-sign-inspired overlay for arrival/departure/transfer and plan adding, with original colors/iPhone 13 design and no merge. Implemented locally in Web/app.js/styles.css: fixed icon rail above original navigation, explicit Passport control label, stage selection, expandable instructions, explicit confirmation/conditional not-needed/Undo, session persistence, and plan-editor return retaining unsaved duration. Dedicated ui_researcher reviewed 390/320 layouts and realistic copy; screenshots are in outputs/verification/2026-11-07-journey-implementation (outside this repository). No Figma edits; no commit/push of these changes yet.
+
+The user wants to switch to Sol when visual work ends to conserve usage. Visual checks are complete. Do not begin the new backend implementation until the user makes that handoff. Backend scope and pending persistence/auth/sync work are in Web/docs/journey-backend-plan.md; existing sessionStorage is not server persistence or location detection.
+
+Current local checks: 65 engine/backend tests and 4 simulator-selector tests passed. Browser final run passed 45/45, including unsaved-edit/Close recovery (log /tmp/airborder-overlay-verified.log). Native focused fixes passed all 4 cases that failed on hosted head 2f52900; full rerun is in progress, log /tmp/airborder-hostedfix-full.log and xcresult /tmp/AirBorderHostedFixFull.xcresult. At handoff 106 unit and 9 UI tests passed, with remaining UI/result collection pending. Hosted 2f52900 run 42442773782 failed 4 UI tests despite clean Codex/HCI checks. Local fixes wait for controls to be hittable, scroll the actual result button into view, and recheck partially occluded contrast findings fully in view without suppressing real failures. Do not claim hosted green until fixes are pushed and checks finish. Preserve all dirty files and do not merge PR1.
+
 ### Objective and durable decisions
 
 - November 7 follow-up: keep a dedicated realism reviewer for passenger UI; remove prototype/example labels from ordinary trip flows while retaining truthful fixture provenance in Help. Previous Trips now presents varied seeded connections (HND/SIN/DOH/LHR), no pace-calculation controls. Walking pace is one automatically managed attribute; health-source consent/connection must be real before affecting estimates. Age/gender fallback is requested for consideration, but no unvalidated demographic formula or fake health connection is authorized. Current browser account options accurately remain unconnected; native health integration and demographic validation are still pending.

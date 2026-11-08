@@ -1,0 +1,14 @@
+# Journey progress backend handoff
+
+The approved overlay is browser UI. Its checklist state is currently stored in sessionStorage, separate from plan and timing state. This does not establish account persistence, cross-device synchronization, detected location, or completion of airport procedures. Existing facility/timing APIs and protected provider adapters are separate from this proposed progress service.
+
+Do not begin the new backend implementation until the user switches to Sol after visual verification, as requested on November 7, 2026. Do not merge the current PR.
+
+1. Introduce a versioned journey record keyed by authenticated owner, trip and flight leg. Store phase, applicable step IDs, explicit completion/undo events, provenance, timestamps and revision. Reject unknown IDs, invalid transitions and access to another owner's trip. Avoid storing passport numbers or health data in this service.
+2. Resolve the suggested sequence from verified airport/leg context and passenger-confirmed baggage, terminal and booking arrangements. Distinguish domestic arrival, international entry, airside international connection, domestic connection, separate-ticket self-transfer and airport changes. Missing facts remain unknown. Do not turn generic airport templates into entry permission.
+3. Add authenticated read/update endpoints with optimistic concurrency (expected revision), idempotent event IDs, bounded payloads and schema validation. A changed itinerary must reconcile applicable steps explicitly; it must not inherit unrelated completion or discard the selected plan.
+4. Add a local outbox and retry policy for offline updates. Show pending synchronization honestly. Resolve revision conflicts without silently overwriting later confirmations or Undo. Clear account-scoped cached state on logout and expose deletion/retention controls.
+5. Associate optional advice with the active airport, phase and step, official source URL, verification date and applicability. Provider events may update flight facts but cannot confirm security, immigration or customs completion. Any later LLM can explain approved facts; deterministic rules remain authoritative.
+6. Test ownership isolation, per-trip/leg isolation, reload/re-login persistence, duplicate requests, stale revisions, reordered responses, offline replay, undo conflicts, itinerary changes, invalid input and unavailable providers. Integration tests must prove overlay/plan consistency across navigation and synchronization without affecting deadlines or selected stops.
+
+Acceptance requires a deployed and configured persistence service, authenticated end-to-end tests and observed offline recovery. Passing local fixtures alone does not close these items. Provider credentials, account integration and production deployment remain separate pending work.

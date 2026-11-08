@@ -1,3 +1,5 @@
+import { JourneyStore, validateJourneyEvent } from "./journey-store.js";
+export { JourneyStore };
 import { handleAIExplain } from "./ai-explainer.js";
 import countries from "i18n-iso-countries";
 
@@ -236,6 +238,26 @@ export default {
       if (authentication.response) return authentication.response;
       const quotaResponse = await enforceRequestQuota(url, env, authentication.principal);
       if (quotaResponse) return quotaResponse;
+
+      if (url.pathname.startsWith("/v1/journeys/")) {
+        const match = url.pathname.match(/^\/v1\/journeys\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,80})$/);
+        if (!match) return json({ error: "invalid_journey_id" }, 400);
+        if (!env.API_RATE_LIMITER?.limit) return json({ error: "rate_limiter_not_configured" }, 503);
+        if (!env.JOURNEY_STORE?.idFromName || !env.JOURNEY_STORE?.get) return json({ error: "journey_store_not_configured" }, 503);
+        if (!["GET", "POST"].includes(request.method)) return json({ error: "method_not_allowed" }, 405, { allow: "GET, POST" });
+        const owner = await sha256Hex(authentication.principal);
+        let body;
+        if (request.method === "POST") {
+          body = validateJourneyEvent(await readBoundedRequestJSON(request, 2048));
+          if (!body) return json({ error: "invalid_journey_event" }, 400);
+          if (body.expectedOwner !== owner) return json({ error: "owner_mismatch" }, 403);
+        }
+        const scope = await sha256Hex(JSON.stringify([authentication.principal, match[1], match[2]]));
+        const stub = env.JOURNEY_STORE.get(env.JOURNEY_STORE.idFromName(scope));
+        const init = { method: request.method, headers: { "x-journey-owner": owner } };
+        if (body) { init.headers["content-type"] = "application/json"; init.body = JSON.stringify(body); }
+        return await stub.fetch(new Request("https://journey.internal/", init));
+      }
 
       if (request.method === "POST" && url.pathname === "/v1/scene-ocr") {
         return await sceneOCR(request, env);
