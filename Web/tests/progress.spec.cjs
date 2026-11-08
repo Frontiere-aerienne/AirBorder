@@ -133,3 +133,10 @@ test('account checklist waits for initial load and does not restore another owne
  await expect(page.getByLabel('Journey stage')).toBeDisabled();await expect(page.getByRole('button',{name:'Confirm arrival',exact:true})).toBeDisabled();
  release();await expect(page.getByLabel('Journey stage')).toHaveValue('arrival');await expect(page.getByRole('button',{name:'Confirm landing',exact:true})).toBeEnabled();
 });
+
+test('conflict recovery is offered immediately in the open checklist',async({page})=>{
+ await page.addInitScript(()=>{window.AIRBORDER_JOURNEY={trip:'conflict',leg:'leg'};});
+ await page.route('**/v1/journeys/conflict/leg',route=>route.fulfill({status:route.request().method()==='POST'?409:200,json:{owner:'d'.repeat(64),revision:0,phase:'arrival',status:{arrival:{},departure:{},transfer:{}}}}));
+ await page.goto('/');await expect(page.getByRole('region',{name:'Journey steps'})).toContainText('Arrival checklist');await page.getByRole('button',{name:'View steps'}).click();
+ await page.getByRole('button',{name:'Confirm landing',exact:true}).click();await expect(page.getByRole('dialog').getByRole('button',{name:'Use saved progress'})).toBeVisible();
+});

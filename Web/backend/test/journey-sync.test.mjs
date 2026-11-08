@@ -51,3 +51,10 @@ test('expired authentication preserves owner outbox until same-owner reauthentic
  const disk=storage();let expired=true;const s=new Sync({url:'/auth',storage:disk,fetcher:async(u,i)=>Response.json(!i.method?record:expired?{}:{...record,revision:1},{status:i.method&&expired?401:200})});
  await s.start();s.enqueue({phase:'arrival',step:'landed',value:'done'});await new Promise(r=>setTimeout(r,0));assert.equal(s.queue.length,1);assert.equal(JSON.parse(disk.getItem(s.key())).length,1);expired=false;await s.start();assert.equal(s.queue.length,0);assert.equal(s.record.revision,1);
 });
+test('saved and pending steps are restored even when replay is offline or conflicts',async()=>{
+ for(const conflict of [false,true]){const disk=storage(),ownerRecord={...record,revision:5,phase:'arrival',status:{arrival:{landed:'done',passport:'done'},departure:{},transfer:{}}};
+ disk.setItem(`airborder-sync:${owner}:/restore`,JSON.stringify([{eventId:crypto.randomUUID(),expectedOwner:owner,expectedRevision:4,phase:'arrival',step:'bags',value:'done'}]));let published;
+ const s=new Sync({url:'/restore',storage:disk,onRecord:r=>published=r,fetcher:async(u,i)=>{if(!i.method)return Response.json(ownerRecord);if(conflict)return Response.json({}, {status:409});throw Error('offline');}});
+ await s.start();assert.equal(published.phase,'arrival');assert.deepEqual(published.status.arrival,{landed:'done',passport:'done',bags:'done'});assert.equal(s.queue.length,1);assert.equal(s.record.revision,5);
+ }
+});
