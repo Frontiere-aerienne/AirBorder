@@ -28,6 +28,9 @@ jobs:
       - name: Xcode version
         run: xcodebuild -version
 
+      - name: Select and boot available iOS simulator
+        run: python3 Scripts/select-ci-simulator.py
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -40,7 +43,7 @@ jobs:
             -project AirBorder.xcodeproj \
             -scheme AirBorder \
             -configuration Debug \
-            -destination "platform=iOS Simulator,name=$SIMULATOR_NAME" \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath "$DERIVED_DATA" \
             CODE_SIGNING_ALLOWED=NO \
             build
@@ -51,7 +54,7 @@ jobs:
             -project AirBorder.xcodeproj \
             -scheme AirBorder \
             -configuration Debug \
-            -destination "platform=iOS Simulator,name=$SIMULATOR_NAME" \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath "$DERIVED_DATA" \
             CODE_SIGNING_ALLOWED=NO \
             test -only-testing:AirportXRCompanionTests
@@ -62,7 +65,7 @@ jobs:
             -project AirBorder.xcodeproj \
             -scheme AirBorder \
             -configuration Debug \
-            -destination "platform=iOS Simulator,name=$SIMULATOR_NAME" \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath "$DERIVED_DATA" \
             CODE_SIGNING_ALLOWED=NO \
             test -only-testing:AirportXRCompanionUITests

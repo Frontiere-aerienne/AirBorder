@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: '22'
       - run: node --test Web/journey-engine.test.cjs
+      - run: python3 Scripts/select-ci-simulator.py --self-test
   backend:
     name: HCI backend
     runs-on: ubuntu-latest
