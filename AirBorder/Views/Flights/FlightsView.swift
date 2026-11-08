@@ -787,6 +787,7 @@ struct FlightsView: View {
                                     Spacer()
                                     StatusPill(status: flight.status)
                                 }
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("flightSearchDetailButton")

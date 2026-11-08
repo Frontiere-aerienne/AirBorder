@@ -161,8 +161,11 @@ struct JourneyDashboardView: View {
         showsRefresh: Bool,
         identifier: String? = nil
     ) -> some View {
-        SurfaceCard {
-            HStack(alignment: .center, spacing: 12) {
+        let layout: AnyLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+        return SurfaceCard {
+            layout {
                 Image(systemName: "cloud.sun.fill")
                     .font(.title2)
                     .foregroundStyle(.teal)
@@ -183,7 +186,7 @@ struct JourneyDashboardView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Spacer(minLength: 8)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                 if showsRefresh {
                     Button { Task { await viewModel.refreshWeather(force: true) } } label: {
                         if viewModel.isRefreshingWeather {

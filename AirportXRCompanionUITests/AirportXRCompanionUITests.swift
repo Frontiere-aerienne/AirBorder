@@ -416,7 +416,17 @@ final class AirportXRCompanionUITests: XCTestCase {
                 .withOffset(CGVector(dx: 0, dy: bottom - 24))
             let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
                 .withOffset(CGVector(dx: 0, dy: top + 60))
-            if element.exists && !element.frame.isEmpty && element.frame.minY != 0 && (fullyVisible ? element.frame.minY < top + 8 : element.frame.midY <= top + 8) {
+            let frame = element.exists ? element.frame : .zero
+            let above = !frame.isEmpty && frame.minY != 0 && (fullyVisible ? frame.minY < top + 8 : frame.midY <= top + 8)
+            if fullyVisible && !frame.isEmpty && frame.minY != 0 {
+                let delta = above ? top + 16 - frame.minY : frame.maxY - bottom + 16
+                let distance = min(max(delta, 30), max(30, (bottom - top) / 2 - 30))
+                let anchor = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+                let midpoint = (top + bottom) / 2
+                let from = anchor.withOffset(CGVector(dx: 0, dy: midpoint))
+                let to = anchor.withOffset(CGVector(dx: 0, dy: midpoint + (above ? distance : -distance)))
+                from.press(forDuration: 0.15, thenDragTo: to)
+            } else if above {
                 end.press(forDuration: 0.05, thenDragTo: start)
             } else {
                 start.press(forDuration: 0.05, thenDragTo: end)
