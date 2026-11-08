@@ -140,3 +140,10 @@ test('conflict recovery is offered immediately in the open checklist',async({pag
  await page.goto('/');await expect(page.getByRole('region',{name:'Journey steps'})).toContainText('Arrival checklist');await page.getByRole('button',{name:'View steps'}).click();
  await page.getByRole('button',{name:'Confirm landing',exact:true}).click();await expect(page.getByRole('dialog').getByRole('button',{name:'Use saved progress'})).toBeVisible();
 });
+
+test('logout closes and clears the account checklist and editor return state',async({page})=>{
+ await page.addInitScript(()=>{window.AIRBORDER_JOURNEY={trip:'logout',leg:'leg'};});
+ await page.route('**/v1/journeys/logout/leg',r=>r.fulfill({json:{owner:'e'.repeat(64),revision:1,phase:'arrival',status:{arrival:{landed:'done'},departure:{},transfer:{}}}}));
+ await page.goto('/');await expect(page.getByRole('region',{name:'Journey steps'})).toContainText('Arrival checklist');await page.getByRole('button',{name:'View steps'}).click();await expandSteps(page);await expect(page.getByRole('button',{name:'Undo Confirm landing'})).toBeVisible();
+ await page.evaluate(()=>window.dispatchEvent(new Event('airborder:logout')));await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('#dialog')).toBeEmpty();expect(await page.evaluate(()=>progressReturnEdit)).toBeNull();
+});
