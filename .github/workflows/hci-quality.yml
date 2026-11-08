@@ -16,6 +16,9 @@ concurrency:
 jobs:
   engine:
     name: HCI engine
+jobs:
+  required:
+    name: HCI required tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -88,3 +91,5 @@ jobs:
           test "$ENGINE_RESULT" = success
           test "$BACKEND_RESULT" = success
           test "$BROWSER_RESULT" = success
+      - name: Test PR comment forwarding
+        run: node --test Scripts/tests/forward-pr-feedback.test.cjs
