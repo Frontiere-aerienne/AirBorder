@@ -68,3 +68,12 @@ test('limiter exceptions fail closed and missing or null durations remain unknow
   assert.equal(r.status,400);assert.equal((await r.json()).error,'invalid_duration');
  }
 });
+test('malformed limiter success values fail closed and preview access requires configuration',async()=>{
+ for(const success of ['false',1,{},null]){
+  const r=await worker.fetch(request('/api/health'),{...env,API_RATE_LIMITER:{limit:async()=>({success})}});
+  assert.equal(r.status,429);
+ }
+ const preview='https://9b8ca9d2-8ce6-4257-b1d5-e745080d57c9-figmacachedpreview.figma.site';
+ const r=await worker.fetch(request('/api/health',{headers:{origin:preview}}),{...env,PUBLIC_FIGMA_PREVIEW_SUFFIX:''});
+ assert.equal(r.status,403);
+});

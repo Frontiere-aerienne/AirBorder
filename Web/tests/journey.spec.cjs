@@ -57,6 +57,7 @@ test('gate suffix propagates during navigation and guide reaches its end', async
   await nav(page, 'map');
   await expect(page.locator('[aria-label="Selected route stops"] li').last()).toHaveText('Gate 108A');
   await page.locator('[data-action="start-route"]').first().click();
+  await expect(page.locator('.guide-stage')).toContainText('STEP 2');
   while (await page.locator('[data-action="next-step"]').count()) await page.locator('[data-action="next-step"]').click();
   await expect(page.locator('.guide-stage')).toContainText('Arrive at Gate 108A');
   await page.locator('[data-action="finish-route"]').click();
@@ -81,6 +82,10 @@ test('restored palette, accessible controls, and traveller isolation', async ({p
   const errors=[]; page.on('pageerror', e=>errors.push(e.message)); await page.goto('/');
   await expect(page.locator('[aria-label="Presenter controls"]')).toHaveCount(0);
   const colors=await page.evaluate(() => {const s=getComputedStyle(document.documentElement); return ['--deep','--ink','--teal','--bg','--white','--accent','--info','--warning','--danger'].map(k=>s.getPropertyValue(k).trim().toLowerCase());});
+  expect(await page.evaluate(async () => {
+    await document.fonts.ready;
+    return ['400','600','700'].every(weight => document.fonts.check(`${weight} 16px Outfit`)) && getComputedStyle(document.body).fontFamily.startsWith('Outfit');
+  })).toBe(true);
   expect(colors).toEqual(['#17364a','#173247','#225e79','#e9f0f1','#fdfeff','#f9cb41','#8ec1d6','#ed9e38','#db5247']);
   await expect(page.getByRole('button',{name:'AV, traveler profile'})).toBeVisible();
   await expect(page.getByRole('navigation',{name:'Main'})).toBeVisible();
@@ -117,4 +122,47 @@ test('automated accessibility checks on main views', async ({page}) => {
     const results=await new AxeBuilder({page}).analyze();
     expect(results.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
   }
+});
+
+test('visible enabled buttons provide usable targets at mobile size', async ({page}) => {
+  await page.setViewportSize({width:375,height:800}); await page.goto('/');
+  for(const view of ['journey','explore','map','flights']) {
+    await nav(page,view);
+    const undersized=await page.locator('button:visible:not([disabled])').evaluateAll(nodes=>nodes.map(n=>({name:n.getAttribute('aria-label')||n.innerText.trim(),width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})).filter(x=>x.width<44||x.height<44));
+    expect(undersized).toEqual([]);
+  }
+});
+
+
+test('demo disclosure remains visible in traveller views', async ({page}) => {
+  await page.goto('/');
+  for (const view of ['journey','flights','explore','map','guide','settings']) {
+    await nav(page,view);
+    await expect(page.locator('.demo-disclosure')).toBeVisible();
+    await expect(page.locator('.demo-disclosure')).toContainText('Flight, timing and route information are simulated');
+    await expect(page.locator('.demo-disclosure')).toContainText('airport directory uses published airport information');
+  }
+});
+
+test('urgent direct route skips saved stops without removing them and resumes from map', async ({page}) => {
+  await page.goto('/?presenter=1');
+  await fixture(page,'queue');
+  await page.locator('#age-fixture').click();
+  await page.locator('#age-fixture').click();
+  await page.locator('#age-fixture').click();
+  await expect(page.locator('#my-plan article')).toHaveCount(2);
+  await page.locator('.hero [data-action="direct-route"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('STEP 1 OF 3');
+  await page.locator('[data-action="next-step"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('Follow signs to Gate 105');
+  await nav(page,'map');
+  await expect(page.locator('[aria-label="Selected route stops"] li')).toHaveText(['Gate 105']);
+  await expect(page.locator('.route-step')).toHaveCount(3);
+  await expect(page.getByText('Direct route to your gate. Your saved stops remain in My plan.')).toBeVisible();
+  await page.locator('[data-action="start-route"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('STEP 2 OF 3');
+  await nav(page,'journey');
+  await expect(page.locator('#my-plan article')).toHaveCount(2);
+  await expect(page.locator('#my-plan')).toContainText('A coffee before boarding');
+  await expect(page.locator('#my-plan')).toContainText('Quiet time near your gate');
 });

@@ -7,7 +7,7 @@ import worker from './backend/index.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = 4173;
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 // This in-memory limiter exists only for local testing; deployed environments
 // must supply their own durable rate limiter binding.
 const buckets = new Map();

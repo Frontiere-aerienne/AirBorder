@@ -28,7 +28,7 @@ function publicOrigin(origin, env) {
       /^app-[a-z0-9]+$/.test(u.hostname.slice(0,-suffix.length-1)) &&
       u.hostname.endsWith('.'+suffix);
     const cachedPreview=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}-figmacachedpreview\.figma\.site$/.test(u.hostname);
-    return runningPreview||cachedPreview;
+    return runningPreview||(suffix==='makeproxy-c.figma.site' && cachedPreview);
   } catch { return false; }
 }
 
@@ -47,7 +47,7 @@ async function quota(request,env) {
   const key='public:'+Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
   try {
     const result=await env.API_RATE_LIMITER.limit({key});
-    return result.success?null:json({error:'too_many_requests'},429,{'retry-after':'60'});
+    return result?.success === true?null:json({error:'too_many_requests'},429,{'retry-after':'60'});
   } catch {return json({error:'temporarily_unavailable'},503);}
 }
 
