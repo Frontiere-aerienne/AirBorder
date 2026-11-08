@@ -2,7 +2,11 @@
 
 ## Current handoff — HCI review and merge protection
 
-Updated November 7, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
+Updated November 8, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
+
+### November 8 documentation refresh
+
+User requested professional, current repository docs while retaining the earlier prohibition on new teamwork proposals/comments. No app, design, permissions, CI or merge-rule changes are authorized by this refresh. Source revision01785e0 completed all hosted tests: native106 unit+17UI, browser50, engine/API/client39, canonicalbackend40 and simulatorselection4; Codex clean, no unresolved threads. Evidence: native42453433595 and HCI42453433592. This supersedes earlier pending verification below, which remains dated history. Documentation refresh updates README, technical navigation/setup/backend scope and verification links; do not merge PR1. A later docs commit has separate fresh CI status, not the old head's pass.
 
 ### Current native root-cause repair
 

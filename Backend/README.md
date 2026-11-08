@@ -1,11 +1,16 @@
-# Airport XR Companion provider proxy
+# AirBorder backend API
 
 This Cloudflare Worker keeps provider credentials out of the iOS application, validates requests, enforces a configurable quota, and normalizes provider responses. It never returns or logs upstream payloads on failure.
+
+## Entry points
+
+`Backend/src/index.js` is the canonical protected API. `Web/backend/index.mjs` adds the public browser directory and timing adapter and re-exports the journey Durable Object. Use `Backend/wrangler.toml` for the provider entry point or `Web/wrangler.toml` for the combined API. Both retain fail-closed production authentication. No new production deployment is established by the repository tests.
 
 ## Routes
 
 | Method | Route | Purpose |
 |---|---|---|
+| `GET`, `POST` | `/v1/journeys/:trip/:leg` | Account-scoped, revisioned journey confirmations in SQLite-backed durable storage |
 | `GET` | `/health` | Public liveness and provider-configuration booleans |
 | `GET` | `/v1/provider-policies` | Versioned cache/training policy metadata |
 | `GET` | `/v1/flights/search` | Flight-number/date search; FlightAware with Amadeus fallback |
@@ -19,6 +24,8 @@ This Cloudflare Worker keeps provider credentials out of the iOS application, va
 | `POST` | `/v1/scene-ocr` | Explicit-consent JPEG still sent to Google Cloud Vision |
 | `POST` | `/v1/reminders/google-tasks/sync` | Idempotent Google Tasks upsert/delete using the person's short-lived OAuth token |
 | `POST` | `/v1/ai/explain` | Optional grounded ordering of already-sourced calculation/facility facts |
+
+The combined browser entry point also exposes public `GET /api/health`, `GET /api/facilities?airport=HND`, and `POST /api/connection` routes with bounded inputs and rate limiting. These routes do not expose private journey records.
 
 All `/v1/*` routes are protected. `/health` is intentionally public and contains no credentials.
 
@@ -78,17 +85,23 @@ The Worker performs a complete bounded scan for its stable marker before mutatin
 
 Google Tasks retains only the due date and ignores a task's time. Airport XR therefore stores the exact derived action time and airport time zone in task notes without inventing a replacement alert time. Google controls notification timing and cross-device delivery. For precise time-based alerts, the EventKit Apple Calendar adapter is the primary path.
 
+## Journey progress
+
+Journey records are isolated by the verified account subject, trip, and flight leg. Updates require an event ID, expected owner, expected revision, phase, step, and value. The Durable Object atomically records each accepted update and its idempotency acknowledgement. Conflicts return `409`; an owner mismatch returns `403`. This service cannot mark airport procedures complete from a provider update or modify the selected plan.
+
+The checked-in configuration includes the SQLite namespace and migration. Real Access settings and host sign-in are required before production activation. See [Journey Integration](../Web/docs/journey-backend-integration.md) for the complete client contract, outbox behavior, limits, and deployment commands.
+
 ## Local verification
 
 ```bash
 cd Backend
-npm install
+npm ci
 npm test
 npm run check
-npx wrangler dev --var REQUEST_AUTH_MODE:none --var REQUIRE_RATE_LIMITER:false
+npx wrangler dev --var DEPLOYMENT_ENVIRONMENT:development --var REQUEST_AUTH_MODE:none --var REQUIRE_RATE_LIMITER:false
 ```
 
-Tests use Node’s built-in test runner and mocked upstream responses; they make no live provider calls and contain no real credentials.
+Tests use Node’s built-in test runner, mocked upstream providers, generated signing keys, and Miniflare SQLite Durable Objects. They cover authenticated account isolation, concurrent commits, replay and restart persistence without live provider calls or real credentials. Deployment packaging can be checked from the repository root with `npx --prefix Backend wrangler deploy --dry-run --config Web/wrangler.toml`.
 
 Workers AI is the exception during an actual `wrangler dev` session: Cloudflare documents that its binding reaches the account even from local development and consumes account usage. The automated tests replace the binding with an in-memory mock.
 
@@ -107,6 +120,8 @@ Workers AI is the exception during an actual `wrangler dev` session: Cloudflare 
 Current provider references: [Sherpa Requirements API](https://docs.joinsherpa.io/requirements-api/index.html), [Sherpa Trips](https://docs.joinsherpa.io/requirements-api/endpoints/trips.html), [IATA Timatic AutoCheck](https://www.iata.org/en/services/compliance/timatic/autocheck/), and [Gemini Grounding with Google Search](https://ai.google.dev/gemini-api/docs/google-search).
 
 ## Remaining production limitations
+
+- Journey storage is implemented but not activated by a production deployment in this work. Host sign-in/trip identity, automated retention/deletion, and a persistent offline outbox remain pending. The current per-leg store accepts at most 1,000 events.
 
 - Apple App Attest and a native Cloudflare Access sign-in/session flow are not implemented.
 - The rate-limit binding is a coarse abuse control, not provider-specific quota accounting or a billing budget.
