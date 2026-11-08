@@ -55,9 +55,9 @@ final class AirportXRCompanionUITests: XCTestCase {
         ).firstMatch.exists)
 
         let result = app.buttons["flightSearchDetailButton"].firstMatch
-        scrollToElement(result)
+        scrollToElement(result, fullyVisible: true)
         XCTAssertTrue(result.label.contains("AX 204"))
-        result.tap()
+        result.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(element("flightDetailView").waitForExistence(timeout: 5))
         let exampleDetails = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS[c] 'Practice flight details'")
