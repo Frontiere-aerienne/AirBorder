@@ -65,3 +65,23 @@ test('same-owner reauthentication retains a memory-only outbox when storage fail
 test('owner mismatch clears published UI while retaining the old owner outbox',async()=>{
  let changed=false,reset=0;const s=new Sync({url:'/switch',storage:storage(),onReset:()=>reset++,fetcher:async()=>Response.json({...record,owner:changed?'b'.repeat(64):owner})});await s.start();changed=true;await s.start();assert.equal(reset,1);assert.equal(s.stopped,true);assert.equal(s.owner,null);
 });
+test('new confirmations follow fetched revision while old idempotent replay is pending',async()=>{
+ const disk=storage(),old={eventId:crypto.randomUUID(),expectedOwner:owner,expectedRevision:0,phase:'arrival',step:'landed',value:'done'};
+ disk.setItem(`airborder-sync:${owner}:/advanced`,JSON.stringify([old]));
+ const latest={...record,revision:5,phase:'arrival',status:{arrival:{landed:'done'},departure:{},transfer:{}}};
+ let release,started;const waiting=new Promise(r=>started=r),sent=[];
+ const s=new Sync({url:'/advanced',storage:disk,fetcher:async(u,i)=>{
+  if(!i.method)return Response.json(latest);
+  const event=JSON.parse(i.body);sent.push(event);
+  if(sent.length===1){started();return new Promise(r=>release=r);}
+  assert.equal(event.expectedRevision,3+sent.length);
+  return Response.json({...latest,revision:event.expectedRevision+1});
+ }});
+ const loading=s.start();await waiting;
+ s.enqueue({phase:'arrival',step:'passport',value:'done'});
+ s.enqueue({phase:'arrival',step:'bags',value:'done'});
+ assert.deepEqual(s.queue[0],old);assert.deepEqual(s.queue.map(e=>e.expectedRevision),[0,5,6]);
+ release(Response.json({...record,revision:1}));await loading;
+ assert.deepEqual(sent.map(e=>e.expectedRevision),[0,5,6]);assert.deepEqual(sent[0],old);
+ assert.equal(s.queue.length,0);assert.equal(s.record.revision,7);
+});

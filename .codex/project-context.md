@@ -4,6 +4,10 @@
 
 Updated November 8, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
 
+### November 8 new-event replay revision repair
+
+Codex reviewed cd6af40 and found P2 discussion_r4505484807: a newly appended confirmation used an old replay queue revision despite a newer fetched record. New events now take the maximum of current fetched revision and queued successor revision; existing idempotent replay payloads remain unchanged, and conflicts are not rebased. Delayed-replay regression covers fetched5, old0, new5/6 and final7. Root independently reviewed the worker patch; combined relay/engine/API/client51 tests passed. No visual changes. Fresh hosted checks and Codex review required after this push; do not merge.
+
 ### November 8 feedback alert and CI follow-up
 
 User authorized event-triggered Codex alerts for new/edited PR discussion comments, inline comments and submitted/edited review text; no polling automation or merge. Added a relay restricted to repository writers, with bot-loop/duplicate/direct-mention protection and acknowledgement/triage-only instructions. It checks out only default-branch code; before that module exists there, inline events safely report pending activation. Eleven relay tests pass and are included in the required HCI engine job. Workflow end-to-end activation and GitHub Actions bot mention acceptance remain unverified until default-branch installation. Do not claim automatic forwarding is active on this unmerged PR.
