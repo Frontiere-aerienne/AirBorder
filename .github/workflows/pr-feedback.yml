@@ -1,0 +1,55 @@
+name: Alert Codex to PR feedback
+
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: feedback-${{ github.event_name }}-${{ github.event.comment.id || github.event.review.id }}
+  cancel-in-progress: false
+
+jobs:
+  alert:
+    if: github.event.sender.type == 'User' && (github.event.pull_request || github.event.issue.pull_request)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Inline review events can arrive before this PR is merged. Stay dormant
+      # until the trusted relay module exists on the default branch.
+      - uses: actions/github-script@v7
+        id: ready
+        with:
+          script: |
+            try {
+              await github.rest.repos.getContent({
+                ...context.repo,
+                path: 'Scripts/forward-pr-feedback.cjs',
+                ref: context.payload.repository.default_branch
+              });
+              core.setOutput('active', 'true');
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              core.notice('Feedback relay activation is pending default-branch installation.');
+              core.setOutput('active', 'false');
+            }
+      # Use trusted default-branch code, never a pull-request checkout.
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.active == 'true'
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        if: steps.ready.outputs.active == 'true'
+        with:
+          script: |
+            const forward = require('./Scripts/forward-pr-feedback.cjs');
+            await forward({ github, context, core });

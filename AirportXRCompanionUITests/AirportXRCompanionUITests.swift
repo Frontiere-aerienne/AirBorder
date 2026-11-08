@@ -31,7 +31,8 @@ final class AirportXRCompanionUITests: XCTestCase {
         launch()
 
         let goToGate = app.buttons["goToGateButton"]
-        XCTAssertTrue(goToGate.waitForExistence(timeout: 5))
+        scrollToElement(goToGate)
+        waitForHittable(goToGate)
         XCTAssertTrue(goToGate.label.localizedCaseInsensitiveContains("Go to Gate"))
         goToGate.tap()
 
@@ -310,37 +311,51 @@ final class AirportXRCompanionUITests: XCTestCase {
         var rechecked = Set<String>()
         var activeRecheck: String?
         func audit(_ types: XCUIAccessibilityAuditType) throws {
-            try app.performAccessibilityAudit(for: types) { issue in
-                if issue.auditType == .contrast, issue.element == nil {
-                    XCTContext.runActivity(named: "Unassociated iOS simulator contrast diagnostic") { activity in
-                        activity.add(XCTAttachment(string: "\(issue.compactDescription)\n\(issue.detailedDescription)\nThe audit supplied no XCUIElement; associated issues are checked."))
-                    }
-                    return true
-                }
-                if issue.auditType == .contrast, let reported = issue.element {
-                    let top = self.app.navigationBars.firstMatch.frame.maxY
-                    let bottom = persistentGate.frame.minY
-                    let visible = CGRect(x: 0, y: top, width: self.app.frame.width, height: bottom - top)
-                    if !visible.contains(reported.frame) {
-                        let identifier = reported.identifier
-                        let key = identifier.isEmpty
-                            ? "\(reported.elementType.rawValue):label:\(reported.label)"
-                            : "\(reported.elementType.rawValue):id:\(identifier)"
-                        // Stable identifiers survive dynamic timestamps. Never
-                        // conflate elements or suppress an active recheck.
-                        let elements = self.app.descendants(matching: reported.elementType)
-                        let matches = identifier.isEmpty
-                            ? elements.matching(NSPredicate(format: "label == %@", reported.label))
-                            : elements.matching(identifier: identifier)
-                        guard matches.count == 1, activeRecheck != key else { return false }
-                        if !rechecked.contains(key) { deferred[key] = matches.firstMatch }
-                        XCTContext.runActivity(named: "Recheck offscreen contrast in view: \(reported.label)") { activity in
-                            activity.add(XCTAttachment(string: "Reported frame: \(reported.frame); unobstructed content: \(visible)"))
+            // XCTest can time out before completing an audit on a busy runner.
+            // Retry only that infrastructure error; every completed audit keeps all checks.
+            for attempt in 0..<3 {
+                do {
+                    try app.performAccessibilityAudit(for: types) { issue in
+                        if issue.auditType == .contrast, issue.element == nil {
+                            XCTContext.runActivity(named: "Unassociated iOS simulator contrast diagnostic") { activity in
+                                activity.add(XCTAttachment(string: "\(issue.compactDescription)\n\(issue.detailedDescription)\nThe audit supplied no XCUIElement; associated issues are checked."))
+                            }
+                            return true
                         }
-                        return true
+                        if issue.auditType == .contrast, let reported = issue.element {
+                            let top = self.app.navigationBars.firstMatch.frame.maxY
+                            let bottom = persistentGate.frame.minY
+                            let visible = CGRect(x: 0, y: top, width: self.app.frame.width, height: bottom - top)
+                            if !visible.contains(reported.frame) {
+                                let identifier = reported.identifier
+                                let key = identifier.isEmpty
+                                    ? "\(reported.elementType.rawValue):label:\(reported.label)"
+                                    : "\(reported.elementType.rawValue):id:\(identifier)"
+                                // Stable identifiers survive dynamic timestamps. Never
+                                // conflate elements or suppress an active recheck.
+                                let elements = self.app.descendants(matching: reported.elementType)
+                                let matches = identifier.isEmpty
+                                    ? elements.matching(NSPredicate(format: "label == %@", reported.label))
+                                    : elements.matching(identifier: identifier)
+                                guard matches.count == 1, activeRecheck != key else { return false }
+                                if !rechecked.contains(key) { deferred[key] = matches.firstMatch }
+                                XCTContext.runActivity(named: "Recheck offscreen contrast in view: \(reported.label)") { activity in
+                                    activity.add(XCTAttachment(string: "Reported frame: \(reported.frame); unobstructed content: \(visible)"))
+                                }
+                                return true
+                            }
+                        }
+                        return false
+                    }
+                    return
+                } catch {
+                    let failure = error as NSError
+                    guard failure.domain == "com.apple.xcode.xctest.accessibilityAudit",
+                          failure.code == -56, attempt < 2 else { throw error }
+                    XCTContext.runActivity(named: "Retry timed-out accessibility audit") { activity in
+                        activity.add(XCTAttachment(string: "Attempt \(attempt + 1) timed out; the complete audit is retried."))
                     }
                 }
-                return false
             }
         }
         try audit([.contrast, .elementDetection, .hitRegion,
