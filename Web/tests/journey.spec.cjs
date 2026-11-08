@@ -145,7 +145,7 @@ test('source information is available in Help without a persistent banner', asyn
   for (const view of ['journey','flights','explore','map','guide','settings']) {
     await nav(page,view); await expect(page.locator('.demo-disclosure')).toHaveCount(0);
     await page.getByRole('button',{name:'Help & information'}).click();
-    await expect(page.getByRole('dialog')).toContainText('Flight, timing and route information in this demonstration are simulated');
+    await expect(page.getByRole('dialog')).toContainText('Flight, timing, route and previous-trip information shown here are simulated');
     await expect(page.getByRole('dialog')).toContainText('airport directory uses published airport information');
     await page.getByRole('dialog').getByRole('button',{name:'Close dialog'}).click();
   }
@@ -292,7 +292,7 @@ test('route camera recovery and profile settings retain journey',async({page})=>
   await page.getByRole('button',{name:'Profile',exact:true}).click(); await page.getByRole('switch',{name:'Step-free routes'}).click();
   await expect(page.getByRole('switch',{name:'Step-free routes'})).toHaveAttribute('aria-checked','true');
   await expect(page.locator('#toast')).toContainText('Check route availability');
-  await page.getByRole('button',{name:'Connected accounts'}).click(); await expect(page.getByRole('dialog')).toContainText('No accounts are connected');
+  await page.getByRole('button',{name:'Connected accounts'}).click(); await expect(page.getByRole('dialog')).toContainText('Not connected'); await expect(page.getByRole('dialog')).toContainText('Apple Health'); await expect(page.getByRole('dialog')).toContainText('Health Connect'); await expect(page.getByRole('dialog')).toContainText('Connections are not available in this browser');
 });
 
 test('plan edit updates visit duration and keeps stop selected', async({page})=>{
@@ -327,4 +327,36 @@ test('plan timelines use chronological remaining-plan estimates and suppress unk
   await fixture(page,'unknown'); await page.locator('#step-fixture').click();
   await expect(page.locator('#my-plan .plan-timeline')).toHaveCount(0);
   await expect(page.locator('#my-plan')).toContainText('information is unavailable');
+});
+
+test('Previous trips shows varied journeys and preserves the current plan',async({page})=>{
+  await page.setViewportSize({width:390,height:844}); await page.goto('/');
+  await nav(page,'explore'); await page.locator('[data-plan="coffee"]').click();
+  await page.getByRole('button',{name:'Profile',exact:true}).click();
+  await page.getByRole('button',{name:'Previous trips'}).click();
+  const history=page.getByRole('region',{name:'Previous trips'});
+  await expect(history).not.toContainText(/example|sample|prototype/i);
+  await expect(history.locator('article')).toHaveCount(4);
+  for(const code of ['HND','SIN','DOH','LHR']) await expect(history).toContainText(code);
+  await expect(history).not.toContainText(/walking speed|walking pace/i);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await expect(page.getByRole('button',{name:'Profile',exact:true})).toHaveAttribute('aria-current','page');
+  await page.getByRole('button',{name:'Back to profile'}).click();
+  await expect(page.getByRole('heading',{name:'Your profile'})).toBeVisible();
+  await nav(page,'journey'); await expect(page.locator('#my-plan article')).toHaveCount(1);
+  await expect(page.locator('#my-plan article')).toContainText('A coffee before boarding');
+});
+
+for(const width of [320,390]) test(`Previous trips content clears navigation at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:844}); await page.goto('/');
+  await page.getByRole('button',{name:'Profile',exact:true}).click();
+  await page.getByRole('button',{name:'Previous trips'}).click();
+  const lastRoute=page.locator('.history-card').last().locator(':scope > p');
+  await lastRoute.evaluate(el=>el.scrollIntoView({block:'center'}));
+  await expect(lastRoute).toBeVisible();
+  const textBox=await lastRoute.boundingBox(), navBox=await page.locator('.bottom-nav').boundingBox();
+  expect(textBox.y+textBox.height).toBeLessThanOrEqual(navBox.y);
+  const AxeBuilder=require('@axe-core/playwright').default;
+  const results=await new AxeBuilder({page}).analyze();
+  expect(results.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
 });

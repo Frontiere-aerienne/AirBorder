@@ -171,8 +171,8 @@ struct ARGuideView: View {
                             .foregroundStyle(.teal)
                         Text("\(layover.airport.iata) → \(layover.onwardAirport.iata)")
                             .font(.title2.bold())
-                        if let option = viewModel.interAirportTransferPlan?.selected {
-                            Text("Quickest direct route: \(option.title)")
+                        if let plan = viewModel.interAirportTransferPlan, let option = plan.selected {
+                            Text("\(transferOptionHeading(plan: plan, selected: option)): \(option.title)")
                                 .font(.subheadline.weight(.semibold))
                             Text(option.duration.map { "About \(Int($0.value.mostLikely.rounded())) min" } ?? "Check travel time")
                                 .font(.subheadline)
@@ -316,6 +316,17 @@ struct ARGuideView: View {
             if viewModel.launchContext.usesCoreLocationIndoorQA {
                 coreLocationQA.stop()
             }
+        }
+    }
+
+    private func transferOptionHeading(plan: InterAirportTransferPlan, selected: InterAirportTransferOption) -> String {
+        switch selected.freshness {
+        case .demo: "Recommended route"
+        case .live where plan.canClaimFastest: "Leading current option"
+        case .live: "Current route · compare before leaving"
+        case .cached: "Saved route · refresh before leaving"
+        case .stale: "Needs refresh"
+        case .unavailable: "Timing unavailable"
         }
     }
 

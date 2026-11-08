@@ -8,7 +8,7 @@ final class FlightBookAndBagsUITests: XCTestCase {
         app = XCUIApplication()
     }
 
-    func testExampleBKKHNDLAXShowsThroughCheckedFactAndExternalOfferPreview() {
+    func testExampleBKKHNDLAXShowsThroughCheckedFactAndExternalFareComparison() {
         launchDemo()
         selectFlightsAndBookBags()
 
@@ -34,15 +34,12 @@ final class FlightBookAndBagsUITests: XCTestCase {
         XCTAssertTrue(search.isHittable)
         search.tap()
 
-        let offerNotice = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS[c] 'Example fare'")
-        ).firstMatch
-        XCTAssertTrue(offerNotice.waitForExistence(timeout: 5))
         let handoff = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS[c] 'Open Google Flights'")
         ).firstMatch
         scrollToElement(handoff)
-        XCTAssertTrue(handoff.exists)
+        XCTAssertTrue(handoff.isHittable)
+        XCTAssertTrue(element("googleFlightsHandoffLink").exists)
     }
 
     func testExampleHNDNRTShowsReclaimSequenceInterAirportStepAndBagDropCutoff() {
@@ -75,11 +72,11 @@ final class FlightBookAndBagsUITests: XCTestCase {
     }
 
     private func selectFlightsAndBookBags() {
-        let flights = app.tabBars.buttons["Flights"]
+        let flights = app.tabBars.firstMatch.buttons["Flights"].firstMatch
         if flights.waitForExistence(timeout: 1) {
             flights.tap()
         } else {
-            app.tabBars.buttons["More"].tap()
+            app.tabBars.firstMatch.buttons["More"].firstMatch.tap()
             let item = app.tables.staticTexts["Flights"]
             XCTAssertTrue(item.waitForExistence(timeout: 3))
             item.tap()
@@ -95,9 +92,27 @@ final class FlightBookAndBagsUITests: XCTestCase {
         app.descendants(matching: .any)[identifier]
     }
 
-    private func scrollToElement(_ element: XCUIElement, attempts: Int = 10) {
-        for _ in 0..<attempts where !element.exists || !element.isHittable {
-            app.swipeUp()
+    private func scrollToElement(_ element: XCUIElement, attempts: Int = 24) {
+        // XCTest can report an offscreen child as hittable even beneath the
+        // persistent gate action or tab bar. Keep taps inside passenger content.
+        let top = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY : 100
+        let gate = app.buttons["universalReturnToGateButton"]
+        let bottom = gate.exists ? gate.frame.minY : app.tabBars.firstMatch.frame.minY
+        func safelyVisible() -> Bool {
+            element.exists && element.isHittable && element.frame.midY > top + 8 && element.frame.midY < bottom - 8
         }
+        for _ in 0..<attempts {
+            if safelyVisible() { return }
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+                .withOffset(CGVector(dx: 0, dy: bottom - 24))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+                .withOffset(CGVector(dx: 0, dy: top + 60))
+            if element.exists && element.frame.midY <= top + 8 {
+                end.press(forDuration: 0.05, thenDragTo: start)
+            } else {
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+        }
+        XCTAssertTrue(safelyVisible(), "Could not reveal \(element) above persistent controls")
     }
 }

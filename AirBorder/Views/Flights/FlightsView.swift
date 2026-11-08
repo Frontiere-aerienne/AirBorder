@@ -1043,6 +1043,9 @@ struct FlightDetailView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: AirportXRLayout.floatingTabBarClearance)
+        }
         .navigationTitle("Flight detail")
         .accessibilityIdentifier("flightDetailView")
     }

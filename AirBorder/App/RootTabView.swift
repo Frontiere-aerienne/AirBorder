@@ -201,6 +201,7 @@ struct RootTabView: View {
 
 private struct ReturnToGateButton: View {
     @EnvironmentObject private var viewModel: LongHaulExperienceViewModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let action: () -> Void
 
     var body: some View {
@@ -215,11 +216,13 @@ private struct ReturnToGateButton: View {
                     Image(systemName: urgency.symbol)
                         .font(.headline)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(viewModel.gateStatus.hasGateChange ? "Gate changed" : title(for: urgency))
+                        Text(dynamicTypeSize.isAccessibilitySize
+                            ? compactTitle(for: urgency)
+                            : (viewModel.gateStatus.hasGateChange ? "Gate changed" : title(for: urgency)))
                             .font(.headline)
-                        Text(detail(for: urgency))
+                        Text(dynamicTypeSize.isAccessibilitySize ? compactDestination : detail(for: urgency))
                             .font(.caption.weight(.medium))
-                            .lineLimit(2)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     }
                     Spacer(minLength: 0)
                 }
@@ -228,6 +231,9 @@ private struct ReturnToGateButton: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(urgency.color)
+            // Preserve the normal palette; bright urgency backgrounds need a
+            // dark foreground when the accessibility-size control is expanded.
+            .foregroundStyle(dynamicTypeSize.isAccessibilitySize && urgency != .pending ? Color.black : Color.white)
             .accessibilityLabel(viewModel.gateStatus.hasGateChange
                 ? "Gate changed from \(viewModel.gateStatus.previousGate ?? "unknown") to \(viewModel.gateStatus.gate ?? "unknown")"
                 : title(for: urgency))
@@ -240,6 +246,23 @@ private struct ReturnToGateButton: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    private func compactTitle(for urgency: GateUrgency) -> String {
+        if viewModel.gateStatus.hasGateChange { return "Gate changed" }
+        switch urgency {
+        case .comfortable: return viewModel.requiresInterAirportTransfer ? "Transfer" : "Gate directions"
+        case .prepare: return "Leave soon"
+        case .leaveNow: return "Return now"
+        case .pending: return viewModel.requiresInterAirportTransfer ? "Check transfer" : "Check route"
+        }
+    }
+
+    private var compactDestination: String {
+        if viewModel.requiresInterAirportTransfer, let layover = viewModel.activeLayover {
+            return "\(layover.airport.iata) → \(layover.onwardAirport.iata)"
+        }
+        return "Gate \(viewModel.gateStatus.gate ?? "pending")"
     }
 
     private func detail(for urgency: GateUrgency) -> String {
