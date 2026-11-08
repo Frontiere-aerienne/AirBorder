@@ -98,7 +98,7 @@ struct RootTabView: View {
             guard container.launchContext.usesAutomatedWalkthrough else { return }
             walkthroughIndex = 0
             showsWalkthrough = true
-            isWalkthroughRunning = true
+            isWalkthroughRunning = !container.launchContext.qaStartPaused
             await applyWalkthroughStep()
         }
         .task(id: isWalkthroughRunning) {

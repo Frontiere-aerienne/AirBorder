@@ -69,6 +69,8 @@ final class FlightBookAndBagsUITests: XCTestCase {
         if let scenario { app.launchArguments += ["--scenario", scenario] }
         app.launch()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Preparing your journey"].waitForNonExistence(timeout: 60),
+                      "Journey preparation must finish before navigation")
     }
 
     private func selectFlightsAndBookBags() {

@@ -76,7 +76,7 @@ struct ARGuideView: View {
                 if viewModel.launchContext.externalIndoorSignalURL == nil,
                    !viewModel.launchContext.usesCoreLocationIndoorQA {
                     prepareSimulatedWalk()
-                    isSimulatedWalkRunning = true
+                    isSimulatedWalkRunning = !viewModel.launchContext.qaStartPaused
                 }
             }
         }

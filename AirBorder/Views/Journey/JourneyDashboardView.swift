@@ -464,6 +464,7 @@ struct JourneyDashboardView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("layoverOverviewCard")
     }
 

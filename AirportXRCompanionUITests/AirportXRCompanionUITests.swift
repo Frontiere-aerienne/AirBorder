@@ -98,7 +98,7 @@ final class AirportXRCompanionUITests: XCTestCase {
 
     func testARPreviewChangesGuidanceWithSimulatedPosition() {
         app.launchArguments = [
-            "--uitesting", "--launch-mode", "demo", "--qa-simulated-walk"
+            "--uitesting", "--launch-mode", "demo", "--qa-simulated-walk", "--qa-start-paused"
         ]
         app.launch()
         waitForJourneyReady()
@@ -107,8 +107,7 @@ final class AirportXRCompanionUITests: XCTestCase {
         XCTAssertTrue(element("arGuideView").waitForExistence(timeout: 8))
         let maneuver = app.descendants(matching: .any)["arManeuverCard"].firstMatch
         XCTAssertTrue(maneuver.waitForExistence(timeout: 5))
-        let stop = app.buttons["Stop"]
-        if stop.exists { stop.tap() }
+        XCTAssertTrue(app.buttons["Start walking"].exists, "The preview must begin paused")
         let startingInstruction = maneuver.label
         app.buttons["Next point"].tap()
         // A route segment contains multiple location samples. Guidance changes
@@ -124,12 +123,13 @@ final class AirportXRCompanionUITests: XCTestCase {
 
     func testTerminalWalkthroughCoversCoreFeaturesAndFillsTravelerDetails() {
         app.launchArguments = [
-            "--uitesting", "--launch-mode", "demo", "--qa-walkthrough"
+            "--uitesting", "--launch-mode", "demo", "--qa-walkthrough", "--qa-start-paused"
         ]
         app.launch()
         waitForJourneyReady()
         XCTAssertTrue(element("automatedWalkthroughBanner").waitForExistence(timeout: 8))
-        app.buttons["walkthroughPauseButton"].tap()
+        XCTAssertEqual(app.buttons["walkthroughPauseButton"].label, "Resume")
+        XCTAssertTrue(app.staticTexts["Tour 1 of 8"].exists)
 
         app.buttons["walkthroughNextButton"].tap()
         XCTAssertTrue(element("layoverTransitView").waitForExistence(timeout: 5))
