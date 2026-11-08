@@ -23,11 +23,12 @@ Updated November 7, 2026 (America/New_York). This checkpoint supersedes older **
 
 ### Verified evidence and unresolved work
 
-- Local f11cc9e implementation: 15 engine + 12 browser API/HTTP + 37 canonical Worker + 17 Chromium tests passed (81 total, no skips). Hosted HCI run https://github.com/MayFairMI6/AirBorder/actions/runs/42437108856 passed on that implementation revision. Re-check the exact latest head; older green runs do not authorize a new merge.
+- Local implementation after the follow-up review fixes: 15 engine + 12 browser API/HTTP + 37 canonical Worker + 20 Chromium tests passed (84 total, no skips). Hosted HCI run https://github.com/MayFairMI6/AirBorder/actions/runs/42437108856 passed on that implementation revision. Re-check the exact latest head; older green runs do not authorize a new merge.
 - An isolated temporary mutation that treated unknown queue input as known made two existing engine tests fail. The repository was not mutated by that check. This verifies a specific regression detector, not all possible defects.
 - First GitHub Codex review identified missing synthetic-data disclosure, optional detours in urgent guidance, and guide progress resetting after Map. All three were fixed in f11cc9e, regression-tested, and independently rechecked. Replies identify each implementation and test. Check live thread-resolution state and the subsequent review before claiming closure.
+- The follow-up review found expired-gate guidance with no stops and guide sessions opened directly through sidebar/mobile More. Both paths now have fixes and regression tests; verify the latest review and CI before resolving the new threads.
 - Additional fixes cover unknown timing requests, expired gate observations, stale asynchronous responses, strict rate-limiter results, and explicitly enabled preview origins. Their regression tests are part of the counts above.
-- At this checkpoint, the refreshed native CI and second automatic Codex review were still pending. The historical October 11 native record had 106 passing unit tests and 10 failures among 17 UI tests. Preserve that evidence until a new run establishes each case's status; browser results cannot clear native failures.
+- At this checkpoint, refreshed native CI and another automatic Codex review were still required for the latest head. The historical October 11 native record had 106 passing unit tests and 10 failures among 17 UI tests. Preserve that evidence until a new run establishes each case's status; browser results cannot clear native failures.
 - Remaining acceptance work includes physical-device AR, actual Camera/recognition recovery, complete onboarding/Back paths, health consent/history, full EN/JA/FR, provider integration/calibration, accessible alternative routing, and visual comparison against approved Figma frames. Browser screenshots are review artifacts, not approved pixel-comparison baselines.
 
 ### Resume checklist

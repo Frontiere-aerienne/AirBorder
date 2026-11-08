@@ -166,3 +166,34 @@ test('urgent direct route skips saved stops without removing them and resumes fr
   await expect(page.locator('#my-plan')).toContainText('A coffee before boarding');
   await expect(page.locator('#my-plan')).toContainText('Quiet time near your gate');
 });
+
+
+test('expired gate blocks guidance even with no selected stops', async ({page}) => {
+  await page.goto('/?presenter=1'); await fixture(page,'gate');
+  await page.locator('#step-fixture').click();
+  while(await page.locator('#my-plan [data-remove]').count()) await page.locator('#my-plan [data-remove]').first().click();
+  for(let i=0;i<3;i++) await page.locator('#age-fixture').click();
+  await expect(page.locator('.hero')).toHaveCount(0);
+  await expect(page.locator('[aria-label="Your next action"]')).toContainText('Confirm your departure gate');
+  await expect(page.locator('[aria-label="Your next action"]')).toContainText('Last known gate: 108A');
+  for(const view of ['map','guide']) {
+    await nav(page,view);
+    await expect(page.locator('main')).toContainText('Confirm your departure gate');
+    await expect(page.locator('.route-step, .guide-stage, [data-action="start-route"], [data-action="direct-route"]')).toHaveCount(0);
+  }
+  await nav(page,'flights');
+  await expect(page.locator('main')).toContainText('Last known gate · confirm');
+});
+
+for(const mode of ['desktop','mobile']) test(`${mode} guide entry retains progress after viewing map`,async ({page}) => {
+  if(mode==='mobile') await page.setViewportSize({width:375,height:800});
+  await page.goto('/');
+  if(mode==='desktop') await nav(page,'guide');
+  else {await page.getByRole('button',{name:'More: route guide and preferences'}).click(); await page.locator('dialog [data-view="guide"]').click();}
+  await page.locator('[data-action="next-step"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('STEP 2');
+  await page.locator('.text-button[data-view="map"]:visible').first().click();
+  await expect(page.locator('[data-action="start-route"]')).toContainText('Continue route guide');
+  await page.locator('[data-action="start-route"]').click();
+  await expect(page.locator('.guide-stage')).toContainText('STEP 2');
+});
