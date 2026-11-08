@@ -107,7 +107,7 @@ final class FlightBookAndBagsUITests: XCTestCase {
                 .withOffset(CGVector(dx: 0, dy: bottom - 24))
             let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
                 .withOffset(CGVector(dx: 0, dy: top + 60))
-            if element.exists && element.frame.midY <= top + 8 {
+            if element.exists && !element.frame.isEmpty && element.frame.minY != 0 && element.frame.midY <= top + 8 {
                 end.press(forDuration: 0.05, thenDragTo: start)
             } else {
                 start.press(forDuration: 0.05, thenDragTo: end)

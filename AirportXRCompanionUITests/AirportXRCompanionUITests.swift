@@ -298,23 +298,54 @@ final class AirportXRCompanionUITests: XCTestCase {
         let swipeEnd = app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: app.frame.midX, dy: app.navigationBars.firstMatch.frame.maxY + 40))
         for _ in 0..<4 { swipeStart.press(forDuration: 0.05, thenDragTo: swipeEnd) }
-        try app.performAccessibilityAudit(for: [
-            .contrast,
-            .elementDetection,
-            .hitRegion,
-            .sufficientElementDescription,
-            .textClipped,
-            .trait
-        ]) { issue in
-            if issue.auditType == .contrast, issue.element == nil {
-                XCTContext.runActivity(named: "Unassociated iOS simulator contrast diagnostic") { activity in
-                    let evidence = "\(issue.compactDescription)\n\(issue.detailedDescription)\nThe audit supplied no XCUIElement; associated contrast issues remain test failures."
-                    activity.add(XCTAttachment(string: evidence))
+        // The simulator sometimes audits a lazy-grid label above the visible
+        // navigation boundary. Recheck every such finding with that label in
+        // view; never accept an associated contrast finding without validation.
+        var deferred: [String: XCUIElement] = [:]
+        var rechecked = Set<String>()
+        var activeRecheck: String?
+        func audit(_ types: XCUIAccessibilityAuditType) throws {
+            try app.performAccessibilityAudit(for: types) { issue in
+                if issue.auditType == .contrast, issue.element == nil {
+                    XCTContext.runActivity(named: "Unassociated iOS simulator contrast diagnostic") { activity in
+                        activity.add(XCTAttachment(string: "\(issue.compactDescription)\n\(issue.detailedDescription)\nThe audit supplied no XCUIElement; associated issues are checked."))
+                    }
+                    return true
                 }
-                return true
+                if issue.auditType == .contrast, let reported = issue.element {
+                    let top = self.app.navigationBars.firstMatch.frame.maxY
+                    let bottom = persistentGate.frame.minY
+                    let visible = CGRect(x: 0, y: top, width: self.app.frame.width, height: bottom - top)
+                    if !reported.frame.intersects(visible) {
+                        let key = "\(reported.elementType.rawValue):\(reported.label)"
+                        // Never conflate identical labels or suppress the
+                        // finding currently being checked in view.
+                        let matches = self.app.descendants(matching: reported.elementType)
+                            .matching(NSPredicate(format: "label == %@", reported.label))
+                        guard matches.count == 1, activeRecheck != key else { return false }
+                        if !rechecked.contains(key) { deferred[key] = matches.firstMatch }
+                        XCTContext.runActivity(named: "Recheck offscreen contrast in view: \(reported.label)") { activity in
+                            activity.add(XCTAttachment(string: "Reported frame: \(reported.frame); unobstructed content: \(visible)"))
+                        }
+                        return true
+                    }
+                }
+                return false
             }
-            return false
         }
+        try audit([.contrast, .elementDetection, .hitRegion,
+                   .sufficientElementDescription, .textClipped, .trait])
+        for _ in 0..<20 {
+            guard let (key, target) = deferred.first else { break }
+            deferred.removeValue(forKey: key)
+            scrollToElement(target, attempts: 80)
+            XCTAssertTrue(target.isHittable, "A deferred contrast finding must be visible for recheck")
+            activeRecheck = key
+            try audit(.contrast)
+            activeRecheck = nil
+            rechecked.insert(key)
+        }
+        XCTAssertTrue(deferred.isEmpty, "Every offscreen contrast finding must be rechecked in view")
     }
 
     func testJourneySupportsDynamicTypeAudit() throws {
@@ -361,7 +392,7 @@ final class AirportXRCompanionUITests: XCTestCase {
                 .withOffset(CGVector(dx: 0, dy: bottom - 24))
             let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
                 .withOffset(CGVector(dx: 0, dy: top + 60))
-            if element.exists && element.frame.midY <= top + 8 {
+            if element.exists && !element.frame.isEmpty && element.frame.minY != 0 && element.frame.midY <= top + 8 {
                 end.press(forDuration: 0.05, thenDragTo: start)
             } else {
                 start.press(forDuration: 0.05, thenDragTo: end)

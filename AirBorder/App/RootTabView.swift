@@ -251,7 +251,7 @@ private struct ReturnToGateButton: View {
     private func compactTitle(for urgency: GateUrgency) -> String {
         if viewModel.gateStatus.hasGateChange { return "Gate changed" }
         switch urgency {
-        case .comfortable: return viewModel.requiresInterAirportTransfer ? "Transfer" : "Gate directions"
+        case .comfortable: return viewModel.requiresInterAirportTransfer ? "Transfer" : "Route"
         case .prepare: return "Leave soon"
         case .leaveNow: return "Return now"
         case .pending: return viewModel.requiresInterAirportTransfer ? "Check transfer" : "Check route"
