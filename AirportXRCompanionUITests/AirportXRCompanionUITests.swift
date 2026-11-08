@@ -54,7 +54,7 @@ final class AirportXRCompanionUITests: XCTestCase {
             NSPredicate(format: "label == 'Example'")
         ).firstMatch.exists)
 
-        let result = app.buttons["flightSearchResult"].firstMatch
+        let result = app.buttons["flightSearchDetailButton"].firstMatch
         scrollToElement(result)
         XCTAssertTrue(result.label.contains("AX 204"))
         result.tap()
@@ -322,11 +322,16 @@ final class AirportXRCompanionUITests: XCTestCase {
                     let bottom = persistentGate.frame.minY
                     let visible = CGRect(x: 0, y: top, width: self.app.frame.width, height: bottom - top)
                     if !visible.contains(reported.frame) {
-                        let key = "\(reported.elementType.rawValue):\(reported.label)"
-                        // Never conflate identical labels or suppress the
-                        // finding currently being checked in view.
-                        let matches = self.app.descendants(matching: reported.elementType)
-                            .matching(NSPredicate(format: "label == %@", reported.label))
+                        let identifier = reported.identifier
+                        let key = identifier.isEmpty
+                            ? "\(reported.elementType.rawValue):label:\(reported.label)"
+                            : "\(reported.elementType.rawValue):id:\(identifier)"
+                        // Stable identifiers survive dynamic timestamps. Never
+                        // conflate elements or suppress an active recheck.
+                        let elements = self.app.descendants(matching: reported.elementType)
+                        let matches = identifier.isEmpty
+                            ? elements.matching(NSPredicate(format: "label == %@", reported.label))
+                            : elements.matching(identifier: identifier)
                         guard matches.count == 1, activeRecheck != key else { return false }
                         if !rechecked.contains(key) { deferred[key] = matches.firstMatch }
                         XCTContext.runActivity(named: "Recheck offscreen contrast in view: \(reported.label)") { activity in

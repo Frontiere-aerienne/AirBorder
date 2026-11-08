@@ -789,6 +789,7 @@ struct FlightsView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("flightSearchDetailButton")
                             Button("Add to itinerary") {
                                 Task {
                                     await longHaulViewModel.addLeg(flight)
@@ -801,6 +802,7 @@ struct FlightsView: View {
                             .accessibilityIdentifier("addItineraryLegButton")
                         }
                     }
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("flightSearchResult")
                 }
             }

@@ -175,6 +175,7 @@ struct JourneyDashboardView: View {
                         Text("Observed \(relative(metric.observedAt)) · checked \(relative(metric.receivedAt))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("\(identifier ?? (showsRefresh ? "departureWeatherCard" : "destinationWeatherCard"))-observed")
                     }
                     if showsRefresh, let message = viewModel.weatherRefreshMessage {
                         Text(message)
@@ -199,6 +200,7 @@ struct JourneyDashboardView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier ?? (showsRefresh ? "departureWeatherCard" : "destinationWeatherCard"))
     }
 

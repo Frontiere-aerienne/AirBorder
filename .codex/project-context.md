@@ -4,6 +4,10 @@
 
 Updated November 7, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
 
+### Latest native hosted-review follow-up
+
+9dc4b28 Codex review completed clean and all hosted HCI checks passed. Native run42447365037 passed build/unit but failed flight search detail and large-text audit (15/17 UI passed). Artifact confirmed inherited flight-result identifiers on two buttons and a dynamic weather timestamp used by recheck. Fixed unique detail-button ID, containing accessibility semantics, stable weather observation ID and unique identifier-based contrast recheck (label fallback only when no ID). No colors/layout changes, no assertions/audits removed. Focused 2/2 native regressions passed on dedicated iPhone13/iOS27.0; log /tmp/airborder-final-review-focused.log, xcresult /tmp/AirBorderFinalReviewFocused.xcresult. Full current-head hosted tests/review remain required after push. Latest local browser49 and engine/API/client38 tests passed. PR1 stays unmerged.
+
 ### Latest remaining-review fixes
 
 57c1a00 hosted HCI checks passed. Codex found failed recovery GET could strand staged edits (4504999937). Fixed by draining staged edits to the ordered outbox on failed recovery. Independent follow-up also fixed quota/unavailable storage interrupting queueing and expired authentication deleting queued progress. Auth interruptions retain the owner-scoped queue; same-owner initialization resumes it. Explicit logout clears active persisted state. Added regressions; 36 engine/API/client and 47 browser tests pass. Native app, colors and styles remain unchanged. Fresh hosted checks/review required after push; PR1 remains unmerged.
