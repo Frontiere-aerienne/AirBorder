@@ -1,0 +1,106 @@
+name: UI review
+
+# Pull-request checks for passenger-facing UI changes. No AI calls run here.
+#   "UI copy and frozen web" (intended as a required check): blocks new iOS copy tagged
+#     "Optional", "if needed" or "if required", and changes to the frozen browser app
+#     under Web/ unless the owner adds the "web-change-approved" label.
+#   "UI review gate" (advisory until branch protection adds it): a PR that changes iOS
+#     screens, components, assets or styles is labeled "ui-review" and must link an
+#     approved preview image and screenshots in its description, unless labeled
+#     "no-visual-change".
+# Failing runs are queued for Codex or Claude by ui-review-queue.yml after this file is on main.
+# Logic and tests: Scripts/ci/ui_review_gate.py, Scripts/ci/test_ui_review_gate.py.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: UI copy and frozen web
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Collect PR changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ui"
+          git diff --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/ui/files.txt"
+          git diff -U0 "$BASE_SHA...$HEAD_SHA" -- 'AirBorder/*.swift' > "$RUNNER_TEMP/ui/diff.patch"
+          printf '%s' "$LABELS" | jq -r '.[]' > "$RUNNER_TEMP/ui/labels.txt"
+
+      - name: Check script tests
+        run: python3 -I Scripts/ci/test_ui_review_gate.py
+
+      - name: Copy tags and frozen web
+        run: |
+          python3 -I Scripts/ci/ui_review_gate.py policy \
+            --files "$RUNNER_TEMP/ui/files.txt" \
+            --labels "$RUNNER_TEMP/ui/labels.txt" \
+            --diff "$RUNNER_TEMP/ui/diff.patch"
+
+  gate:
+    name: UI review gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Collect PR changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ui"
+          git diff --name-only "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/ui/files.txt"
+          printf '%s' "$LABELS" | jq -r '.[]' > "$RUNNER_TEMP/ui/labels.txt"
+          printf '%s' "$BODY" > "$RUNNER_TEMP/ui/body.md"
+
+      - name: Preview and screenshot evidence
+        id: gate
+        run: |
+          set +e
+          python3 -I Scripts/ci/ui_review_gate.py gate \
+            --files "$RUNNER_TEMP/ui/files.txt" \
+            --labels "$RUNNER_TEMP/ui/labels.txt" \
+            --body "$RUNNER_TEMP/ui/body.md" | tee "$RUNNER_TEMP/ui/gate.txt"
+          status=${PIPESTATUS[0]}
+          grep -m1 '^ui=' "$RUNNER_TEMP/ui/gate.txt" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Label for UI review
+        # Fork PRs get a read-only token; the label is a convenience, not the check.
+        if: always() && steps.gate.outputs.ui == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh label create ui-review --color 5319e7 --description "Changes passenger-facing UI; needs an approved preview and screenshots" --force >/dev/null
+          gh pr edit "$PR" --add-label ui-review
