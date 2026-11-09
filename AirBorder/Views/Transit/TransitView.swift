@@ -95,7 +95,7 @@ struct TransitView: View {
                     if let selected = plan.selected {
                         HStack {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Quickest direct route")
+                                Text(transferOptionHeading(plan: plan, selected: selected))
                                     .font(.caption.weight(.bold)).foregroundStyle(.teal)
                                 Text(selected.title).font(.headline)
                                 Text(selected.duration.map { "About \(Int($0.value.mostLikely.rounded())) min" } ?? "Travel time unavailable")

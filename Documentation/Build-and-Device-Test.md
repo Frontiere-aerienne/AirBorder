@@ -4,7 +4,7 @@ AirBorder can be built from this repository in Xcode. An Apple Developer Program
 
 ## What you need
 
-- A Mac running a current version of Xcode with iOS 18 or later support.
+- A Mac running Xcode 26 or newer with a compatible simulator runtime. The app deployment target is iOS 18.
 - Git and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 - An Apple Account signed in to Xcode for iPhone testing.
 
@@ -21,16 +21,18 @@ Open `AirBorder.xcodeproj` in Xcode after generating it.
 ## Run in Simulator
 
 1. In Xcode, choose the **AirBorder** scheme.
-2. Choose an iPhone simulator, such as **iPhone 17 Pro**.
+2. Choose an **iPhone 13** simulator for the approved design target. Install a compatible runtime if that model is unavailable.
 3. Press Run (`⌘R`).
 4. To run the test suite, press `⌘U`.
 
 You can also run the project checks from Terminal:
 
 ```bash
-./Scripts/build.sh
-./Scripts/test.sh
+SIMULATOR_NAME='iPhone 13' ./Scripts/build.sh
+SIMULATOR_NAME='iPhone 13' ./Scripts/test.sh
 ```
+
+The scripts otherwise use their legacy simulator default. CI explicitly selects iPhone 13; do not substitute another model as evidence of iPhone 13 verification. See the [latest recorded verification](Verification-2026-11-08.md).
 
 ## Run on your iPhone
 

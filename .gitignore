@@ -28,3 +28,8 @@ Report/build/
 Report/main.pdf
 .report-review/
 base-src/
+Web/node_modules/
+Web/test-results/
+Web/playwright-report/
+Web/.wrangler/
+Web/.dev.vars

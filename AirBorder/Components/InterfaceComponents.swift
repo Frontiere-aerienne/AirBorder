@@ -35,13 +35,14 @@ struct AirlineFlightSummary: View {
     let legCount: Int
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var smallLabelSize: CGFloat = 11
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("FLIGHT \(legNumber) OF \(legCount)")
-                        .font(.caption2.weight(.bold))
+                        .font(.system(size: smallLabelSize, weight: .bold))
                         .foregroundStyle(AirportXRPalette.actionTeal)
                     Text(flight.airlineName ?? flight.flightNumber)
                         .font(.subheadline.weight(.semibold))
@@ -140,7 +141,7 @@ struct AirlineFlightSummary: View {
             Text(localDate(date, zone: airport.timeZone))
                 .font(.caption.weight(.medium))
             Text(endpointPlace(airport: airport, terminal: terminal, gate: gate))
-                .font(.caption2)
+                .font(.system(size: smallLabelSize))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(isLeading ? .leading : .trailing)
         }
@@ -167,7 +168,7 @@ struct AirlineFlightSummary: View {
                     .monospacedDigit()
                 Text(localDate(date, zone: airport.timeZone)).font(.caption.weight(.medium))
                 Text(endpointPlace(airport: airport, terminal: terminal, gate: gate))
-                    .font(.caption2)
+                    .font(.system(size: smallLabelSize))
                     .foregroundStyle(.secondary)
             }
         }
@@ -184,7 +185,7 @@ struct AirlineFlightSummary: View {
             }
             if let offset = arrivalDayOffset {
                 Text(offset)
-                    .font(.caption2.bold())
+                    .font(.system(size: smallLabelSize, weight: .bold))
                     .foregroundStyle(AirportXRPalette.actionTeal)
             }
         }
@@ -195,7 +196,7 @@ struct AirlineFlightSummary: View {
     private func compactFact(title: String, value: String, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Label(title, systemImage: symbol)
-                .font(.caption2)
+                .font(.system(size: smallLabelSize))
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.subheadline.weight(.semibold))

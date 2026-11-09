@@ -32,6 +32,34 @@ threads.
 Runtime model, permission, or administrator policy can override repository defaults. If a
 pinned model is unavailable, report the failure; do not silently substitute a different model.
 
+## Handoff and continuity
+
+At the start of implementation or after a handoff/context compaction, read the current checkpoint in `.codex/project-context.md` and the relevant acceptance criteria in `Documentation/HCI/Acceptance-and-review.md`. Treat older ledger sections as dated evidence, not current completion claims. Verify the current branch, changes, PR head, checks and unresolved reviews before resuming. Update the checkpoint after material verified progress; preserve decisions, scope, remaining defects and exact evidence. Do not create a second competing `compaction.md` or change compaction configuration merely to store project status. During code review, use the acceptance contract and applicable Code Review Rules; a ledger's statement that tests passed never substitutes for current CI.
+
+## Code Review Rules
+
+### Passenger decisions and state
+
+- Recommendations may change only selected, incomplete, optional stops, and only after explicit Apply. Preserve order, required stops, and user changes across flight/weather updates. Reject stale recommendations after any relevant plan, observation, or clock change; support Undo. Missing, stale, or invalid timing inputs are unknown, never zero or confident permission to proceed. A departure delay must not silently move the boarding deadline.
+- Gate updates are notifications, not passenger-selected flight statuses. Keep the complete gate identifier (including `108A`) consistent across ticket, alert, map, and guidance. Back returns to the originating page; camera always has a direct exit; map/camera preserve route progress; the final route step has an End action. Onboarding runs once with an explicit replay option.
+
+### Design and evidence
+
+- Binding visual baseline: preserve the original overall AirBorder phone template observed before the November 7 edits, not merely its colour tokens. Keep its yellow gate signs, navy ticket, Outfit typography, card hierarchy, spacing, rounded controls and Flight/Layover/Route/Profile navigation. The target is iPhone 13 (390 × 844 logical viewport); larger browser windows must not introduce a redesigned desktop dashboard. Compare affected screens with the original Figma reference before accepting changes. Do not reinterpret the design, replace genuine Haneda imagery, or silently approve new screenshot baselines. Functional fixes must fit the original design.
+- Preserve the approved AirBorder navy/blue/yellow semantic palette, Outfit typography, and genuine Haneda image provenance. Do not replace airport images with unrelated stock imagery, clip gate suffixes, invent live AR/location accuracy, or expose internal implementation language in passenger UI. Check narrow screens, visible focus, labeled controls, adequate touch targets, and readable contrast. See `Documentation/HCI/` for acceptance criteria and coverage limitations.
+- Do not call a feature complete solely because a mock or fixture passes. Keep synthetic and live sources accurately described in Help/About and relevant data details. The user explicitly removed the persistent “Demo journey” note on November 7; do not reintroduce that banner or reserve screen space for it. This does not authorize describing simulated data as live. Health-derived walking estimates require consent and revocation fallback; airport-specific history and average estimates must retain provenance. LLM text cannot override deterministic timing, eligibility, or provider evidence.
+
+### Merge evidence and boundaries
+
+- Preserve native iOS build/unit/UI tests, backend contract/authentication tests, and browser integration/design checks. Never skip, delete, loosen assertions, blindly regenerate screenshots, or remove required checks to turn a failed PR green. Changes to workflows, tests, baselines, or these rules need explicit rationale and independent reviewer scrutiny.
+- Review the affected completed flows as well as the diff. Report uncovered requirements and residual risks honestly. Do not claim a clean review guarantees a bug-free app. Provider secrets remain server-side, protected endpoints retain authentication, and public endpoints accept only bounded non-sensitive inputs.
+
+### Passenger-facing realism
+
+- Use natural, production-style passenger copy and retain the approved phone design. Do not label ordinary trip cards or workflows as examples or prototypes. Seeded data provenance must remain accurate and discoverable in Help/About or data details; never present simulated facts as live or connected data. Show health integration availability and consent truthfully, keep one automatically managed walking estimate with an average fallback, and do not invent demographic formulas or connection status.
+
+- For every passenger-facing UI change, assign the `ui_researcher` role a realism pass before acceptance. Reuse the dedicated reviewer when available; preserve this check across handoffs rather than requiring the user to repeat it. The pass checks natural copy, realistic states, design preservation, and truthful availability without prototype commentary in ordinary flows.
+
 ## Report and rubric rules
 
 `Report/main.tex` is the course deliverable (ACM `acmart` `sigconf`). It is graded against
