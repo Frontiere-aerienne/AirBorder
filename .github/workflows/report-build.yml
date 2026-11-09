@@ -22,9 +22,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Least privilege: jobs that run PR code (latexmk, check_rubric.py) are read-only and keep no
+# git credentials. Only the push-only release job and the comment job, which runs no PR
+# code, get write scopes.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: report-build-${{ github.ref }}
@@ -41,6 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect report changes
         id: changes
@@ -141,12 +144,24 @@ jobs:
             Report/main.log
           if-no-files-found: warn
 
+  release:
+    name: Publish report-latest release
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AirBorder-Report
       - name: Publish rolling release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          cp Report/main.pdf AirBorder-Report.pdf
+          mv main.pdf AirBorder-Report.pdf
           notes="Automatically compiled from ${GITHUB_SHA::7} on $(date -u +%Y-%m-%dT%H:%MZ)."
           if gh release view report-latest >/dev/null 2>&1; then
             gh release upload report-latest AirBorder-Report.pdf --clobber
@@ -164,6 +179,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      code: ${{ steps.rubric.outputs.code }}
     steps:
       - name: Skip when the report is unchanged
         if: needs.build.outputs.relevant != 'true'
@@ -171,6 +188,8 @@ jobs:
 
       - uses: actions/checkout@v4
         if: needs.build.outputs.relevant == 'true'
+        with:
+          persist-credentials: false
 
       - uses: actions/download-artifact@v4
         if: needs.build.outputs.relevant == 'true'
@@ -200,27 +219,52 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Post rubric results on the pull request
-        if: needs.build.outputs.relevant == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-          CODE: ${{ steps.rubric.outputs.code }}
-        run: |
-          marker='<!-- report-rubric-check -->'
-          if [ "$CODE" = 0 ]; then verdict="✅ No rubric failures. This check passes."; else verdict="❌ **Merge blocked:** fix every ❌ item and every regression vs the base branch below, then push again."; fi
-          { echo "$marker"; echo "$verdict"; echo; cat "$RUNNER_TEMP/rubric.md"; echo; echo "_Updated for ${GITHUB_SHA::7}. ⚠️ warnings do not block._"; } > "$RUNNER_TEMP/comment.md"
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-                 --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
-          if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" >/dev/null
-          else
-            gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md"
-          fi
+      - name: Save rubric result for the comment job
+        if: needs.build.outputs.relevant == 'true'
+        run: cp "$RUNNER_TEMP/rubric.md" rubric.md
+
+      - uses: actions/upload-artifact@v4
+        if: needs.build.outputs.relevant == 'true'
+        with:
+          name: rubric-result
+          path: rubric.md
 
       - name: Enforce rubric
         if: needs.build.outputs.relevant == 'true' && steps.rubric.outputs.code != '0'
         run: |
           echo "::error file=Report/main.tex::Rubric check failed (a ❌ item or a regression vs base). See the job summary or the PR comment."
           exit 1
+
+  # Posts the sticky PR comment. It runs no PR code, so it can safely hold pull-requests: write.
+  rubric-comment:
+    name: Post rubric comment
+    needs: [build, rubric]
+    if: >-
+      always() && needs.build.outputs.relevant == 'true' && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: rubric-result
+      - name: Upsert sticky comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          CODE: ${{ needs.rubric.outputs.code }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker='<!-- report-rubric-check -->'
+          if [ "$CODE" = 0 ]; then verdict="✅ No rubric failures. This check passes."; else verdict="❌ **Merge blocked:** fix every ❌ item and every regression vs the base branch below, then push again."; fi
+          { echo "$marker"; echo "$verdict"; echo; cat rubric.md; echo; echo "_Updated for ${HEAD_SHA::7}. ⚠️ warnings do not block._"; } > comment.md
+          id=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+                 --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$id" -F body=@comment.md >/dev/null
+          else
+            gh pr comment "$PR" --body-file comment.md
+          fi
