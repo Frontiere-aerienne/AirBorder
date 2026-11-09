@@ -204,7 +204,7 @@ def check(tex_path: Path) -> list[Result]:
     ])
     items("R-HYP", "Hypotheses (and null)", "5", [
         ("hypotheses", r"hypothes"),
-        ("null hypotheses", r"null hypothes|\bH_?\{?0\}?\b|H\$_0\$|\$H_0\$|H\$_\{?0"),
+        ("null hypotheses", r"null hypothes|\bH_?\{?0\}?\b|\b[HS]\d*\$?_\{?0|\$H_0\$"),
         ("primary vs secondary", r"primary"),
         ("secondary", r"secondary"),
     ])
@@ -224,6 +224,12 @@ def check(tex_path: Path) -> list[Result]:
     if has(ev_text, r"\bp\s*[<=]\s*0?\.\d|statistically significant|participants (rated|preferred|were faster)"):
         r.append(Result("R-PLAN", "Plan, not results", "—", WARN,
                         "evaluation text reads like study results; the deliverable is a plan"))
+
+    # --- Author placeholders ------------------------------------------------------------------
+    placeholders = len(re.findall(r"\\TODO\{", body))
+    r.append(Result("F-PLACEHOLDERS", "No unfilled author placeholders", "—", FAIL if placeholders else PASS,
+                    f"{placeholders} \\TODO{{…}} placeholder(s) in the body" if placeholders else "none",
+                    counts=(("author placeholders", placeholders),)))
 
     # --- Hygiene (feeds Communication style) ---------------------------------------------
     issues = []

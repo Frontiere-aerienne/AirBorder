@@ -1,6 +1,8 @@
 \documentclass[sigconf,nonacm]{acmart}
 \usepackage{amsmath,tikz}
 \graphicspath{{figures/}}
+% Author placeholders. The rubric check fails while any remain in the body.
+\newcommand{\TODO}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
 \usepackage{placeins}
 \settopmatter{printacmref=false,printfolios=true}
 \setcopyright{none}
@@ -159,9 +161,9 @@ Airport Collaborative Decision Making (A-CDM) uses aircraft turn-round milestone
 \Description{Heathrow Terminal 2 map is paired with four design requirements: retain gate area and level, distinguish arrival and departure connectors, explain transitions, and recalculate activity time after a gate change.}
 \end{figure*}
 
-\section{Proposed Interface Design}
-\subsection{First integrated demonstrator and expansion path}
-Our first milestone and primary evaluation center on a responsive TypeScript client that connects the next action, route, activity duration and change explanation through a shared deterministic planner. In a Heathrow Terminal 2-inspired connection, travelers choose a food, rest or work stop, inspect the route and leave-by time, then revise the stop after an injected gate change. Journey, activity and change screens share editable state; timestamped fixtures provide gate, route, procedure and queue changes. Development will use a MacBook Pro M5. Physical browser checks will use MacBook Pro M5/Safari and Chrome, iPad M2/Safari, an available iPhone/Safari (model to be recorded), and Samsung Galaxy S24/Chrome. Xcode Simulator will supplement iOS/iPadOS layout, workflow and injected state-transition checks in installed runtimes; it does not measure physical-device performance \cite{ref212}. Input, reload and offline checks precede participant tasks. Subsequent milestones add validated native AR, live feeds, account connectors and model services to the same journey state (Appendices J--P).
+\section{Initial Design}\label{sec:initial-design}
+\subsection{High-fidelity prototype}
+Our high-fidelity prototype connects the next action, route, activity duration and change explanation through one shared deterministic journey state. In the Heathrow Terminal 2-inspired design scenario, travelers choose a food, rest or work stop, inspect the route and leave-by time, then revise the stop after an injected gate change. Journey, activity and change screens share editable state; timestamped fixtures provide gate, route, procedure and queue changes. Subsequent milestones add validated AR, live feeds, account connectors and model services to the same journey state (Appendices J--P).
 
 \subsection{One journey, an inspectable next action}
 \paragraph{From airport map to feasible action.} We selected Heathrow Terminal 2 because its official map exposes a consequential direction-and-level choice: Level 4 serves A-gate departures, Level $-2$ leads to B-gate departures and Level $-1$ carries B-gate arrivals (Figure~\ref{fig:map-design}) \cite{ref95}. Our journey card therefore retains gate area, level and stage. For a food stop before a B-gate departure, the planner uses the verified departure connector and remaining procedures to calculate the leave-by time. A gate-area change invalidates the old return route and may shorten the stop. The traveler sees the changed segment, revised duration and available action. Appendix G specifies the worked task and route verification. Neither interview establishes personal use of Heathrow; its map supplies geometry, while current procedures and airline deadlines provide separate planning inputs.
@@ -210,6 +212,30 @@ Most fresh produce is not permitted in passenger baggage. This item's conditions
 
 For Figure~\ref{fig:purchase-main}, participants identify the affected border, unresolved item conditions and next verification action. We score unsupported permission inferences separately from preference; declaration is not import approval.
 
+\subsection{Response to class review}
+\TODO{Authors: summarize the points raised in the class review of the high-fidelity prototype and how the design responded, or why it stayed as is.}
+
+\section{System}
+\subsection{Platform and architecture}
+AirBorder is a native iPhone app written in Swift and SwiftUI (iOS 18 or later), with MapKit for maps and nearby places, Vision for in-flight ticket and sign recognition, and ARKit for camera guidance with a map fallback. Provider-neutral models hold itineraries, layovers, facilities and procedure states; services compute routes, recommendations and reminders; and on-device persistence keeps saved journeys available offline. A Cloudflare Worker proxy, written in JavaScript, holds provider credentials and exposes normalized flight, weather and entry-information endpoints, so the app never stores third-party secrets. Every displayed estimate carries a live, cached, stale, demo or offline label. Table~\ref{tab:stack} summarizes the layers.
+
+Functionally, the app lets a traveler load a multi-leg itinerary, see each layover with its leave-by time and the probability of reaching the gate by the target, explore airport facilities and nearby places, follow terminal routes on a map or with AR guidance, check entry requirements for each leg, and receive reminders before each deadline. When a gate, arrival time or provider status changes, the affected steps are recalculated and the changed term is explained.
+
+\begin{table*}[t]
+\begin{minipage}{\textwidth}\centering\small
+\begin{tabular}{@{}p{.19\textwidth}p{.34\textwidth}p{.40\textwidth}@{}}\toprule
+Layer & Implementation candidates & Interface responsibility\\\midrule
+iPhone client (implemented) & Native SwiftUI app (iOS 18+); MapKit, Vision, ARKit; seeded Monte Carlo planner & Next action, leave-by time, routes, provenance labels and offline fallback; Simulator and on-device runs\\
+Planned extensions & Laptop web companion; Android camera/AR; watch APIs & Simulator checks layout and injected transitions; physical devices test touch, sensors, camera, battery and performance \cite{ref212}\\
+Backend (implemented) & Cloudflare Worker proxy (JavaScript); D1 planned & Holds provider secrets; normalized provider endpoints; versioned handoff planned\\
+External data & Airline/operator feeds; flight-tracking APIs; Open-Meteo; licensed entry data & Source age, coverage, provenance and explicit unknowns\\
+Agenda & Calendar availability; selected email or task summaries & Correctable commitments, time zones and locations\\
+Language service & Task-based Gemini, OpenAI, Claude and eligible local/hosted adapters & Structured extraction and explanations; deterministic fallback\\\bottomrule
+\end{tabular}
+\caption{Implementation layers and their status. Appendix J specifies access and failure contracts.}\label{tab:stack}\end{minipage}
+
+\end{table*}
+
 \subsection{Computational grounding}
 Let $D$ be the gate-arrival target, $t$ the current time, $R$ only additional reserve not already incorporated into $D$, and $T$ the duration of the remaining sequential steps. The usable margin is
 \[M=D-t-R-T.\]
@@ -230,7 +256,6 @@ Activity selection resembles an orienteering problem: choose useful stops while 
 
 
 
-
 \subsection{Probability, uncertainty and calibration}
 A useful probability concerns a defined action under current information. For departure from a facility at time $l$, let $p(l\mid x)=P(l+T\leq D-R\mid x)$, where $x$ contains available route, queue and transport observations and $R$ is additional only when absent from $D$. A recommendation should identify both the action and the event: reaching the gate by the target. A probability of a flight delay is a different quantity and cannot be substituted for the probability of completing a connection.
 
@@ -243,24 +268,10 @@ Each draw represents a complete journey under coherent operating conditions. Sha
 A dotplot can make possible outcomes inspectable, following transit-uncertainty research \cite{ref8,ref9}. Its task must define the deadline and each dot. Appendix G preserves the historical timing stimulus and shows a proposed target-linked revision with synthetic outcomes. Controlled distributions test comprehension; operational probabilities require observed outcomes and calibration. Synthetic travelers provide no evidence for that calibration.
 
 We will assess calibration against observed outcomes using time-separated evaluation data. More simulation runs reduce numerical sampling error but do not repair a biased duration model or missing operational data (Appendix F).
+The implemented engine draws segment times from triangular distributions with a replayable seed, reports a Wilson interval for the simulated success fraction and records a complete calculation trace; a separate safety policy decides whether the evidence supports a recommendation. The interval describes sampling uncertainty conditional on the modeled inputs and does not calibrate a real traveler's probability. Indoor routing applies Pareto filtering before an explicit ordering of route criteria.
 
-\begin{table*}[t]
-\begin{minipage}{\textwidth}\centering\small
-\begin{tabular}{@{}p{.19\textwidth}p{.34\textwidth}p{.40\textwidth}@{}}\toprule
-Layer & Implementation candidates & Interface responsibility\\\midrule
-First browser client & Responsive TypeScript web app; shared deterministic planner & Planned physical checks on MacBook Pro M5/macOS, iPad M2/iPadOS, iPhone/iOS (model to be recorded) and Galaxy S24/Android; Windows remains planned\\
-Simulated/native extension & Xcode Simulator for Apple-platform software states; later SwiftUI/ARKit, Android camera/AR and watch APIs & Simulator checks layout and injected transitions; physical devices test touch, sensors, camera, battery and performance \cite{ref212}\\
-Backend & Workers; D1 & Versioned journey state and authenticated device handoff\\
-External data & Airline/operator feeds; flight-tracking APIs; Open-Meteo; licensed entry data & Source age, coverage, provenance and explicit unknowns\\
-Agenda & Calendar availability; selected email or task summaries & Correctable commitments, time zones and locations\\
-Language service & Task-based Gemini, OpenAI, Claude and eligible local/hosted adapters & Structured extraction and explanations; deterministic fallback\\\bottomrule
-\end{tabular}
-\caption{Implementation responsibilities. Appendix J specifies access and failure contracts.}\end{minipage}
-
-\end{table*}
-
-\subsection{Implementation stack and laptop companion}
-The first client uses one TypeScript calculation trace across phone, tablet and laptop browsers. Controlled fixtures and local saved state support identical tasks without assuming airport API coverage. A native layer can add ARKit or a validated Android camera/AR route; indoor alignment requires verified map anchors \cite{ref17}. Watches and headphones remain optional output channels. Workers and D1 are backend candidates for authenticated, versioned handoff. An A-CDM-informed event record carries source, time and revision; its dependency graph recalculates baggage, transfer and activity steps while retaining the airline boarding target. Operational feeds require agreements (Appendices J and N).
+\subsection{Procedures, providers and coordination}
+The iPhone client keeps one calculation trace per journey. Controlled fixtures and on-device saved state support identical tasks without assuming airport API coverage. ARKit guidance is implemented with a map fallback, and a validated Android camera/AR route remains planned; indoor alignment requires verified map anchors \cite{ref17}. Watches and headphones remain optional output channels. Workers and D1 are backend candidates for authenticated, versioned handoff. An A-CDM-informed event record carries source, time and revision; its dependency graph recalculates baggage, transfer and activity steps while retaining the airline boarding target. Operational feeds require agreements (Appendices J and N).
 
 \paragraph{Regional requirements and airport coordination.} We will connect government entry, transit and customs requirements with airport-validated procedures and airline boarding/baggage conditions. Each rule retains jurisdiction, journey stage, effective dates, source and review status. A changed itinerary or checkpoint triggers reassessment of affected steps; conflicts remain visible for the responsible organization to resolve. Collaboration will seek validated routes, procedure updates and escalation contacts, subject to partner agreements. Timatic informs requirements integration \cite{ref77} and One ID informs credential interoperability \cite{ref79}; neither substitutes for local operational validation. Appendices J, N and O specify responsibilities and evaluation. Appendix P distinguishes cross-border connectors, remote terminals, Korea--US baggage screening and Abu Dhabi preclearance through separate passenger and baggage states.
 
@@ -290,25 +301,29 @@ Amershi et al.\ motivate correction and scoped fallback \cite{ref144}: model tim
 
 \paragraph{Risks and mitigation.} Feed licensing and coverage determine which actions can be supported; source contracts and timestamps expose the boundary. Position drift stops camera cues and restores verified map/text guidance. Deterministic access and time checks screen model advice; unresolved conditions require confirmation. Shared client tests cover both phone platforms and laptop browsers, followed by separate physical AR validation (Appendix O). Failure tasks measure whether travelers recover the correct next action.
 
-\subsection{Model routing, cost controls and deterministic fallback}
-The cross-platform first client runs its deterministic planner without model inference. Extraction, explanation and multi-step planning may use eligible hosted or local models under measured cost and latency limits. An orchestrator can coordinate specialists over reviewed context; deterministic validation retains authority over time, routes and source-backed access conditions. Appendix M separates platform eligibility, selected phone/laptop tests and measured model performance.
+\subsection{Replicating the system}
+The source is public at \url{https://github.com/MayFairMI6/AirBorder}. On a Mac with Xcode 26 and XcodeGen, run \texttt{./Scripts/generate.sh} to create \texttt{AirBorder.xcodeproj}, select the \texttt{AirBorder} scheme and an iPhone simulator such as iPhone 17 Pro, and run the app (Cmd+R) or its tests (Cmd+U, or \texttt{./Scripts/test.sh}). Installing on a personal iPhone needs only an Apple Account in Xcode. The Worker runs from \texttt{Backend/} with \texttt{npm ci --ignore-scripts} and \texttt{npm test}; \texttt{./Scripts/configure-secrets.sh} sets provider keys for live data, and the app falls back to labeled demo data without them. The repository's continuous integration builds the app and runs unit and UI tests on a hosted macOS runner.
 
-\subsection{Ethics, regional inference and device constraints}
-Regional and device constraints govern context processing for next-action guidance. EEA and UK assessments are separate \cite{ref28,ref29,ref30}; app and survey processing also have distinct purposes. R1's per-visit movement choice and R2's probable refusal support independent feedback and movement controls, while agenda sharing has its own scope. A versioned policy gates recipients, regional AI availability and transfer safeguards (Appendices K and M).
+\section{Implementation Status}
+\subsection{Implemented central features}
+The following central features are implemented and covered by automated tests: time-zone-aware ordered itineraries with independently derived layovers; the BKK--HND--LAX and HND--NRT demo scenarios, including automatic multi-airport metro transfers; a versioned offline registry of 25 multi-airport metro areas; probability-based leave-by recommendations with complete calculation traces and a safety policy; HND facilities, nearby-place discovery, entry guidance, in-flight recognition, terminal routing and AR guidance with map fallback; traveler and accessibility settings; live, cached, stale, demo and offline provenance labels; and the credential-holding Worker. In the verification of 11 October 2026, the hosted build passed with 106 unit tests passing, while 10 of 17 UI tests failed, and a fresh Worker run passed 37 of 37 tests. Synthetic checks cover routing and validation, separately from human outcomes; Appendix D retains coverage and unresolved deployment issues \cite{ref14}. \TODO{Authors: confirm whether the Heathrow Terminal 2 gate-change task in Section~\ref{sec:initial-design} is implemented in the app or remains a design stimulus.}
+
+\subsection{Central features not yet implemented}
+Physical-device AR validation, validation of configured live providers, real-airport calibration of duration estimates and the participant study remain outstanding, as do resolving the failing UI tests. The following extensions are designed but not implemented.
+
+\paragraph{Model routing, cost controls and deterministic fallback.} The planner runs deterministically without model inference; an on-device Foundation Models service only phrases optional explanations. Extraction, explanation and multi-step planning may use eligible hosted or local models under measured cost and latency limits. An orchestrator can coordinate specialists over reviewed context; deterministic validation retains authority over time, routes and source-backed access conditions. Appendix M separates platform eligibility, selected phone/laptop tests and measured model performance.
+
+\paragraph{Ethics, regional inference and device constraints.} Regional and device constraints govern context processing for next-action guidance. EEA and UK assessments are separate \cite{ref28,ref29,ref30}; app and survey processing also have distinct purposes. R1's per-visit movement choice and R2's probable refusal support independent feedback and movement controls, while agenda sharing has its own scope. A versioned policy gates recipients, regional AI availability and transfer safeguards (Appendices K and M).
 
 Hybrid processing could extract tasks locally, send approved fields to an eligible service and validate the result. Memory, battery, temperature and deadlines bound inference depth. Pre-arrival prompts prepare connectivity and offline packs. Google/Apple context and wallet handoffs support reviewed intake (Appendix J); pricing research compares a free core, journey passes and recurring assistance (Appendix M).
 
 R1's activity-planning needs and R2's work/chatbot workflows identify benefits to test. Trial and freemium research \cite{ref146,ref148} motivates a later journey-timed study of payment choice, continued use and delivery cost; the interviews supply no price estimate.
 
-
-
-\subsection{Scheduling work, shopping and city goals}
-A later milestone uses the same time budget for work, shopping and city goals. Let $B$ be the activity budget after route, procedure and reserve allowances. A task fits when $d_i+p_i+s_i\leq B$: duration, preparation and save-and-pack time. Precedence and opening times filter choices before ranking by stated importance, deadline and activity.
+\paragraph{Scheduling work, shopping and city goals.} A later milestone uses the same time budget for work, shopping and city goals. Let $B$ be the activity budget after route, procedure and reserve allowances. A task fits when $d_i+p_i+s_i\leq B$: duration, preparation and save-and-pack time. Precedence and opening times filter choices before ranking by stated importance, deadline and activity.
 
 City visits add entry and return procedures; purchases add collection time. Offline tasks remain available during outages; splitting work requires traveler-confirmed interruptibility. Explanations name the limiting duration (Appendix J).
 
-\subsection{Conversational companion and proactive interaction}
-A later companion addresses R2's work commitments and chatbot-to-itinerary transfer effort. It proposes laptop work blocks while preserving the task, leave-by time and route on the phone. Travelers review goals extracted from shared assistant context, selected Drive documents or authorized calendar items. ChatGPT's Apps SDK \cite{ref26} and Claude's MCP connectors \cite{ref27} offer scoped integration routes.
+\paragraph{Conversational companion and proactive interaction.} A later companion addresses R2's work commitments and chatbot-to-itinerary transfer effort. It proposes laptop work blocks while preserving the task, leave-by time and route on the phone. Travelers review goals extracted from shared assistant context, selected Drive documents or authorized calendar items. ChatGPT's Apps SDK \cite{ref26} and Claude's MCP connectors \cite{ref27} offer scoped integration routes.
 
 Recommendations include finishing, saving, packing and return travel; snoozing preserves the gate deadline. Evaluation tests handoff, revision comprehension and alert duplication.
 
@@ -316,22 +331,43 @@ Inspired by dots \cite{ref156}, the companion carries reviewed work, travel and 
 
 Iqbal and Bailey motivate testing discretionary prompts at task boundaries \cite{ref142}. Critical alerts persist; agenda changes and bookings require confirmation. We will measure response latency, missed deadlines, resumption and frustration (Appendix J).
 
-\subsection{Connection recovery as the next action}
-A later recovery milestone extends the journey trace when a connection becomes infeasible. It distinguishes risk from a confirmed miss, airline offers from searched options, and received assistance from pending claims. Ticket, baggage, document, airport-change and boarding checks precede any booking. R2's costs and partly fulfilled support motivate a task to identify the responsible contact, feasible option and deadline (Appendix J).
+\paragraph{Connection recovery as the next action.} A later recovery milestone extends the journey trace when a connection becomes infeasible. It distinguishes risk from a confirmed miss, airline offers from searched options, and received assistance from pending claims. Ticket, baggage, document, airport-change and boarding checks precede any booking. R2's costs and partly fulfilled support motivate a task to identify the responsible contact, feasible option and deadline (Appendix J).
 
 \paragraph{Passenger evidence for airport design.} A downstream milestone could help authorities investigate signs, queues and step-free detours. Place-specific counts need passenger-exposure context and observational validation; this use sits outside the passenger evaluation (Appendices I and K).
 
-\subsection{Evaluation and current status}
-Against Flighty, we will measure required-step comprehension, deadline interpretation and recovery after change, separating correctness from ease/confidence. Separate AirBorder procedure tasks use independently verified answers to score required passenger checks, baggage handling and next actions. City-visit variants test entry requirements with explicit citizenship, residence and document inputs; unresolved conditions require verification. Counterbalanced alternate scenarios reduce learning effects; first-exposure performance remains distinct from later preference.
+\subsection{Completion estimate}
+\TODO{Authors: state how much of the planned project is complete, as a share with its basis (for example, features complete out of features planned).}
 
-Survey render intervals are not completion times; both records received the same initial variants, so A/B performance remains unmeasured. Observed phone sessions will assess wording, visibility and interaction.
+\section{Evaluation Plan}
+\subsection{Population}
+We will recruit six to eight recent connecting travelers through aviation-enthusiast and business/leisure communities, varying device, digital confidence and reported access need; a later comparison will use pilot variability. \TODO{Authors: confirm the enrollment level. Graduate groups need at least three evaluations per member (nine for three members); undergraduate groups need at least two (six). State the recruitment message and screening criteria.}
 
-Synthetic checks cover routing and validation, separately from human outcomes. Appendix D retains coverage and unresolved deployment issues \cite{ref14}.
+\subsection{Hypotheses}
+\TODO{Authors: confirm or revise these draft hypotheses, derived from the planned measures.}
+\begin{itemize}
+\item \textbf{H1 (primary).} After a gate change, more participants identify a feasible next action with AirBorder than with Flighty Connection Assistant. \textbf{H1$_0$:} the proportion is the same with both.
+\item \textbf{H2 (primary).} Participants interpret the leave-by deadline correctly more often with AirBorder. \textbf{H2$_0$:} deadline interpretation accuracy does not differ.
+\item \textbf{S1 (secondary).} Participants complete the gate-change task faster with AirBorder. \textbf{S1$_0$:} completion time does not differ.
+\item \textbf{S2 (secondary).} Participants omit fewer required procedure steps and add fewer unnecessary ones with AirBorder. \textbf{S2$_0$:} step errors do not differ.
+\item \textbf{S3 (secondary).} Participants rate AirBorder higher for ease and confidence. \textbf{S3$_0$:} ratings do not differ.
+\end{itemize}
+The secondary hypotheses explain the primary result: faster, more complete procedure handling and higher confidence would indicate why next-action accuracy differs.
 
-\subsection{Study procedure and success criteria}
-We will recruit six to eight recent connecting travelers through aviation-enthusiast and business/leisure communities, varying device, digital confidence and reported access need; a later comparison will use pilot variability. After a travel account, they complete stop-planning, gate-change, offline and procedure tasks (Appendix G). Primary pilot outcome: a feasible next action after the gate change. Score value extraction separately from cause explanation and transfer to a second case (Appendix G). Only a maximize-visit task requires both 14:25 leave-by and 20 minutes \emph{total}; earlier safe departure remains feasible. Code help, partial and incomplete responses separately. Time runs from task presentation to final response. Two repeated deadline or cause errors trigger revision before comparison.
+\subsection{Method}
+\paragraph{Design.} The study is within-subjects: each participant completes matched tasks with both AirBorder and Flighty Connection Assistant. System order is counterbalanced and each system uses an alternate scenario to reduce learning effects; first-exposure performance remains distinct from later preference.
 
-Later AR tasks compare map-only and camera-plus-map guidance during floor transitions and tracking loss. Woodward and Ruiz's review shows why task performance alone provides an incomplete account of situational awareness \cite{ref215}. A traveler may follow an arrow successfully yet misunderstand the destination or remaining time. We will therefore pair navigation errors and completion time with questions about the current gate, the changed route and its leave-by consequence. Appendix O explains how these measures separate instruction following from understanding and covers device alignment and site approval.
+\paragraph{Participant procedure.} Against Flighty, we will measure required-step comprehension, deadline interpretation and recovery after change, separating correctness from ease/confidence. Separate AirBorder procedure tasks use independently verified answers to score required passenger checks, baggage handling and next actions. City-visit variants test entry requirements with explicit citizenship, residence and document inputs; unresolved conditions require verification. After a travel account, participants complete stop-planning, gate-change, offline and procedure tasks (Appendix G). Only a maximize-visit task requires both 14:25 leave-by and 20 minutes \emph{total}; earlier safe departure remains feasible. Two repeated deadline or cause errors trigger revision before comparison. Survey render intervals are not completion times; both records received the same initial variants, so A/B performance remains unmeasured. Observed phone sessions will assess wording, visibility and interaction. \TODO{Authors: add the consent step, the instructions read to participants and the closing interview, in order.}
+
+\paragraph{Equipment.} Participants use AirBorder installed on an iPhone and Flighty on the same device. \TODO{Authors: name the iPhone model and iOS version, the Flighty version, and the recording equipment (screen recording, camera, audio).}
+
+\paragraph{Location.} \TODO{Authors: name where sessions take place (room or site) and whether any run remotely.}
+
+\paragraph{Time.} \TODO{Authors: give the expected session length and the time per task.}
+
+\paragraph{Later AR comparison.} Later AR tasks compare map-only and camera-plus-map guidance during floor transitions and tracking loss. Woodward and Ruiz's review shows why task performance alone provides an incomplete account of situational awareness \cite{ref215}. A traveler may follow an arrow successfully yet misunderstand the destination or remaining time. We will therefore pair navigation errors and completion time with questions about the current gate, the changed route and its leave-by consequence. Appendix O explains how these measures separate instruction following from understanding and covers device alignment and site approval.
+
+\subsection{Metrics}
+\textbf{Primary metrics:} the proportion of participants who choose a feasible next action after the gate change (H1), and deadline interpretation accuracy against verified answers (H2). \textbf{Secondary metrics:} task completion time, measured from task presentation to final response (S1); counts of omitted and unnecessary procedure steps, with help, partial and incomplete responses coded separately (S2); post-task ease and confidence ratings (S3); and value extraction scored separately from cause explanation and transfer to a second case. Survey render intervals are not completion times. Paired comparisons will use McNemar's test for the binary accuracy measures and the Wilcoxon signed-rank test for times and ratings. \TODO{Authors: confirm the rating scale and list the post-task interview questions.}
 
 \clearpage
 \raggedbottom
@@ -1637,8 +1673,8 @@ Table~\ref{tab:stack} expands the main paper's implementation summary into subsy
 \begin{tabular}{@{}p{.17\textwidth}p{.33\textwidth}p{.43\textwidth}@{}}
 \toprule
 Subsystem & Proposed technology or source & Responsibility and boundary\\\midrule
-Phone and tablet & Responsive TypeScript client; planned physical checks on iPad M2/Safari, an iPhone/Safari (model to be recorded) and Galaxy S24/Chrome; optional SwiftUI/ARKit, Android camera/AR and watch adapters & Shared next-action guidance, captions and optional camera/haptic cues. Indoor routing needs validated geometry and anchors; ordinary GPS does not identify a corridor reliably.\\[4pt]
-Laptop companion & Shared TypeScript web client; development and planned Safari/Chrome checks on MacBook Pro M5; Windows coverage and native adapter planned; local cache and notifications & Work agenda, trip timeline and editable goals. Cached state supports offline viewing; browser suspension and device sleep require a phone handoff.\\[4pt]
+Phone and tablet & Native SwiftUI iPhone app with ARKit guidance (implemented); planned iPad, Galaxy S24/Android camera/AR and watch adapters & Shared next-action guidance, captions and optional camera/haptic cues. Indoor routing needs validated geometry and anchors; ordinary GPS does not identify a corridor reliably.\\[4pt]
+Laptop companion & Planned TypeScript web client; development and planned Safari/Chrome checks on MacBook Pro M5; Windows coverage and native adapter planned; local cache and notifications & Work agenda, trip timeline and editable goals. Cached state supports offline viewing; browser suspension and device sleep require a phone handoff.\\[4pt]
 Shared services & Cloudflare Workers, D1; authenticated device synchronization & Versioned itinerary, preferences and plan traces; idempotent updates and per-user access. Store API credentials on the server.\\[4pt]
 Routing and flight state & MapKit for geographic presentation; airport/operator indoor graph; airline feed; Flightradar24 API or FlightAware AeroAPI candidates & Separate route geometry, operational flight status and aircraft movement. Evaluate feed fields and commercial access before selection; tracking alone does not establish a cancellation cause.\\[4pt]
 Weather and procedures & Open-Meteo forecast API; authoritative hazard feeds; Timatic AutoCheck adapter subject to contract; official border sources & Forecast context for leaving the airport; authoritative procedure checks. Forecast data are distinct from emergency instructions. API access and permitted use require a separate agreement.\\[4pt]
@@ -1837,7 +1873,7 @@ Amershi et al.'s guidelines support editable inferences, assistance scoped to un
 \subsection*{Synchronized journey context}
 A shared context workspace maintains the confirmed itinerary, tasks, priorities and reminders across the phone, laptop and conversational companion. Each item has a stable identifier, source reference, revision, last-confirmed time and synchronization state. Importing a refreshed conversation summary produces a proposed change set rather than replacing the agenda silently. The traveler reviews changed deadlines, locations and priorities; unchanged items retain their identifiers and completion state. A source change can invalidate a previous scheduling assumption and trigger recalculation of the affected plan.
 
-The TypeScript client and mobile application synchronize through authenticated Worker endpoints and a versioned D1 record. Writes include the last acknowledged revision; a conflicting edit returns the latest state for reconciliation. Reconnect retrieves changes since the last acknowledged revision, and an idempotency key prevents a retried update from creating duplicate tasks or reminders. The interface shows when an update is pending or when a device is using saved context. A single reminder identifier and delivery acknowledgement coordinate cross-device notifications.
+The planned laptop web client and the iPhone app will synchronize through authenticated Worker endpoints and a versioned D1 record. Writes include the last acknowledged revision; a conflicting edit returns the latest state for reconciliation. Reconnect retrieves changes since the last acknowledged revision, and an idempotency key prevents a retried update from creating duplicate tasks or reminders. The interface shows when an update is pending or when a device is using saved context. A single reminder identifier and delivery acknowledgement coordinate cross-device notifications.
 
 Synchronization has two distinct boundaries. AirBorder synchronizes confirmed context across its own clients and refreshes operational data through authorized feeds. Ongoing changes inside an external AI conversation require a supported authorized integration; otherwise the traveler shares an updated excerpt or summary. The interface exposes the source's last refresh and an Update context action. A shared snapshot therefore remains useful across devices while its freshness remains inspectable. Deadline, location and flight changes recompute the feasible work or activity budget, with explanations derived from the revised calculation.
 
