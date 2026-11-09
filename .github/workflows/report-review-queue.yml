@@ -41,9 +41,9 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: report-review-queue
-  cancel-in-progress: false
+# No concurrency group: GitHub replaces a pending run in a group with the newest one, which
+# would drop a queued change or a CI outcome transition. Runs only append comments, so
+# overlapping runs are safe; at worst a change is queued twice.
 
 jobs:
   setup:
@@ -261,10 +261,11 @@ jobs:
             echo
             cat .report-review/citations.md
           } > "$RUNNER_TEMP/request.md"
-          num=$(gh issue list --label report-review-queue --state open --json number --jq '.[0].number // empty')
+          # Use the oldest open queue issue so overlapping runs converge on the same one.
+          num=$(gh issue list --label report-review-queue --state open --json number --jq 'map(.number) | min // empty')
           if [ -z "$num" ]; then
             gh issue create --label report-review-queue --title "Report review queue" --body "Post-merge report reviews waiting for Claude in Claude Code. Each comment is one request; close the issue when all are handled. See \`Report/README.md\`."
-            num=$(gh issue list --label report-review-queue --state open --json number --jq '.[0].number')
+            num=$(gh issue list --label report-review-queue --state open --json number --jq 'map(.number) | min')
           fi
           gh issue comment "$num" --body-file "$RUNNER_TEMP/request.md"
           echo "Queued on issue #$num" >> "$GITHUB_STEP_SUMMARY"
