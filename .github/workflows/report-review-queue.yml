@@ -122,23 +122,33 @@ jobs:
             workflow_run)
               head="$RUN_SHA"
               # Only review when the CI outcome changed: that is when the results changed.
-              # The predecessor is the newest completed main run created strictly BEFORE the
-              # triggering run, so newer or out-of-order runs are never compared against.
-              prev=$(gh run list --workflow 'iOS CI' --branch main --event push --status completed \
-                       --limit 50 --json databaseId,conclusion,headSha,createdAt \
-                     | jq -c --argjson id "$RUN_ID" --arg t "$RUN_CREATED" \
-                         '[.[] | select(.databaseId != $id and .createdAt < $t)]
-                          | sort_by(.createdAt) | last // empty')
+              # Compare with the main run created immediately BEFORE this one, whatever its status.
+              # iOS CI runs can finish out of order, so:
+              #   - predecessor still running: queue anyway (an unchanged outcome cannot be confirmed);
+              #   - a newer run already finished: queue, and note that its result supersedes this one.
+              runs=$(gh run list --workflow 'iOS CI' --branch main --event push \
+                       --limit 50 --json databaseId,status,conclusion,headSha,createdAt)
+              prev=$(printf '%s' "$runs" | jq -c --argjson id "$RUN_ID" --arg t "$RUN_CREATED" \
+                       '[.[] | select(.databaseId != $id and .createdAt < $t)] | sort_by(.createdAt) | last // empty')
+              newer=$(printf '%s' "$runs" | jq -c --argjson id "$RUN_ID" --arg t "$RUN_CREATED" \
+                       '[.[] | select(.databaseId != $id and .createdAt > $t and .status == "completed")] | sort_by(.createdAt) | last // empty')
+              prev_status=$(printf '%s' "$prev" | jq -r '.status // ""')
               prev_conclusion=$(printf '%s' "$prev" | jq -r '.conclusion // ""')
               base=$(printf '%s' "$prev" | jq -r '.headSha // ""')
-              if [ -n "$prev_conclusion" ] && [ "$prev_conclusion" = "$RUN_CONCLUSION" ]; then
+              note=""
+              if [ -n "$prev" ] && [ "$prev_status" != completed ]; then
+                note="The previous main run is still $prev_status, so this result is queued without confirming a change."
+              elif [ -n "$newer" ]; then
+                note="A newer main run ($(printf '%s' "$newer" | jq -r '"\(.databaseId), \(.conclusion)"')) already finished; its result supersedes this one."
+              elif [ -n "$prev_conclusion" ] && [ "$prev_conclusion" = "$RUN_CONCLUSION" ]; then
                 echo "iOS CI outcome unchanged ($RUN_CONCLUSION); no new results to review."
                 run=false
               fi
               extra=$(
                 echo "## Generated CI results"
                 echo "iOS CI run: $RUN_URL"
-                echo "Conclusion: **$RUN_CONCLUSION** (previous main run: ${prev_conclusion:-none})"
+                echo "Conclusion: **$RUN_CONCLUSION** (previous main run: ${prev_conclusion:-${prev_status:-none}})"
+                if [ -n "$note" ]; then echo; echo "> $note"; fi
                 echo
                 gh run view "$RUN_ID" --json jobs --jq \
                   '.jobs[] | "### \(.name): \(.conclusion)", (.steps[] | "- \(.name): \(.conclusion)")'
