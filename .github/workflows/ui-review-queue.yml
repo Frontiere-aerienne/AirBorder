@@ -1,0 +1,82 @@
+name: UI review queue
+
+# Queues failing UI checks for Codex or Claude, following .github/ui-review/INSTRUCTIONS.md:
+# generate a fix preview with imagegen or another current image tool from the failing
+# screenshots and the Figma frame, get the user's approval, then fix. No AI calls run in CI.
+#
+# Runs after "iOS CI" or "UI review" fails on a pull request. workflow_run executes this
+# trusted default-branch file with a write token, so it never checks out or runs PR code and
+# only reads run metadata. It only takes effect once this file is on the default branch.
+
+on:
+  workflow_run:
+    workflows: ['iOS CI', 'UI review']
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  queue:
+    name: Queue failed UI check
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+      RUN_NAME: ${{ github.event.workflow_run.name }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      PR_FROM_EVENT: ${{ github.event.workflow_run.pull_requests[0].number }}
+    steps:
+      - name: Queue on the rolling issue
+        run: |
+          set -euo pipefail
+          pr="${PR_FROM_EVENT:-}"
+          if [ -z "$pr" ]; then
+            # Fork PRs are not listed on the run; find the open PR by its head commit.
+            pr=$(gh pr list --state open --search "$HEAD_SHA" --json number --jq '.[0].number // empty')
+          fi
+          if [ -z "$pr" ]; then
+            echo "No open pull request for $HEAD_SHA; nothing to queue."
+            exit 0
+          fi
+          marker="<!-- ui-review-request pr=$pr sha=$HEAD_SHA workflow=$RUN_NAME -->"
+          gh label create ui-review-queue --color 5319e7 --description "Failing UI checks waiting for a reviewed fix preview" --force >/dev/null
+          num=$(gh issue list --label ui-review-queue --state open --json number --jq 'map(.number) | min // empty')
+          if [ -z "$num" ]; then
+            gh issue create --label ui-review-queue --title "UI review queue" \
+              --body "Failing UI checks waiting for Codex or Claude. Each comment is one request; follow \`.github/ui-review/INSTRUCTIONS.md\`. Close the issue when all are handled."
+            num=$(gh issue list --label ui-review-queue --state open --json number --jq 'map(.number) | min')
+          fi
+          # One request per PR commit and workflow, even when the run is re-attempted.
+          if gh issue view "$num" --json comments --jq '.comments[].body' | grep -qF "$marker"; then
+            echo "Already queued on #$num."
+            exit 0
+          fi
+          title=$(gh pr view "$pr" --json title --jq .title)
+          {
+            echo "$marker"
+            echo "## UI check failed: PR #$pr, $RUN_NAME at \`${HEAD_SHA::7}\`"
+            echo
+            echo "**For Codex or Claude:** follow \`.github/ui-review/INSTRUCTIONS.md\`. Generate a fix preview with imagegen or another current image tool, get the user's approval, then fix on the PR branch. Never weaken tests or audits."
+            echo
+            echo "- Pull request: #$pr — $title"
+            echo "- Failing run: $RUN_URL"
+            echo "- Screenshots and test results: artifacts of that run (iOS CI uploads \`xcresult\`)"
+            echo
+            echo "### Failed jobs and steps"
+            gh run view "$RUN_ID" --json jobs --jq \
+              '.jobs[] | select(.conclusion == "failure") | "- **\(.name)**", (.steps[] | select(.conclusion == "failure") | "  - \(.name)")'
+          } > "$RUNNER_TEMP/request.md"
+          gh issue comment "$num" --body-file "$RUNNER_TEMP/request.md"
+          echo "Queued PR #$pr on issue #$num" >> "$GITHUB_STEP_SUMMARY"

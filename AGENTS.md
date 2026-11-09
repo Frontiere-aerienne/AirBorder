@@ -51,6 +51,7 @@ At the start of implementation or after a handoff/context compaction, read the c
 
 ### Merge evidence and boundaries
 
+- UI review checks (`.github/workflows/ui-review.yml`): **UI copy and frozen web** blocks new iOS copy tagged “Optional”, “if needed” or “if required” and changes to the frozen `Web/` app without the owner's `web-change-approved` label. **UI review gate** requires `Preview (approved):` and `Screenshots:` links in the PR description when iOS screens, components, assets or styles change, unless labeled `no-visual-change`. Failed iOS CI or UI review runs on PRs are queued on the **UI review queue** issue; handle them with `.github/ui-review/INSTRUCTIONS.md` (image-first preview and user approval before any visual fix).
 - Preserve native iOS build/unit/UI tests, backend contract/authentication tests, and browser integration/design checks. Never skip, delete, loosen assertions, blindly regenerate screenshots, or remove required checks to turn a failed PR green. Changes to workflows, tests, baselines, or these rules need explicit rationale and independent reviewer scrutiny.
 - Review the affected completed flows as well as the diff. Report uncovered requirements and residual risks honestly. Do not claim a clean review guarantees a bug-free app. Provider secrets remain server-side, protected endpoints retain authentication, and public endpoints accept only bounded non-sensitive inputs.
 
