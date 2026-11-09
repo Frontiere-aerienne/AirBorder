@@ -26,9 +26,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# The rubric and citation checks run silently: results appear only as check statuses and in
+# the job summary, never as PR comments.
 # Least privilege: jobs that run PR code (latexmk, check_rubric.py) are read-only and keep no
-# git credentials. Only the push-only release job and the comment job, which runs no PR
-# code, get write scopes.
+# git credentials. Only the push-only release job gets a write scope.
 permissions:
   contents: read
 
@@ -223,20 +224,10 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Save rubric result for the comment job
-        if: needs.build.outputs.relevant == 'true'
-        run: cp "$RUNNER_TEMP/rubric.md" rubric.md
-
-      - uses: actions/upload-artifact@v4
-        if: needs.build.outputs.relevant == 'true'
-        with:
-          name: rubric-result
-          path: rubric.md
-
       - name: Enforce rubric
         if: needs.build.outputs.relevant == 'true' && steps.rubric.outputs.code != '0'
         run: |
-          echo "::error file=Report/main.tex::Rubric check failed (a ❌ item or a regression vs base). See the job summary or the PR comment."
+          echo "::error file=Report/main.tex::Rubric check failed (a ❌ item or a regression vs base). See the check's job summary."
           exit 1
 
   citations:
@@ -269,53 +260,9 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - uses: actions/upload-artifact@v4
-        if: needs.build.outputs.relevant == 'true'
-        with:
-          name: citation-result
-          path: citations.md
-
       - name: Enforce citation anchors
         if: needs.build.outputs.relevant == 'true' && steps.cite.outputs.code != '0'
         run: |
           echo "::error file=Report/main.tex::Citation-anchor check failed. Only the anchors and project materials in .github/report-review/ANCHORS.json may be cited."
           exit 1
 
-  # Posts the sticky PR comment. It runs no PR code, so it can safely hold pull-requests: write.
-  rubric-comment:
-    name: Post rubric comment
-    needs: [build, rubric, citations]
-    if: >-
-      always() && needs.build.outputs.relevant == 'true' && github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      pull-requests: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: rubric-result
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: citation-result
-      - name: Upsert sticky comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          CODE: ${{ needs.rubric.outputs.code }}
-          CITE_CODE: ${{ needs.citations.outputs.code }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          marker='<!-- report-rubric-check -->'
-          if [ "$CODE" = 0 ] && [ "${CITE_CODE:-0}" = 0 ]; then verdict="✅ No rubric or citation failures. These checks pass."; else verdict="❌ **Merge blocked:** fix every ❌ item and every regression vs the base branch below, then push again."; fi
-          { echo "$marker"; echo "$verdict"; echo; cat rubric.md; echo; [ -f citations.md ] && cat citations.md; echo; echo "_Updated for ${HEAD_SHA::7}. ⚠️ warnings do not block._"; } > comment.md
-          id=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
-                 --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
-          if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$GH_REPO/issues/comments/$id" -F body=@comment.md >/dev/null
-          else
-            gh pr comment "$PR" --body-file comment.md
-          fi

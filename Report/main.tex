@@ -1,7 +1,7 @@
 \documentclass[sigconf,nonacm]{acmart}
 \usepackage{amsmath,tikz}
 \graphicspath{{figures/}}
-% Author placeholders. The rubric check fails while any remain in the body.
+% Author placeholders: remove all before submission.
 \newcommand{\TODO}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
 \usepackage{placeins}
 \settopmatter{printacmref=false,printfolios=true}
@@ -24,6 +24,9 @@
 \begin{abstract}
 Airport passengers coordinate boarding deadlines, travel time, required procedures and discretionary activities while information changes. AirBorder proposes a connected interface that makes the next feasible action and its constraints inspectable. Two traveler interviews inform requirements for leave-by guidance, adaptable navigation and flexible activity planning. A deployed adaptive questionnaire and explicitly synthetic scenario tests provide complementary research infrastructure and technical evidence. The proposed design connects route feasibility, uncertain duration estimates and explanations through shared journey state. Flighty Connection Assistant is the primary established baseline; additional procedure tasks assess comprehension against verified scenario answers. The evaluation framework connects interview findings, technical validation and comparative tasks, and extends passenger feedback to airport-design investigation.
 \end{abstract}
+\ccsdesc[500]{Human-centered computing~Human computer interaction (HCI)}
+\ccsdesc[300]{Human-centered computing~Ubiquitous and mobile computing systems and tools}
+\ccsdesc[300]{Human-centered computing~Empirical studies in HCI}
 \keywords{airport wayfinding, passenger decision support, human-computer interaction, adaptive questionnaires, uncertainty visualization}
 \maketitle
 \section{Introduction}
@@ -212,8 +215,8 @@ Most fresh produce is not permitted in passenger baggage. This item's conditions
 
 For Figure~\ref{fig:purchase-main}, participants identify the affected border, unresolved item conditions and next verification action. We score unsupported permission inferences separately from preference; declaration is not import approval.
 
-\subsection{Response to class review}
-\TODO{Authors: summarize the points raised in the class review of the high-fidelity prototype and how the design responded, or why it stayed as is.}
+\subsection{Design iteration}
+\TODO{Authors: summarize the review points on the high-fidelity prototype and how the design responded, or why it stayed as is.}
 
 \section{System}
 \subsection{Platform and architecture}
