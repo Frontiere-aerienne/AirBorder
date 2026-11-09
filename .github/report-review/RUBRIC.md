@@ -9,7 +9,7 @@ must not present study results.
 ## Format (−5% if the correct template is not used)
 
 - ACM full-paper template, **double column** (`acmart` with `sigconf`).
-- **5–10 pages**, excluding the appendix.
+- **5–10 pages**, excluding the appendix. References count toward the 10 pages.
 
 ## Required sections and grading
 

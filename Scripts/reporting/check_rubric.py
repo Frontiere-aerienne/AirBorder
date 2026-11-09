@@ -109,18 +109,18 @@ def check(tex_path: Path) -> list[Result]:
         r.append(Result("F-TEMPLATE", "ACM double-column template", "−5%", FAIL, "document class is not `acmart`"))
 
     if "appendix" in pages or "refs" in pages:
-        before_refs = pages.get("refs", pages.get("appendix", 1)) - 1
-        before_app = pages.get("appendix", pages.get("total", before_refs + 1)) - 1
-        ev = f"body pp. 1–{before_refs}; with references pp. 1–{before_app}; total {pages.get('total', '?')}"
-        if before_refs < 5:
+        # The rubric excludes only the appendix, so references count toward the 10-page limit.
+        # The page where references start usually still holds body text, so it counts as body.
+        body_end = pages.get("refs", pages.get("appendix", 1))
+        non_appendix = pages.get("appendix", pages.get("total", body_end) + 1) - 1
+        ev = (f"body pp. 1–{body_end}; with references pp. 1–{non_appendix} (limit counts references); "
+              f"total {pages.get('total', '?')}")
+        if body_end < 5:
             st = FAIL
             ev += " (under 5 pages)"
-        elif before_refs > 10:
+        elif non_appendix > 10:
             st = FAIL
-            ev += " (body over 10 pages)"
-        elif before_app > 10:
-            st = WARN
-            ev += " (body ≤10 but references run past p.10; confirm whether references count)"
+            ev += f" (non-appendix pages exceed 10 by {non_appendix - 10})"
         else:
             st = PASS
         r.append(Result("F-LENGTH", "5–10 pages excl. appendix", "—", st, ev))
