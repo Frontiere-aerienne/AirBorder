@@ -52,20 +52,18 @@ Any task that edits `Report/` must keep the report rubric-compliant:
 Merge gates: `.github/workflows/report-build.yml` adds two required checks on `main`.
 **Compile ACM report** fails if the report doesn't compile. **Rubric compliance** fails on any
 rubric ❌ or any regression vs the base branch (`check_rubric.py --strict --baseline-tex`). Unresolved review threads also block merging.
-`.github/workflows/report-consistency-review.yml` is advisory: it runs after merge and keeps
-the report consistent with code and results. Claude is the default agent for both report
-reviews, and Codex is the automatic fallback.
+`.github/workflows/report-review-queue.yml` runs after merge and queues a report review for
+Claude in Claude Code. It is advisory and makes no AI calls in CI.
 
 ## Review guidelines
 
-Rubric and report-consistency review is **Claude's job**: `.github/workflows/report-pr-review.yml`
-reviews report PRs, and `report-consistency-review.yml` reviews after merge. This saves Codex
-capacity. Codex is the fallback.
+Report rubric and consistency review is **Claude's job, run in Claude Code** (no API keys in
+CI). Merged changes are queued on the `report-review-queue` issue by
+`.github/workflows/report-review-queue.yml`, and Claude handles them by following
+`.github/report-review/INSTRUCTIONS.md`.
 
-- In a routine PR review, do **not** duplicate rubric findings on `Report/`. Review code changes as usual.
-- Act as the report reviewer only when a comment explicitly asks for the fallback ("The Claude report
-  review could not run"). Then check the `Report/` changes against `.github/report-review/RUBRIC.md`:
-  rubric failures, regressions vs the base branch, and claims the repository contradicts are P1, and
-  grammar or clarity problems are P2. Never ask for invented content.
+- In routine PR reviews, do **not** duplicate rubric or citation findings on `Report/`. The
+  deterministic **Rubric compliance** and **Citation anchors** checks and Claude cover them.
+  Review code changes as usual.
 - Do not respond to comments carrying the Claude Code attribution
   (`[Claude Code](https://claude.com/claude-code)`). Those are automated status notes, not feedback.

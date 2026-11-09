@@ -1,24 +1,33 @@
 # Report review: agent instructions
 
-You are reviewing the AirBorder ACM report (`Report/main.tex`, acmart `sigconf`) after a
-change landed on `main`. This review runs **after merge**. It never blocks a pull request.
+You are Claude, running in Claude Code on an author's machine. No AI runs in CI and no API
+keys are used. You review the AirBorder ACM report (`Report/main.tex`, acmart `sigconf`) in
+two situations:
+
+- **Queued post-merge reviews.** The `Report review queue` workflow comments one request per
+  change on the open issue labeled `report-review-queue`. Each request names the mode, the
+  commit range and the deterministic check results. Handle the requests in order.
+- **Report pull requests,** when an author asks you to review one, or when a report check
+  fails on a PR this Claude Code session watches.
+
+Post-merge reviews never block a pull request.
 The report is graded against the course rubric in `.github/report-review/RUBRIC.md` (the
 Implementation and Evaluation Plan deliverable). Every review checks rubric compliance.
 
-The prompt names the **mode**:
+The request names the **mode**:
 
 - **consistency**: code, docs or results changed. Bring the report back in line with the
   repository, and keep it rubric-compliant while you do.
 - **rubric**: someone edited the report itself. Grade it against the rubric. This mode is
-  **read-only**: any file edit is discarded. Only `review.md` counts.
+  **read-only**: do not edit any file.
 
 ## Inputs
 
-- `.report-review/context.md`: the trigger, commit range, changed files and, for CI-result
+- The queued request (or the PR): the trigger, commit range, changed files and, for CI-result
   triggers, the latest test outcomes. Use `git diff`, `git log` and `git show` on that range.
-- `.report-review/rubric-before.md`: the deterministic rubric check of the current report:
-  template, page counts, required sections and keywords. Use it as a starting point. It
-  matches keywords, so confirm each item by reading the report.
+- The deterministic rubric and citation checks in the request. Rerun them locally with
+  `python3 Scripts/reporting/check_rubric.py` and `check_citations.py`. They match keywords,
+  so confirm each item by reading the report.
 - The repository is the source of truth: Swift sources in `AirBorder/`, tests, `Backend/`,
   `Documentation/` (especially `Verification-*.md`), `output/` and `README.md`.
 
@@ -79,7 +88,12 @@ quoting the evidence (section name or line). Focus on what keywords cannot show:
 
 ## Required output
 
-Write `.report-review/review.md` with exactly this structure:
+Write the review with exactly this structure. Post it as a reply on the queue issue (rubric
+mode, or consistency mode with nothing to change), or as the body of the `report-sync` PR
+(consistency mode with edits). For an edit, branch `report-sync/<short-sha>` from `main`,
+change only `Report/`, compile, rerun both checks and open the PR with the `report-sync`
+label. Put `[skip report-review]` in its commit message. Once a request is handled, tick it
+off on the issue, and close the issue when no requests remain.
 
 ```
 STATUS: consistent | updated | needs-human
@@ -103,4 +117,4 @@ STATUS: consistent | updated | needs-human
   could not safely fix, a stale figure, or an unverifiable number. In consistency mode you may
   also have made safe edits.
 
-Be concise. A reviewer will read `review.md` as a pull-request or issue body.
+Be concise. The review is read as a pull-request or issue body.

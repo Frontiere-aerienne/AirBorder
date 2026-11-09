@@ -1,0 +1,270 @@
+name: Report review queue
+
+# Post-merge report review, run by Claude in Claude Code. No API keys or AI calls run in CI.
+#
+# After a change lands on main, this workflow collects the change context, runs the
+# deterministic rubric and citation checks, and queues one review request on a rolling GitHub
+# issue labeled "report-review-queue". Claude, running in the Claude Code app on the author's
+# machine, takes queued requests and follows .github/report-review/INSTRUCTIONS.md:
+#   consistency: code, docs or results changed (push outside Report/, iOS CI on main changing
+#                outcome, repository_dispatch "results-generated", manual run). Claude may edit
+#                Report/ and opens a "report-sync" PR.
+#   rubric:      a push that only edits Report/. Read-only grading against the rubric.
+# It runs after merge, so it never blocks a pull request.
+# Add "[skip report-review]" to a commit message to skip queuing.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**'
+      - '!.github/report-review/**'
+      - '!.github/workflows/report-*.yml'
+  workflow_run:
+    workflows: ['iOS CI']
+    types: [completed]
+    branches: [main]
+  repository_dispatch:
+    types: [results-generated]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: consistency (may edit the report) or rubric (read-only grading)
+        type: choice
+        options: [consistency, rubric]
+        default: consistency
+      base:
+        description: Base commit to diff from (default HEAD~1)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: report-review-queue
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: Collect change context
+    # workflow_run carries secrets and write tokens even when the triggering run came from a
+    # fork PR whose head branch is also named "main". Accept only push runs on this
+    # repository's main branch.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.ctx.outputs.run }}
+      head: ${{ steps.ctx.outputs.head }}
+      mode: ${{ steps.ctx.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build review context
+        id: ctx
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_MSG: ${{ github.event.head_commit.message }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_BASE: ${{ inputs.base }}
+          DISPATCH_BASE: ${{ github.event.client_payload.base }}
+          DISPATCH_SHA: ${{ github.event.client_payload.sha }}
+          DISPATCH_SUMMARY: ${{ github.event.client_payload.summary }}
+        run: |
+          set -euo pipefail
+          mkdir -p .report-review
+          ctx=.report-review/context.md
+          run=true
+          head="$GITHUB_SHA"
+          base=""
+          extra=""
+          mode=consistency
+
+          case "$EVENT" in
+            push)
+              base="$PUSH_BEFORE"
+              # A pending run can be replaced by a newer one in the concurrency group, so diff
+              # from the head of the last completed push review instead of the previous push.
+              # That way a dropped intermediate push is still covered.
+              last=$(gh run list --workflow report-review-queue.yml --branch main --event push \
+                       --status completed --limit 30 --json databaseId,headSha,conclusion,createdAt \
+                     | jq -r --argjson id "$GITHUB_RUN_ID" \
+                         '[.[] | select(.databaseId != $id and .conclusion != "cancelled")]
+                          | sort_by(.createdAt) | reverse | .[].headSha')
+              for sha in $last; do
+                if [ "$sha" != "$head" ] && git merge-base --is-ancestor "$sha" "$head" 2>/dev/null; then
+                  base="$sha"
+                  break
+                fi
+              done
+              if printf '%s' "$PUSH_MSG" | grep -qF '[skip report-review]'; then run=false; fi
+              ;;
+            workflow_run)
+              head="$RUN_SHA"
+              # Only review when the CI outcome changed: that is when the results changed.
+              # The predecessor is the newest completed main run created strictly BEFORE the
+              # triggering run, so newer or out-of-order runs are never compared against.
+              prev=$(gh run list --workflow 'iOS CI' --branch main --event push --status completed \
+                       --limit 50 --json databaseId,conclusion,headSha,createdAt \
+                     | jq -c --argjson id "$RUN_ID" --arg t "$RUN_CREATED" \
+                         '[.[] | select(.databaseId != $id and .createdAt < $t)]
+                          | sort_by(.createdAt) | last // empty')
+              prev_conclusion=$(printf '%s' "$prev" | jq -r '.conclusion // ""')
+              base=$(printf '%s' "$prev" | jq -r '.headSha // ""')
+              if [ -n "$prev_conclusion" ] && [ "$prev_conclusion" = "$RUN_CONCLUSION" ]; then
+                echo "iOS CI outcome unchanged ($RUN_CONCLUSION); no new results to review."
+                run=false
+              fi
+              extra=$(
+                echo "## Generated CI results"
+                echo "iOS CI run: $RUN_URL"
+                echo "Conclusion: **$RUN_CONCLUSION** (previous main run: ${prev_conclusion:-none})"
+                echo
+                gh run view "$RUN_ID" --json jobs --jq \
+                  '.jobs[] | "### \(.name): \(.conclusion)", (.steps[] | "- \(.name): \(.conclusion)")'
+              )
+              ;;
+            repository_dispatch)
+              head="${DISPATCH_SHA:-$GITHUB_SHA}"
+              base="${DISPATCH_BASE:-}"
+              extra=$(printf '## Uploaded results\n%s\n' "${DISPATCH_SUMMARY:-No summary supplied.}")
+              ;;
+            workflow_dispatch)
+              base="${INPUT_BASE:-}"
+              mode="${INPUT_MODE:-consistency}"
+              ;;
+          esac
+
+          # Fall back to the parent commit when there is no usable base.
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base=$(git rev-parse "$head~1" 2>/dev/null || git rev-parse "$head")
+          fi
+
+          # Trust boundary: only review commits that are on this repository's main branch.
+          # This rejects fork commits, arbitrary dispatch SHAs and anything not yet merged.
+          if ! git cat-file -e "$head^{commit}" 2>/dev/null || \
+             ! git merge-base --is-ancestor "$head" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::Commit $head is not on this repository's $DEFAULT_BRANCH branch; refusing to review it."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$base" "$head" 2>/dev/null; then
+            base=$(git rev-parse "$head~1" 2>/dev/null || git rev-parse "$head")
+          fi
+
+          # A push that only edits the report gets a read-only rubric review.
+          if [ "$EVENT" = push ] && [ -z "$(git diff --name-only "$base" "$head" | grep -v '^Report/' || true)" ]; then
+            mode=rubric
+          fi
+
+
+          {
+            echo "# Report review context"
+            echo
+            echo "- Trigger: \`$EVENT\`"
+            echo "- Mode: **$mode**"
+            echo "- Commit range: \`$base..$head\`"
+            echo "- Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo
+            echo "## Commits"
+            git log --format='- %h %s (%an)' "$base..$head" | head -50
+            echo
+            echo "## Changed files"
+            git diff --stat=120 "$base" "$head" | tail -200
+            echo
+            if [ -n "$extra" ]; then printf '%s\n' "$extra"; fi
+          } > "$ctx"
+
+          cat "$ctx" >> "$GITHUB_STEP_SUMMARY"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.ctx.outputs.run == 'true'
+        with:
+          name: report-review-context
+          path: .report-review/context.md
+          include-hidden-files: true
+
+  queue:
+    name: Queue review for Claude
+    needs: setup
+    if: needs.setup.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      HEAD_SHA: ${{ needs.setup.outputs.head }}
+      MODE: ${{ needs.setup.outputs.mode }}
+    steps:
+      # setup verified HEAD_SHA is on main, so this is trusted main-branch code.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.head }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: report-review-context
+          path: .report-review
+
+      - name: Deterministic checks
+        run: |
+          python3 -I Scripts/reporting/check_rubric.py --tex Report/main.tex --out .report-review/rubric.md || true
+          python3 -I Scripts/reporting/check_citations.py --out .report-review/citations.md || true
+
+      - name: Queue the review on the rolling issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create report-review-queue --color 0e8a16 --description "Report reviews waiting for Claude in Claude Code" --force >/dev/null
+          gh label create report-sync --color 1d76db --description "Report consistency edits from a Claude review" --force >/dev/null
+          short="${HEAD_SHA::7}"
+          {
+            echo "<!-- report-review-request sha=$HEAD_SHA mode=$MODE -->"
+            echo "## Review request: \`$short\` ($MODE mode)"
+            echo
+            echo "**For Claude in Claude Code:** follow \`.github/report-review/INSTRUCTIONS.md\` in **$MODE** mode for the commit range below. Grade against \`RUBRIC.md\` and \`ANCHORS.json\`."
+            if [ "$MODE" = consistency ]; then
+              echo "Put any report edits on a \`report-sync/$short\` branch and open a PR labeled \`report-sync\`."
+            else
+              echo "Rubric mode is read-only: reply on this issue with the grading."
+            fi
+            echo "Then reply here with the result and tick this request off."
+            echo
+            cat .report-review/context.md
+            echo
+            cat .report-review/rubric.md
+            echo
+            cat .report-review/citations.md
+          } > "$RUNNER_TEMP/request.md"
+          num=$(gh issue list --label report-review-queue --state open --json number --jq '.[0].number // empty')
+          if [ -z "$num" ]; then
+            gh issue create --label report-review-queue --title "Report review queue" --body "Post-merge report reviews waiting for Claude in Claude Code. Each comment is one request; close the issue when all are handled. See \`Report/README.md\`."
+            num=$(gh issue list --label report-review-queue --state open --json number --jq '.[0].number')
+          fi
+          gh issue comment "$num" --body-file "$RUNNER_TEMP/request.md"
+          echo "Queued on issue #$num" >> "$GITHUB_STEP_SUMMARY"

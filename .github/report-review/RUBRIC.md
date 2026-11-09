@@ -2,7 +2,7 @@
 
 Source: `HCI-ProjectImplementationEvaluation-Fall26.pdf` (deliverable due 11/16).
 This file is the single source of truth for every rubric check: the deterministic checker
-(`Scripts/reporting/check_rubric.py`), the post-merge AI review, and Codex PR reviews.
+(`Scripts/reporting/check_rubric.py`), and Claude's reviews in Claude Code.
 Note: the deliverable is an evaluation **plan**. User studies have not been run yet, so the report
 must not present study results.
 
