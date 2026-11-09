@@ -16,3 +16,14 @@ Backend/.wrangler/
 *.log
 output/presentations/~$*
 tmp-*.txt
+
+# LaTeX build outputs (Report/)
+Report/*.aux
+Report/*.log
+Report/*.out
+Report/*.fls
+Report/*.fdb_latexmk
+Report/*.synctex.gz
+Report/build/
+Report/main.pdf
+.report-review/

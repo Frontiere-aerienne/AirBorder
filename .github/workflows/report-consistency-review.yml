@@ -1,0 +1,315 @@
+name: Report consistency review
+
+# Post-merge, non-blocking AI review that keeps Report/main.tex consistent with the repo.
+#
+# Runs AFTER changes land on main, so it can never block a pull request:
+#   - push to main that touches anything outside Report/ (code, docs, committed results)
+#   - iOS CI finishing on main with a different outcome than the previous run (new results)
+#   - repository_dispatch "results-generated" (external pipelines uploading results)
+#   - manual dispatch
+#
+# The agent (Claude, Codex or both; set repo variable REPORT_REVIEW_AGENT) may edit only
+# Report/. Edits arrive as a "report-sync" pull request; issues it cannot resolve become a
+# "report-review" issue. Output is intentionally non-deterministic; a human merges or closes.
+# Add "[skip report-review]" to a commit message to skip a run.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**'
+      - '!Report/**'
+      - '!.github/report-review/**'
+      - '!.github/workflows/report-*.yml'
+  workflow_run:
+    workflows: ['iOS CI']
+    types: [completed]
+    branches: [main]
+  repository_dispatch:
+    types: [results-generated]
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: Which agent reviews the report
+        type: choice
+        options: [default, claude, codex, both]
+        default: default
+      base:
+        description: Base commit to diff from (default HEAD~1)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: report-consistency-review
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: Collect change context
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.ctx.outputs.run }}
+      head: ${{ steps.ctx.outputs.head }}
+      agents: ${{ steps.ctx.outputs.agents }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build review context
+        id: ctx
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_MSG: ${{ github.event.head_commit.message }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          INPUT_AGENT: ${{ inputs.agent }}
+          INPUT_BASE: ${{ inputs.base }}
+          DISPATCH_AGENT: ${{ github.event.client_payload.agent }}
+          DISPATCH_BASE: ${{ github.event.client_payload.base }}
+          DISPATCH_SHA: ${{ github.event.client_payload.sha }}
+          DISPATCH_SUMMARY: ${{ github.event.client_payload.summary }}
+          DEFAULT_AGENT: ${{ vars.REPORT_REVIEW_AGENT }}
+        run: |
+          set -euo pipefail
+          mkdir -p .report-review
+          ctx=.report-review/context.md
+          run=true
+          head="$GITHUB_SHA"
+          base=""
+          extra=""
+
+          case "$EVENT" in
+            push)
+              base="$PUSH_BEFORE"
+              if printf '%s' "$PUSH_MSG" | grep -qF '[skip report-review]'; then run=false; fi
+              ;;
+            workflow_run)
+              head="$RUN_SHA"
+              # Only review when the CI outcome changed: that is when the results changed.
+              prev=$(gh run list --workflow 'iOS CI' --branch main --status completed \
+                       --limit 10 --json databaseId,conclusion,headSha \
+                     | jq -c --argjson id "$RUN_ID" '[.[] | select(.databaseId != $id)][0] // empty')
+              prev_conclusion=$(printf '%s' "$prev" | jq -r '.conclusion // ""')
+              base=$(printf '%s' "$prev" | jq -r '.headSha // ""')
+              if [ -n "$prev_conclusion" ] && [ "$prev_conclusion" = "$RUN_CONCLUSION" ]; then
+                echo "iOS CI outcome unchanged ($RUN_CONCLUSION); no new results to review."
+                run=false
+              fi
+              extra=$(
+                echo "## Generated CI results"
+                echo "iOS CI run: $RUN_URL"
+                echo "Conclusion: **$RUN_CONCLUSION** (previous main run: ${prev_conclusion:-none})"
+                echo
+                gh run view "$RUN_ID" --json jobs --jq \
+                  '.jobs[] | "### \(.name): \(.conclusion)", (.steps[] | "- \(.name): \(.conclusion)")'
+              )
+              ;;
+            repository_dispatch)
+              head="${DISPATCH_SHA:-$GITHUB_SHA}"
+              base="${DISPATCH_BASE:-}"
+              extra=$(printf '## Uploaded results\n%s\n' "${DISPATCH_SUMMARY:-No summary supplied.}")
+              ;;
+            workflow_dispatch)
+              base="${INPUT_BASE:-}"
+              ;;
+          esac
+
+          # Fall back to the parent commit when there is no usable base.
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base=$(git rev-parse "$head~1" 2>/dev/null || git rev-parse "$head")
+          fi
+
+          agent="${INPUT_AGENT:-}"
+          [ -n "$agent" ] && [ "$agent" != default ] || agent="${DISPATCH_AGENT:-${DEFAULT_AGENT:-claude}}"
+          case "$agent" in
+            claude) agents='["claude"]' ;;
+            codex)  agents='["codex"]' ;;
+            both)   agents='["claude","codex"]' ;;
+            *) echo "::error::Unknown agent '$agent' (use claude, codex or both)"; exit 1 ;;
+          esac
+
+          {
+            echo "# Report review context"
+            echo
+            echo "- Trigger: \`$EVENT\`"
+            echo "- Commit range: \`$base..$head\`"
+            echo "- Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo
+            echo "## Commits"
+            git log --format='- %h %s (%an)' "$base..$head" | head -50
+            echo
+            echo "## Changed files"
+            git diff --stat=120 "$base" "$head" | tail -200
+            echo
+            if [ -n "$extra" ]; then printf '%s\n' "$extra"; fi
+          } > "$ctx"
+
+          cat "$ctx" >> "$GITHUB_STEP_SUMMARY"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "agents=$agents" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.ctx.outputs.run == 'true'
+        with:
+          name: report-review-context
+          path: .report-review/context.md
+          include-hidden-files: true
+
+  review:
+    name: Review report (${{ matrix.agent }})
+    needs: setup
+    if: needs.setup.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Never fail the pipeline because of the reviewer; it is advisory.
+    continue-on-error: true
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: ${{ fromJSON(needs.setup.outputs.agents) }}
+    env:
+      HEAD_SHA: ${{ needs.setup.outputs.head }}
+      AGENT: ${{ matrix.agent }}
+      PROMPT: >-
+        Follow the instructions in .github/report-review/INSTRUCTIONS.md exactly.
+        The trigger context for this run is in .report-review/context.md.
+        Write your result to .report-review/review.md.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.head }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: report-review-context
+          path: .report-review
+
+      - name: Review with Claude
+        if: matrix.agent == 'claude'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: ${{ env.PROMPT }}
+          claude_args: >-
+            --model ${{ vars.REPORT_REVIEW_CLAUDE_MODEL || 'claude-opus-5-5' }}
+            --max-turns 80
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+
+      - name: Review with Codex
+        if: matrix.agent == 'codex'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: ${{ env.PROMPT }}
+          sandbox: workspace-write
+          model: ${{ vars.REPORT_REVIEW_CODEX_MODEL }}
+
+      - name: Keep only report edits
+        id: guard
+        run: |
+          set -euo pipefail
+          # Discard anything the agent changed outside Report/.
+          { git diff --name-only | grep -v '^Report/' || true; } | xargs -r git checkout --
+          { git ls-files --others --exclude-standard \
+              | grep -vE '^(Report/|\.report-review/)' || true; } | xargs -r rm -f
+          if [ -n "$(git status --porcelain -- Report)" ]; then changed=true; else changed=false; fi
+
+          review=.report-review/review.md
+          if [ ! -s "$review" ]; then
+            printf 'STATUS: needs-human\n\n## Summary\nThe %s reviewer did not produce a review file.\n' "$AGENT" > "$review"
+          fi
+          status=$(grep -m1 -oE '^STATUS: *[a-z-]+' "$review" | sed 's/STATUS: *//' || true)
+          [ -n "$status" ] || status=needs-human
+          # An agent that edited the report but said "consistent" still gets a PR.
+          if [ "$changed" = true ] && [ "$status" = consistent ]; then status=updated; fi
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "short=${HEAD_SHA::7}" >> "$GITHUB_OUTPUT"
+          { echo "## $AGENT review: $status"; echo; cat "$review"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compile edited report
+        id: compile
+        if: steps.guard.outputs.changed == 'true'
+        continue-on-error: true
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+          working_directory: Report
+          args: -pdf -file-line-error -halt-on-error -interaction=nonstopmode
+
+      - name: Prepare pull request body
+        if: steps.guard.outputs.changed == 'true'
+        env:
+          COMPILE: ${{ steps.compile.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            sed '1{/^STATUS:/d;}' .report-review/review.md
+            echo
+            echo "---"
+            echo "Automated post-merge report review by **$AGENT** for \`${HEAD_SHA::7}\`."
+            echo "LaTeX compile check: **$COMPILE**. Review run: $RUN_URL"
+            echo
+            echo "This PR is advisory and non-deterministic. Check each edit against the evidence before merging."
+          } > "$RUNNER_TEMP/pr-body.md"
+
+      - name: Ensure labels exist
+        if: steps.guard.outputs.status != 'consistent'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create report-sync --color 1d76db --description "Automated report consistency edits" --force
+          gh label create report-review --color fbca04 --description "Report needs an author's attention" --force
+
+      - name: Open report-sync pull request
+        if: steps.guard.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          # A PAT lets the "ACM report" build run on this PR; GITHUB_TOKEN PRs do not trigger workflows.
+          token: ${{ secrets.REPORT_SYNC_TOKEN || github.token }}
+          base: main
+          branch: report-sync/${{ matrix.agent }}-${{ steps.guard.outputs.short }}
+          add-paths: Report/**
+          commit-message: |
+            Sync report with ${{ steps.guard.outputs.short }} (${{ matrix.agent }} review)
+
+            [skip report-review]
+          title: 'Report sync (${{ matrix.agent }}): align report with ${{ steps.guard.outputs.short }}'
+          body-path: ${{ runner.temp }}/pr-body.md
+          labels: report-sync
+          delete-branch: true
+
+      - name: Open issue for author attention
+        if: steps.guard.outputs.status == 'needs-human'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHORT: ${{ steps.guard.outputs.short }}
+        run: |
+          sed '1{/^STATUS:/d;}' .report-review/review.md > "$RUNNER_TEMP/issue.md"
+          printf '\n---\nAutomated post-merge review by **%s** for `%s`. Run: %s/%s/actions/runs/%s\n' \
+            "$AGENT" "$SHORT" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> "$RUNNER_TEMP/issue.md"
+          gh issue create --label report-review \
+            --title "Report review ($AGENT): needs an author for $SHORT" \
+            --body-file "$RUNNER_TEMP/issue.md"

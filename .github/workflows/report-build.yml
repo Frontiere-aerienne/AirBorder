@@ -1,0 +1,83 @@
+name: ACM report
+
+# Compiles the ACM (acmart) LaTeX report in Report/ to PDF.
+# - Pull requests: compile check + PDF artifact.
+# - Pushes to main: also refresh the rolling "report-latest" GitHub release.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Report/**'
+      - '.github/workflows/report-build.yml'
+  pull_request:
+    paths:
+      - 'Report/**'
+      - '.github/workflows/report-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: report-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compile ACM report
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile with latexmk (TeX Live, acmart)
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+          working_directory: Report
+          args: -pdf -file-line-error -halt-on-error -interaction=nonstopmode
+
+      - name: Report LaTeX warnings
+        if: always()
+        working-directory: Report
+        run: |
+          [ -f main.log ] || exit 0
+          undef_refs=$(grep -c "Reference .* undefined" main.log || true)
+          undef_cites=$(grep -c "Citation .* undefined" main.log || true)
+          overfull=$(grep -c "^Overfull" main.log || true)
+          pages=$(grep -oE "Output written on main.pdf \(([0-9]+) pages" main.log | grep -oE "[0-9]+ pages" || echo "unknown")
+          {
+            echo "### ACM report build"
+            echo "| Check | Count |"
+            echo "|---|---|"
+            echo "| Pages | ${pages} |"
+            echo "| Undefined references | ${undef_refs} |"
+            echo "| Undefined citations | ${undef_cites} |"
+            echo "| Overfull boxes | ${overfull} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$undef_refs" = 0 ] || echo "::warning file=Report/main.tex::${undef_refs} undefined references"
+          [ "$undef_cites" = 0 ] || echo "::warning file=Report/main.tex::${undef_cites} undefined citations"
+
+      - name: Upload PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirBorder-Report
+          path: Report/main.pdf
+          if-no-files-found: error
+
+      - name: Publish rolling release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp Report/main.pdf AirBorder-Report.pdf
+          notes="Automatically compiled from ${GITHUB_SHA::7} on $(date -u +%Y-%m-%dT%H:%MZ)."
+          if gh release view report-latest >/dev/null 2>&1; then
+            gh release upload report-latest AirBorder-Report.pdf --clobber
+            gh release edit report-latest --notes "$notes"
+          else
+            gh release create report-latest AirBorder-Report.pdf \
+              --title "AirBorder report (latest build)" --notes "$notes" \
+              --target "$GITHUB_SHA" --prerelease
+          fi
