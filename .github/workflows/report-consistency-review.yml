@@ -12,7 +12,9 @@ name: Report consistency review
 #                PRs). Read-only: the agent grades the report against the rubric and updates one
 #                rolling "report-rubric" issue. Being read-only means it cannot loop.
 #
-# Agent: Claude, Codex or both (repo variable REPORT_REVIEW_AGENT). Output is intentionally
+# Agent: Claude by default, with Codex as an automatic fallback when the Claude run fails or
+# writes no review (missing credentials, outage, rate limit). Repo variable REPORT_REVIEW_AGENT
+# can force codex or both. Output is intentionally
 # non-deterministic; a human merges or closes whatever it opens.
 # Add "[skip report-review]" to a commit message to skip a run.
 
@@ -256,7 +258,9 @@ jobs:
         run: python3 -I Scripts/reporting/check_rubric.py --tex Report/main.tex --out .report-review/rubric-before.md
 
       - name: Review with Claude
+        id: claude
         if: matrix.agent == 'claude'
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -268,8 +272,20 @@ jobs:
             --max-turns 80
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
 
+      - name: Decide on Codex fallback
+        id: fallback
+        if: matrix.agent == 'claude'
+        env:
+          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+        run: |
+          if [ "$CLAUDE_OUTCOME" != success ] || [ ! -s .report-review/review.md ]; then
+            echo "::warning::Claude review did not complete ($CLAUDE_OUTCOME); falling back to Codex."
+            git checkout -- . && git clean -fdq -e .report-review -e Report/main.aux -e Report/main.log
+            echo "use=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Review with Codex
-        if: matrix.agent == 'codex'
+        if: matrix.agent == 'codex' || steps.fallback.outputs.use == 'true'
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}

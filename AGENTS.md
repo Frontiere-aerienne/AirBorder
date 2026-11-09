@@ -51,19 +51,19 @@ Merge gates: `.github/workflows/report-build.yml` adds two required checks on `m
 **Compile ACM report** fails if the report doesn't compile. **Rubric compliance** fails on any
 rubric ❌ or any regression vs the base branch (`check_rubric.py --strict --baseline-tex`). Unresolved review threads also block merging.
 `.github/workflows/report-consistency-review.yml` is advisory: it runs after merge and keeps
-the report consistent with code and results.
+the report consistent with code and results. Claude is the default agent for both report
+reviews, and Codex is the automatic fallback.
 
 ## Review guidelines
 
-When reviewing a pull request that touches `Report/`, `.github/report-review/` or anything the
-report describes:
+Rubric and report-consistency review is **Claude's job**: `.github/workflows/report-pr-review.yml`
+reviews report PRs, and `report-consistency-review.yml` reviews after merge. This saves Codex
+capacity. Codex is the fallback.
 
-- Check every report edit against `.github/report-review/RUBRIC.md`, and flag anything that makes
-  a criterion worse than on the base branch (a rubric regression), even when it still passes. Flag a removed or weakened
-  required section, a missing null hypothesis, a missing within/between-subjects statement,
-  equipment, location or time, a missing % complete estimate, a body over 10 pages, or
-  study results presented in a plan. Treat these as P1.
-- Flag report claims (features, test counts, results, architecture) that the PR's code or
-  results contradict. Treat these as P1.
-- Treat grammar, spelling and clarity problems in edited report text as P2.
-- Do not ask for report changes on PRs that do not affect anything the report describes.
+- In a routine PR review, do **not** duplicate rubric findings on `Report/`. Review code changes as usual.
+- Act as the report reviewer only when a comment explicitly asks for the fallback ("The Claude report
+  review could not run"). Then check the `Report/` changes against `.github/report-review/RUBRIC.md`:
+  rubric failures, regressions vs the base branch, and claims the repository contradicts are P1, and
+  grammar or clarity problems are P2. Never ask for invented content.
+- Do not respond to comments carrying the Claude Code attribution
+  (`[Claude Code](https://claude.com/claude-code)`). Those are automated status notes, not feedback.

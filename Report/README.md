@@ -25,7 +25,7 @@ Both report checks run on every PR. A PR that doesn't touch the report passes th
 The report is graded against [`.github/report-review/RUBRIC.md`](../.github/report-review/RUBRIC.md), which covers the CAP4104/CAP5178 Implementation and Evaluation Plan deliverable. Every edit to the report is checked three ways:
 
 1. **Deterministic check (blocks merge).** [`Scripts/reporting/check_rubric.py`](../Scripts/reporting/check_rubric.py) checks the template, the 5–10 page body, the required sections, and the evaluation-plan elements: population, null hypotheses, within/between-subjects, equipment, location, time and metrics. Results go to the job summary and to a sticky comment on the PR. To run it locally, use `python3 Scripts/reporting/check_rubric.py --strict` after `latexmk`.
-2. **Codex PR review.** The `## Review guidelines` section in `AGENTS.md` tells Codex to check every report edit against the rubric.
+2. **Claude PR review.** [`report-pr-review.yml`](../.github/workflows/report-pr-review.yml) has Claude review every PR that touches the report. It leaves inline comments for rubric failures, regressions and contradicted claims. Unresolved comments block the merge through the resolved-conversation rule. If Claude can't run, the workflow asks Codex to review instead. Otherwise, `AGENTS.md` tells Codex to leave rubric review to Claude.
 3. **Post-merge AI rubric review.** Every push to `main` that edits only `Report/` triggers a read-only AI grading. It updates one rolling `report-rubric` issue per agent.
 
 Only check 1 blocks a merge. Codex review comments block only through the resolved-conversation rule. The post-merge AI grading is advisory.
@@ -53,9 +53,9 @@ The review is intentionally non-deterministic. Treat its output as a suggestion 
 
 | Setting (Settings → Secrets and variables → Actions) | Purpose |
 |---|---|
-| Secret `ANTHROPIC_API_KEY` *or* `CLAUDE_CODE_OAUTH_TOKEN` | Needed when the agent is `claude` |
-| Secret `OPENAI_API_KEY` | Needed when the agent is `codex` |
-| Variable `REPORT_REVIEW_AGENT` | `claude` (default), `codex`, or `both` |
+| Secret `ANTHROPIC_API_KEY` *or* `CLAUDE_CODE_OAUTH_TOKEN` | Claude is the primary agent for both report reviews |
+| Secret `OPENAI_API_KEY` | Codex fallback for the post-merge review, used when Claude fails or has no credentials |
+| Variable `REPORT_REVIEW_AGENT` | `claude` (default: Claude, falling back to Codex), `codex`, or `both` |
 | Variable `REPORT_REVIEW_CLAUDE_MODEL` / `REPORT_REVIEW_CODEX_MODEL` | Optional model overrides |
 | Secret `REPORT_SYNC_TOKEN` (**recommended**) | A fine-grained PAT with contents and pull-request write access. Without it, report-sync PRs never run the required report checks, because PRs opened with the default token don't trigger workflows. Those PRs then stay blocked until someone pushes a commit to them. |
 

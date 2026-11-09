@@ -4,6 +4,8 @@ module.exports=async function forward({github,context,core}) {
   const p=context.payload,c=p.comment||p.review;
   if(!c?.body?.trim()||c.user?.type!=='User'||c.user.login.endsWith('[bot]'))return;
   if(c.body.startsWith('<!-- airborder-codex-feedback:')||/@codex\b/i.test(c.body))return;
+  // Automated Claude Code replies and reports are not human feedback; do not spend Codex on them.
+  if(/\[Claude Code\]\(https:\/\/claude\.com\/claude-code\)/.test(c.body)||c.body.startsWith('<!-- report-rubric-check -->'))return;
   const number=p.pull_request?.number||(p.issue?.pull_request?p.issue.number:null);
   if(!number)return;
   const repo=context.repo;
