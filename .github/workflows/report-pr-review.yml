@@ -102,6 +102,14 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           echo "::warning::Claude report review failed; requesting a Codex review instead."
-          gh pr comment "$PR" --body "@codex review
+          cat > "$RUNNER_TEMP/fallback.md" <<'EOF'
+          @codex review
 
-          The Claude report review could not run, so this is the fallback. Review the \`Report/\` changes against \`.github/report-review/RUBRIC.md\`. Flag rubric failures, rubric regressions vs the base branch, and report claims that contradict the repository, as inline comments. Do not ask for invented content."
+          The Claude report review could not run, so this is the fallback. Review the `Report/` changes against `.github/report-review/RUBRIC.md` and `.github/report-review/ANCHORS.json`. Flag rubric failures, rubric regressions vs the base branch, citations outside the anchors, and report claims that contradict the repository, as inline comments. Do not ask for invented content.
+          EOF
+          # Retry: the GitHub API occasionally returns transient GraphQL errors.
+          for attempt in 1 2 3; do
+            if gh pr comment "$PR" --body-file "$RUNNER_TEMP/fallback.md"; then exit 0; fi
+            [ "$attempt" = 3 ] || sleep $((attempt * 10))
+          done
+          echo "::warning::Could not post the Codex fallback request after 3 attempts."
