@@ -3,21 +3,28 @@ name: ACM report
 # Compiles the ACM (acmart) LaTeX report in Report/ to PDF.
 # - Pull requests: compile check + PDF artifact.
 # - Pushes to main: also refresh the rolling "report-latest" GitHub release.
+# - Every run: rubric compliance check (Scripts/reporting/check_rubric.py) in the job summary,
+#   and as a sticky comment on pull requests. Advisory only; it does not fail the build.
 
 on:
   push:
     branches: [main]
     paths:
       - 'Report/**'
+      - '.github/report-review/RUBRIC.md'
+      - 'Scripts/reporting/check_rubric.py'
       - '.github/workflows/report-build.yml'
   pull_request:
     paths:
       - 'Report/**'
+      - '.github/report-review/RUBRIC.md'
+      - 'Scripts/reporting/check_rubric.py'
       - '.github/workflows/report-build.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: report-build-${{ github.ref }}
@@ -58,6 +65,29 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           [ "$undef_refs" = 0 ] || echo "::warning file=Report/main.tex::${undef_refs} undefined references"
           [ "$undef_cites" = 0 ] || echo "::warning file=Report/main.tex::${undef_cites} undefined citations"
+
+      - name: Rubric compliance check
+        if: always()
+        run: |
+          python3 -I Scripts/reporting/check_rubric.py --tex Report/main.tex --out "$RUNNER_TEMP/rubric.md"
+          cat "$RUNNER_TEMP/rubric.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post rubric results on the pull request
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- report-rubric-check -->'
+          { echo "$marker"; cat "$RUNNER_TEMP/rubric.md"; echo; echo "_Updated for ${GITHUB_SHA::7}. Advisory: this does not block merging._"; } > "$RUNNER_TEMP/comment.md"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+                 --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" >/dev/null
+          else
+            gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md"
+          fi
 
       - name: Upload PDF
         uses: actions/upload-artifact@v4

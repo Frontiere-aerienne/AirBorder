@@ -4,6 +4,9 @@ developer_instructions = """
 Update only assigned documentation from verified repository evidence. Preserve citations,
 distinguish implemented/demo/live/planned behavior, avoid invented test results, and check
 cross-document consistency. Leave architecture and safety policy decisions to deep roles.
+For Report/main.tex, keep it compliant with .github/report-review/RUBRIC.md (required
+sections, 5-10 page body, plan not results, explicit null hypotheses) and run
+Scripts/reporting/check_rubric.py after compiling.
 """
 model = "gpt-5.6-terra"
 model_reasoning_effort = "low"

@@ -1,16 +1,19 @@
 name: Report consistency review
 
-# Post-merge, non-blocking AI review that keeps Report/main.tex consistent with the repo.
+# Post-merge, non-blocking AI review that keeps Report/main.tex consistent with the repo
+# and compliant with the course rubric (.github/report-review/RUBRIC.md).
 #
-# Runs AFTER changes land on main, so it can never block a pull request:
-#   - push to main that touches anything outside Report/ (code, docs, committed results)
-#   - iOS CI finishing on main with a different outcome than the previous run (new results)
-#   - repository_dispatch "results-generated" (external pipelines uploading results)
-#   - manual dispatch
+# Runs AFTER changes land on main, so it can never block a pull request. Two modes:
+#   consistency: push touching anything outside Report/ (code, docs, committed results),
+#                iOS CI on main changing outcome (new results), repository_dispatch
+#                "results-generated", or manual dispatch. The agent may edit Report/ to resync it
+#                and must keep it rubric-compliant. Edits arrive as a "report-sync" PR.
+#   rubric:      push that only edits Report/ (every report edit, including merged report-sync
+#                PRs). Read-only: the agent grades the report against the rubric and updates one
+#                rolling "report-rubric" issue. Being read-only means it cannot loop.
 #
-# The agent (Claude, Codex or both; set repo variable REPORT_REVIEW_AGENT) may edit only
-# Report/. Edits arrive as a "report-sync" pull request; issues it cannot resolve become a
-# "report-review" issue. Output is intentionally non-deterministic; a human merges or closes.
+# Agent: Claude, Codex or both (repo variable REPORT_REVIEW_AGENT). Output is intentionally
+# non-deterministic; a human merges or closes whatever it opens.
 # Add "[skip report-review]" to a commit message to skip a run.
 
 on:
@@ -18,7 +21,6 @@ on:
     branches: [main]
     paths:
       - '**'
-      - '!Report/**'
       - '!.github/report-review/**'
       - '!.github/workflows/report-*.yml'
   workflow_run:
@@ -34,6 +36,11 @@ on:
         type: choice
         options: [default, claude, codex, both]
         default: default
+      mode:
+        description: consistency (may edit the report) or rubric (read-only grading)
+        type: choice
+        options: [consistency, rubric]
+        default: consistency
       base:
         description: Base commit to diff from (default HEAD~1)
         required: false
@@ -58,6 +65,7 @@ jobs:
       run: ${{ steps.ctx.outputs.run }}
       head: ${{ steps.ctx.outputs.head }}
       agents: ${{ steps.ctx.outputs.agents }}
+      mode: ${{ steps.ctx.outputs.mode }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,6 +83,7 @@ jobs:
           RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
           INPUT_AGENT: ${{ inputs.agent }}
+          INPUT_MODE: ${{ inputs.mode }}
           INPUT_BASE: ${{ inputs.base }}
           DISPATCH_AGENT: ${{ github.event.client_payload.agent }}
           DISPATCH_BASE: ${{ github.event.client_payload.base }}
@@ -89,6 +98,7 @@ jobs:
           head="$GITHUB_SHA"
           base=""
           extra=""
+          mode=consistency
 
           case "$EVENT" in
             push)
@@ -123,12 +133,18 @@ jobs:
               ;;
             workflow_dispatch)
               base="${INPUT_BASE:-}"
+              mode="${INPUT_MODE:-consistency}"
               ;;
           esac
 
           # Fall back to the parent commit when there is no usable base.
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             base=$(git rev-parse "$head~1" 2>/dev/null || git rev-parse "$head")
+          fi
+
+          # A push that only edits the report gets a read-only rubric review.
+          if [ "$EVENT" = push ] && [ -z "$(git diff --name-only "$base" "$head" | grep -v '^Report/' || true)" ]; then
+            mode=rubric
           fi
 
           agent="${INPUT_AGENT:-}"
@@ -144,6 +160,7 @@ jobs:
             echo "# Report review context"
             echo
             echo "- Trigger: \`$EVENT\`"
+            echo "- Mode: **$mode**"
             echo "- Commit range: \`$base..$head\`"
             echo "- Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo
@@ -160,6 +177,7 @@ jobs:
           echo "run=$run" >> "$GITHUB_OUTPUT"
           echo "head=$head" >> "$GITHUB_OUTPUT"
           echo "agents=$agents" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         if: steps.ctx.outputs.run == 'true'
@@ -188,9 +206,12 @@ jobs:
     env:
       HEAD_SHA: ${{ needs.setup.outputs.head }}
       AGENT: ${{ matrix.agent }}
+      MODE: ${{ needs.setup.outputs.mode }}
       PROMPT: >-
-        Follow the instructions in .github/report-review/INSTRUCTIONS.md exactly.
-        The trigger context for this run is in .report-review/context.md.
+        Follow the instructions in .github/report-review/INSTRUCTIONS.md exactly, in
+        "${{ needs.setup.outputs.mode }}" mode. Grade against .github/report-review/RUBRIC.md.
+        The trigger context is in .report-review/context.md and the deterministic rubric
+        check of the current report is in .report-review/rubric-before.md.
         Write your result to .report-review/review.md.
     steps:
       - uses: actions/checkout@v4
@@ -202,6 +223,18 @@ jobs:
         with:
           name: report-review-context
           path: .report-review
+
+      # Compile first so the rubric check can measure page counts.
+      - name: Compile current report
+        continue-on-error: true
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+          working_directory: Report
+          args: -pdf -file-line-error -interaction=nonstopmode
+
+      - name: Rubric check (before review)
+        run: python3 -I Scripts/reporting/check_rubric.py --tex Report/main.tex --out .report-review/rubric-before.md
 
       - name: Review with Claude
         if: matrix.agent == 'claude'
@@ -225,14 +258,15 @@ jobs:
           sandbox: workspace-write
           model: ${{ vars.REPORT_REVIEW_CODEX_MODEL }}
 
-      - name: Keep only report edits
+      - name: Keep only allowed edits
         id: guard
         run: |
           set -euo pipefail
-          # Discard anything the agent changed outside Report/.
-          { git diff --name-only | grep -v '^Report/' || true; } | xargs -r git checkout --
+          # Consistency mode may edit Report/ only; rubric mode is read-only.
+          if [ "$MODE" = rubric ]; then allowed='^$'; else allowed='^Report/'; fi
+          { git diff --name-only | grep -vE "$allowed" || true; } | xargs -r git checkout --
           { git ls-files --others --exclude-standard \
-              | grep -vE '^(Report/|\.report-review/)' || true; } | xargs -r rm -f
+              | grep -vE "($allowed|^\.report-review/)" || true; } | xargs -r rm -f
           if [ -n "$(git status --porcelain -- Report)" ]; then changed=true; else changed=false; fi
 
           review=.report-review/review.md
@@ -247,7 +281,7 @@ jobs:
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
           echo "status=$status" >> "$GITHUB_OUTPUT"
           echo "short=${HEAD_SHA::7}" >> "$GITHUB_OUTPUT"
-          { echo "## $AGENT review: $status"; echo; cat "$review"; } >> "$GITHUB_STEP_SUMMARY"
+          { echo "## $AGENT $MODE review: $status"; echo; cat "$review"; echo; cat .report-review/rubric-before.md; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compile edited report
         id: compile
@@ -259,6 +293,10 @@ jobs:
           working_directory: Report
           args: -pdf -file-line-error -halt-on-error -interaction=nonstopmode
 
+      - name: Rubric check (after edits)
+        if: steps.guard.outputs.changed == 'true'
+        run: python3 -I Scripts/reporting/check_rubric.py --tex Report/main.tex --out .report-review/rubric-after.md
+
       - name: Prepare pull request body
         if: steps.guard.outputs.changed == 'true'
         env:
@@ -268,6 +306,12 @@ jobs:
           {
             sed '1{/^STATUS:/d;}' .report-review/review.md
             echo
+            echo "<details><summary>Rubric check after these edits</summary>"
+            echo
+            cat .report-review/rubric-after.md
+            echo
+            echo "</details>"
+            echo
             echo "---"
             echo "Automated post-merge report review by **$AGENT** for \`${HEAD_SHA::7}\`."
             echo "LaTeX compile check: **$COMPILE**. Review run: $RUN_URL"
@@ -276,12 +320,12 @@ jobs:
           } > "$RUNNER_TEMP/pr-body.md"
 
       - name: Ensure labels exist
-        if: steps.guard.outputs.status != 'consistent'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh label create report-sync --color 1d76db --description "Automated report consistency edits" --force
           gh label create report-review --color fbca04 --description "Report needs an author's attention" --force
+          gh label create report-rubric --color 5319e7 --description "Rolling rubric compliance status of the report" --force
 
       - name: Open report-sync pull request
         if: steps.guard.outputs.changed == 'true'
@@ -302,7 +346,7 @@ jobs:
           delete-branch: true
 
       - name: Open issue for author attention
-        if: steps.guard.outputs.status == 'needs-human'
+        if: env.MODE == 'consistency' && steps.guard.outputs.status == 'needs-human'
         env:
           GH_TOKEN: ${{ github.token }}
           SHORT: ${{ steps.guard.outputs.short }}
@@ -313,3 +357,31 @@ jobs:
           gh issue create --label report-review \
             --title "Report review ($AGENT): needs an author for $SHORT" \
             --body-file "$RUNNER_TEMP/issue.md"
+
+      # Rubric mode keeps ONE rolling issue per agent instead of opening one per report edit.
+      - name: Update rolling rubric issue
+        if: env.MODE == 'rubric'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.guard.outputs.status }}
+          SHORT: ${{ steps.guard.outputs.short }}
+        run: |
+          title="Report rubric compliance ($AGENT)"
+          {
+            echo "Latest rubric review of \`Report/main.tex\` at \`$SHORT\` by **$AGENT**: **$STATUS**"
+            echo
+            sed '1{/^STATUS:/d;}' .report-review/review.md
+            echo
+            cat .report-review/rubric-before.md
+            echo
+            echo "---"
+            echo "Updated automatically after every report edit on \`main\`. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$RUNNER_TEMP/rubric-issue.md"
+          num=$(gh issue list --label report-rubric --state open --json number,title \
+                  --jq ".[] | select(.title == \"$title\") | .number" | head -1)
+          if [ -n "$num" ]; then
+            gh issue edit "$num" --body-file "$RUNNER_TEMP/rubric-issue.md"
+            gh issue comment "$num" --body "Re-graded at \`$SHORT\`: **$STATUS**. Body updated."
+          else
+            gh issue create --label report-rubric --title "$title" --body-file "$RUNNER_TEMP/rubric-issue.md"
+          fi
