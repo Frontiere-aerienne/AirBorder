@@ -53,7 +53,7 @@ To skip queuing a change, put `[skip report-review]` in its commit message.
 ### Triggering from a results pipeline
 
 ```bash
-gh api repos/MayFairMI6/AirBorder/dispatches \
+gh api repos/Frontiere-aerienne/AirBorder/dispatches \
   -f event_type=results-generated \
   -F 'client_payload[summary]=Simulation batch 2026-11-08: 500 scenarios, see output/…'
 ```

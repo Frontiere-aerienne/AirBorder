@@ -14,7 +14,7 @@ The central design choice is to keep decision evidence explicit. Time estimates 
 
 **Technologies:** Swift, SwiftUI, MapKit, Vision, ARKit, XCTest, JavaScript, Cloudflare Workers, and Node's test runner.
 
-**Evaluation and status (October 11, 2026):** a fresh locked Worker rerun passed 37/37 tests. The [hosted run at the inspected code commit](https://github.com/MayFairMI6/AirBorder/actions/runs/36787086841) passed the build and 106 unit tests; 17 UI tests ran with 10 failures, so the overall run failed. The [dated verification note](Documentation/Verification-2026-10-11.md) records the commands, environment and scope. No new full iOS/device run was performed for this documentation update.
+**Evaluation and status (October 11, 2026):** a fresh locked Worker rerun passed 37/37 tests. The [hosted run at the inspected code commit](https://github.com/Frontiere-aerienne/AirBorder/actions/runs/36787086841) passed the build and 106 unit tests; 17 UI tests ran with 10 failures, so the overall run failed. The [dated verification note](Documentation/Verification-2026-10-11.md) records the commands, environment and scope. No new full iOS/device run was performed for this documentation update.
 
 The Wilson interval quantifies Monte Carlo sampling uncertainty conditional on the modeled segment-time inputs. Real-airport calibration, configured-provider validation, physical-device AR and participant-study outcomes require separate evidence. The later local HCI survey is not bundled in this repository.
 
@@ -46,7 +46,7 @@ Reviewers can clone the public repository, build AirBorder in Xcode, run it in S
 ## Build and test from the terminal
 
 ```bash
-git clone https://github.com/MayFairMI6/AirBorder.git
+git clone https://github.com/Frontiere-aerienne/AirBorder.git
 cd AirBorder
 ./Scripts/generate.sh
 ./Scripts/build.sh

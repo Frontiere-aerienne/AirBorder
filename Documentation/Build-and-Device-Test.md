@@ -11,7 +11,7 @@ AirBorder can be built from this repository in Xcode. An Apple Developer Program
 ## Get the project
 
 ```bash
-git clone https://github.com/MayFairMI6/AirBorder.git
+git clone https://github.com/Frontiere-aerienne/AirBorder.git
 cd AirBorder
 ./Scripts/generate.sh
 ```
