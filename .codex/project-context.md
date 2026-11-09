@@ -4,6 +4,12 @@
 
 Updated November 8, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
 
+### November 8 workflow reconciliation
+
+Automation PR #2 merged as f4c16ac. Live comment forwarding reached Codex (issuecomment-6720247227), which completed a review (issuecomment-6720261568). The approved exception applied only to PR #2 and the original branch protections were verified restored. App PR #1 stays open and unmerged.
+
+The merge of main into the app branch at bdaeaf2 cleared the Git conflict but left duplicate jobs and a misplaced forwarding test in HCI quality. Restore the workflow byte-for-byte from b454a29, preserving every suite and required gate. Local relay and engine tests passed 27/27 and the simulator-selector tests passed 4/4. The app source and native tests are identical to b454a29. On bdaeaf2, native run 42515487847 passed 107 unit tests and 16/17 UI tests, with a separate large-text contrast failure. Verify current hosted checks, Codex review, and independent approval before any eventual merge. Do not merge PR #1.
+
 ### November 8 deterministic QA and accessibility identity repair
 
 Head d238932: HCI green, Codex clean; hosted42462437283 passed106 unit but13/17UI. Artifact proved AR had already reached Gate105 before assertion and walkthrough paused at Tour3, due autonomous QA timers during slow hosted startup. Added explicit --qa-start-paused, forced false outside --uitesting; normal autoplay defaults unchanged. QA tests assert paused/start-at-first and manually exercise same steps. Added readiness wait to separate baggage UI class. Contrast crop showed text blurred under navigation; layoverOverviewCard ID inherited onto multiple StaticTexts blocked unique offscreen recheck. Added AX containment only, no colors/layout changes or audit suppression. Root inspected artifacts/diff; ui_researcher source pass found no ordinary passenger visual/copy regression (not a device/VoiceOver certification). Focused4UI+1unit passed on iPhone13/iOS27.0 (/tmp/airborder-d238-focused2.log, /tmp/AirBorderD238Focused2.xcresult). Fresh hosted tests/review remain required after push. Do not merge.
