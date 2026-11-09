@@ -1,27 +1,20 @@
 {
-  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors.",
+  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors. Anchors are chosen by the authors from Report/ANCHOR-CANDIDATES.md.",
   "max_anchor_papers": 3,
   "approved": false,
-  "anchors": [
-    {
-      "key": "ref8",
-      "paper": "Fernandes, Walls, Munson, Hullman and Kay. 2018. Uncertainty Displays Using Quantile Dotplots or CDFs Improve Transit Decision-Making. CHI. doi:10.1145/3173574.3173718",
-      "supports": "Probability-based leave-by recommendations and the dotplot of possible outcomes (System: probability and uncertainty; H2 deadline interpretation)."
-    },
-    {
-      "key": "ref144",
-      "paper": "Amershi et al. 2019. Guidelines for Human-AI Interaction. CHI. doi:10.1145/3290605.3300233",
-      "supports": "Correction, scoped fallback, provenance labels and the safety policy that withholds recommendations without evidence (System: operational limits; model fallback)."
-    },
-    {
-      "key": "ref7",
-      "paper": "Lim, Dey and Avrahami. 2009. Why and Why Not Explanations Improve the Intelligibility of Context-Aware Intelligent Systems. CHI. doi:10.1145/1518701.1519023",
-      "supports": "Explaining the changed term after a gate change and the calculation trace (Initial Design: change view; H1 and the cause-explanation metric)."
-    }
-  ],
+  "anchors": [],
   "project_materials": [
-    {"key": "ref2", "what": "Deployed AirBorder travel survey (instrument used for the interviews and evaluation plan)."},
-    {"key": "ref13", "what": "Preliminary survey and interview response analysis (R1, R2)."},
-    {"key": "ref14", "what": "Synthetic scenario audit and verification record (technical validation evidence)."}
+    {
+      "key": "ref2",
+      "what": "Deployed AirBorder travel survey (instrument used for the interviews and evaluation plan)."
+    },
+    {
+      "key": "ref13",
+      "what": "Preliminary survey and interview response analysis (R1, R2)."
+    },
+    {
+      "key": "ref14",
+      "what": "Synthetic scenario audit and verification record (technical validation evidence)."
+    }
   ]
 }
