@@ -47,16 +47,19 @@ Any task that edits `Report/` must keep the report rubric-compliant:
 - Route report edits to `docs_reporter`. A change to evaluation method or hypotheses goes
   to a deep parent.
 
-Automation, which never blocks merges: `.github/workflows/report-build.yml` compiles the report and
-posts the rubric check on every report PR. `.github/workflows/report-consistency-review.yml`
-runs after merge and keeps the report consistent with code and results.
+Merge gates: `.github/workflows/report-build.yml` adds two required checks on `main`.
+**Compile ACM report** fails if the report doesn't compile. **Rubric compliance** fails on any
+rubric ❌ or any regression vs the base branch (`check_rubric.py --strict --baseline-tex`). Unresolved review threads also block merging.
+`.github/workflows/report-consistency-review.yml` is advisory: it runs after merge and keeps
+the report consistent with code and results.
 
 ## Review guidelines
 
 When reviewing a pull request that touches `Report/`, `.github/report-review/` or anything the
 report describes:
 
-- Check every report edit against `.github/report-review/RUBRIC.md`. Flag a removed or weakened
+- Check every report edit against `.github/report-review/RUBRIC.md`, and flag anything that makes
+  a criterion worse than on the base branch (a rubric regression), even when it still passes. Flag a removed or weakened
   required section, a missing null hypothesis, a missing within/between-subjects statement,
   equipment, location or time, a missing % complete estimate, a body over 10 pages, or
   study results presented in a plan. Treat these as P1.

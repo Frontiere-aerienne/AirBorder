@@ -1,10 +1,15 @@
 name: ACM report
 
-# Compiles the ACM (acmart) LaTeX report in Report/ to PDF.
-# - Pull requests: compile check + PDF artifact.
-# - Pushes to main: also refresh the rolling "report-latest" GitHub release.
-# - Every run: rubric compliance check (Scripts/reporting/check_rubric.py) in the job summary,
-#   and as a sticky comment on pull requests. Advisory only; it does not fail the build.
+# Compiles the ACM (acmart) LaTeX report in Report/ and enforces the course rubric.
+#
+# Two REQUIRED pull-request checks on main (branch protection):
+#   "Compile ACM report": the report must compile.
+#   "Rubric compliance":  no rubric item may FAIL, and no criterion may REGRESS against the PR's
+#                         base branch (pass→warn, warn→fail, more missing elements, more
+#                         undefined refs/cites/TODOs). Scripts/reporting/check_rubric.py --strict.
+# Both run on every PR so the required checks always report. A PR that does not touch the
+# report, the rubric or the checker passes immediately without compiling.
+# Pushes to main also refresh the rolling "report-latest" GitHub release.
 
 on:
   push:
@@ -15,11 +20,6 @@ on:
       - 'Scripts/reporting/check_rubric.py'
       - '.github/workflows/report-build.yml'
   pull_request:
-    paths:
-      - 'Report/**'
-      - '.github/report-review/RUBRIC.md'
-      - 'Scripts/reporting/check_rubric.py'
-      - '.github/workflows/report-build.yml'
   workflow_dispatch:
 
 permissions:
@@ -35,10 +35,31 @@ jobs:
     name: Compile ACM report
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      relevant: ${{ steps.changes.outputs.relevant }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect report changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -qE '^(Report/|\.github/report-review/RUBRIC\.md$|Scripts/reporting/check_rubric\.py$|\.github/workflows/report-build\.yml$)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "No report changes in this PR; report checks pass without compiling." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Compile with latexmk (TeX Live, acmart)
+        if: steps.changes.outputs.relevant == 'true'
         uses: xu-cheng/latex-action@v4
         with:
           root_file: main.tex
@@ -46,7 +67,7 @@ jobs:
           args: -pdf -file-line-error -halt-on-error -interaction=nonstopmode
 
       - name: Report LaTeX warnings
-        if: always()
+        if: always() && steps.changes.outputs.relevant == 'true'
         working-directory: Report
         run: |
           [ -f main.log ] || exit 0
@@ -66,35 +87,59 @@ jobs:
           [ "$undef_refs" = 0 ] || echo "::warning file=Report/main.tex::${undef_refs} undefined references"
           [ "$undef_cites" = 0 ] || echo "::warning file=Report/main.tex::${undef_cites} undefined citations"
 
-      - name: Rubric compliance check
-        if: always()
-        run: |
-          python3 -I Scripts/reporting/check_rubric.py --tex Report/main.tex --out "$RUNNER_TEMP/rubric.md"
-          cat "$RUNNER_TEMP/rubric.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Post rubric results on the pull request
-        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          marker='<!-- report-rubric-check -->'
-          { echo "$marker"; cat "$RUNNER_TEMP/rubric.md"; echo; echo "_Updated for ${GITHUB_SHA::7}. Advisory: this does not block merging._"; } > "$RUNNER_TEMP/comment.md"
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-                 --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
-          if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" >/dev/null
-          else
-            gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md"
-          fi
-
       - name: Upload PDF
+        if: steps.changes.outputs.relevant == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: AirBorder-Report
           path: Report/main.pdf
           if-no-files-found: error
+
+      # Compile the PR's base report too, so the rubric job can detect regressions.
+      - name: Check out base report
+        id: base
+        if: github.event_name == 'pull_request' && steps.changes.outputs.relevant == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE_SHA:Report/main.tex" 2>/dev/null; then
+            git worktree add --detach base-src "$BASE_SHA"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Base branch has no Report/main.tex; nothing to regress from." >> "$GITHUB_STEP_SUMMARY"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compile base report
+        if: steps.base.outputs.exists == 'true'
+        continue-on-error: true
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+          working_directory: base-src/Report
+          args: -pdf -file-line-error -interaction=nonstopmode
+
+      - name: Upload base build metadata
+        if: always() && steps.base.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-base-metadata
+          path: |
+            base-src/Report/main.tex
+            base-src/Report/main.aux
+            base-src/Report/main.log
+          if-no-files-found: warn
+
+      # The rubric job needs the aux/log files to measure page counts.
+      - name: Upload build metadata
+        if: always() && steps.changes.outputs.relevant == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-build-metadata
+          path: |
+            Report/main.aux
+            Report/main.log
+          if-no-files-found: warn
 
       - name: Publish rolling release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -111,3 +156,71 @@ jobs:
               --title "AirBorder report (latest build)" --notes "$notes" \
               --target "$GITHUB_SHA" --prerelease
           fi
+
+  rubric:
+    name: Rubric compliance
+    needs: build
+    # Always report a result, so the required check never stays pending.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Skip when the report is unchanged
+        if: needs.build.outputs.relevant != 'true'
+        run: echo "No report changes in this PR; rubric check passes." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        if: needs.build.outputs.relevant == 'true'
+
+      - uses: actions/download-artifact@v4
+        if: needs.build.outputs.relevant == 'true'
+        continue-on-error: true
+        with:
+          name: report-build-metadata
+          path: Report
+
+      - uses: actions/download-artifact@v4
+        if: needs.build.outputs.relevant == 'true' && github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          name: report-base-metadata
+          path: base
+
+      - name: Check rubric (fails on any rubric FAIL or regression vs base)
+        id: rubric
+        if: needs.build.outputs.relevant == 'true'
+        run: |
+          set +e
+          baseline=()
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then baseline=(--baseline-tex base/main.tex); fi
+          python3 -I Scripts/reporting/check_rubric.py --tex Report/main.tex "${baseline[@]}" \
+            --out "$RUNNER_TEMP/rubric.md" --strict
+          code=$?
+          cat "$RUNNER_TEMP/rubric.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Post rubric results on the pull request
+        if: needs.build.outputs.relevant == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          CODE: ${{ steps.rubric.outputs.code }}
+        run: |
+          marker='<!-- report-rubric-check -->'
+          if [ "$CODE" = 0 ]; then verdict="✅ No rubric failures. This check passes."; else verdict="❌ **Merge blocked:** fix every ❌ item and every regression vs the base branch below, then push again."; fi
+          { echo "$marker"; echo "$verdict"; echo; cat "$RUNNER_TEMP/rubric.md"; echo; echo "_Updated for ${GITHUB_SHA::7}. ⚠️ warnings do not block._"; } > "$RUNNER_TEMP/comment.md"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+                 --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/comment.md" >/dev/null
+          else
+            gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md"
+          fi
+
+      - name: Enforce rubric
+        if: needs.build.outputs.relevant == 'true' && steps.rubric.outputs.code != '0'
+        run: |
+          echo "::error file=Report/main.tex::Rubric check failed (a ❌ item or a regression vs base). See the job summary or the PR comment."
+          exit 1

@@ -27,3 +27,4 @@ Report/*.synctex.gz
 Report/build/
 Report/main.pdf
 .report-review/
+base-src/

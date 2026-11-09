@@ -8,7 +8,13 @@ This only checks structure and keywords. Whether the writing is good enough (cla
 replicability, hypothesis quality) is judged by the AI review. The script writes a Markdown
 report and, unless --strict is given, always exits 0 so it never blocks a merge.
 
-Usage: check_rubric.py [--tex Report/main.tex] [--out rubric.md] [--strict]
+With --baseline-tex (the report from the PR's base branch, compiled alongside), it also reports
+**regressions**. A regression is any criterion whose result got worse: pass→warn, warn→fail, a
+warning that is missing more elements than before, or more undefined refs, cites or TODOs.
+With --strict, any ❌ fail OR any regression exits 1.
+
+Usage: check_rubric.py [--tex Report/main.tex] [--baseline-tex base/Report/main.tex]
+                       [--out rubric.md] [--strict]
 """
 from __future__ import annotations
 
@@ -19,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PASS, WARN, FAIL, INFO = "✅ pass", "⚠️ warn", "❌ fail", "ℹ️ info"
+SEVERITY = {PASS: 0, INFO: 0, WARN: 1, FAIL: 2}
 
 
 @dataclass
@@ -28,6 +35,8 @@ class Result:
     points: str
     status: str
     evidence: str
+    missing: tuple = ()
+    counts: tuple = ()
 
 
 def strip_comments(tex: str) -> str:
@@ -122,7 +131,8 @@ def check(tex_path: Path) -> list[Result]:
     def section_check(rid, crit, pts, title_re, content_checks):
         found = find_heading(body, title_re)
         if not found:
-            r.append(Result(rid, crit, pts, FAIL, "no section with a matching title"))
+            r.append(Result(rid, crit, pts, FAIL, "no section with a matching title",
+                            tuple(label for label, _ in content_checks) + ("section",)))
             return None
         level, title, text = found
         missing = [label for label, pat in content_checks if not has(text, pat)]
@@ -132,7 +142,9 @@ def check(tex_path: Path) -> list[Result]:
             ev += " (subsection only; rubric expects a section)"
         if missing:
             ev += "; missing: " + ", ".join(missing)
-        r.append(Result(rid, crit, pts, st, ev))
+        if level != "section":
+            missing = missing + ["section heading"]
+        r.append(Result(rid, crit, pts, st, ev, tuple(missing)))
         return text
 
     section_check("R-INTRO", "Introduction", "10", r"introduction", [
@@ -182,7 +194,8 @@ def check(tex_path: Path) -> list[Result]:
             st = FAIL
         else:
             st = WARN
-        r.append(Result(rid, crit, pts, st, "all elements present" if not missing else "missing: " + ", ".join(missing)))
+        r.append(Result(rid, crit, pts, st, "all elements present" if not missing else "missing: " + ", ".join(missing),
+                        tuple(missing)))
 
     items("R-POP", "Population", "5", [
         ("who participates", r"participants?|travel(l)?ers|passengers"),
@@ -214,28 +227,55 @@ def check(tex_path: Path) -> list[Result]:
 
     # --- Hygiene (feeds Communication style) ---------------------------------------------
     issues = []
+    todo = re.findall(r"\b(TODO|FIXME|XXX|TBD)\b|\?\?", body)
+    counts = (("undefined references", pages.get("undef_refs", 0)),
+              ("undefined citations", pages.get("undef_cites", 0)),
+              ("TODO/FIXME/?? markers", len(todo)))
     if pages.get("undef_refs"):
         issues.append(f"{pages['undef_refs']} undefined references")
     if pages.get("undef_cites"):
         issues.append(f"{pages['undef_cites']} undefined citations")
-    todo = re.findall(r"\b(TODO|FIXME|XXX|TBD)\b|\?\?", body)
     if todo:
         issues.append(f"{len(todo)} TODO/FIXME/?? markers")
     if pages.get("overfull"):
         issues.append(f"{pages['overfull']} overfull boxes")
     r.append(Result("R-STYLE", "Communication style (mechanical)", "5", WARN if issues else PASS,
-                    "; ".join(issues) if issues else "no undefined refs/cites or TODO markers; clarity is judged by the AI review"))
+                    "; ".join(issues) if issues else "no undefined refs/cites or TODO markers; clarity is judged by the AI review",
+                    counts=counts))
     r.append(Result("—", "Video, peer evaluation, subjective quality", "40", INFO, "not checked automatically"))
     return r
 
 
-def render(results: list[Result]) -> str:
+def regressions(head: list[Result], base: list[Result]) -> list[str]:
+    """Criteria that got worse from base to head."""
+    out = []
+    by_id = {x.rid: x for x in base if x.rid != "—"}
+    for h in head:
+        b = by_id.get(h.rid)
+        if b is None:
+            continue
+        if SEVERITY[h.status] > SEVERITY[b.status]:
+            out.append(f"{h.rid} {h.criterion}: {b.status} → {h.status} ({h.evidence})")
+            continue
+        newly_missing = [m for m in h.missing if m not in b.missing]
+        if newly_missing and SEVERITY[h.status] > 0:
+            out.append(f"{h.rid} {h.criterion}: now also missing {', '.join(newly_missing)}")
+        bc = dict(b.counts)
+        for label, n in h.counts:
+            if n > bc.get(label, 0):
+                out.append(f"{h.rid} {h.criterion}: {label} {bc.get(label, 0)} → {n}")
+    # A page-count criterion that could not be measured on either side is not compared.
+    return out
+
+
+def render(results: list[Result], regs: list[str] | None = None) -> str:
     fails = sum(x.status == FAIL for x in results)
     warns = sum(x.status == WARN for x in results)
+    reg_note = "" if regs is None else f" · **{len(regs)} regression{'s' if len(regs) != 1 else ''} vs base**"
     lines = [
         "### Rubric compliance (Implementation & Evaluation Plan)",
         "",
-        f"**{fails} fail · {warns} warn** · rubric: `.github/report-review/RUBRIC.md` · "
+        f"**{fails} fail · {warns} warn**{reg_note} · rubric: `.github/report-review/RUBRIC.md` · "
         "keyword and structure checks only; the AI review judges quality.",
         "",
         "| ID | Criterion | Pts | Result | Evidence |",
@@ -243,21 +283,39 @@ def render(results: list[Result]) -> str:
     ]
     for x in results:
         lines.append(f"| {x.rid} | {x.criterion} | {x.points} | {x.status} | {x.evidence.replace('|', '/')} |")
+    if regs is not None:
+        lines += ["", "#### Regressions vs base branch"]
+        lines += [f"- ❌ {g}" for g in regs] if regs else ["- None. No criterion got worse."]
     return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tex", default="Report/main.tex", type=Path)
+    ap.add_argument("--baseline-tex", type=Path, help="report from the base branch, to detect regressions")
     ap.add_argument("--out", type=Path)
-    ap.add_argument("--strict", action="store_true", help="exit 1 when any check fails")
+    ap.add_argument("--strict", action="store_true", help="exit 1 on any fail or regression")
     args = ap.parse_args()
     results = check(args.tex)
-    md = render(results)
+    regs = None
+    if args.baseline_tex:
+        if args.baseline_tex.exists():
+            base = check(args.baseline_tex)
+            # Only compare page length when both sides were compiled.
+            if any("no main.aux" in x.evidence for x in base + results if x.rid == "F-LENGTH"):
+                results_cmp = [x for x in results if x.rid != "F-LENGTH"]
+                base = [x for x in base if x.rid != "F-LENGTH"]
+            else:
+                results_cmp = results
+            regs = regressions(results_cmp, base)
+        else:
+            regs = []  # No report on the base branch: nothing to regress from.
+    md = render(results, regs)
     if args.out:
         args.out.write_text(md)
     sys.stdout.write(md)
-    return 1 if args.strict and any(x.status == FAIL for x in results) else 0
+    failed = any(x.status == FAIL for x in results) or bool(regs)
+    return 1 if args.strict and failed else 0
 
 
 if __name__ == "__main__":
