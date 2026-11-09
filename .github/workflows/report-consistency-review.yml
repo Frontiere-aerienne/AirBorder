@@ -58,6 +58,14 @@ concurrency:
 jobs:
   setup:
     name: Collect change context
+    # workflow_run carries secrets and write tokens even when the triggering run came from a
+    # fork PR whose head branch is also named "main". Accept only push runs on this
+    # repository's main branch.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -71,7 +79,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Build review context
         id: ctx
@@ -85,6 +95,7 @@ jobs:
           RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
           RUN_CREATED: ${{ github.event.workflow_run.created_at }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           INPUT_AGENT: ${{ inputs.agent }}
           INPUT_MODE: ${{ inputs.mode }}
           INPUT_BASE: ${{ inputs.base }}
@@ -127,7 +138,7 @@ jobs:
               # Only review when the CI outcome changed: that is when the results changed.
               # The predecessor is the newest completed main run created strictly BEFORE the
               # triggering run, so newer or out-of-order runs are never compared against.
-              prev=$(gh run list --workflow 'iOS CI' --branch main --status completed \
+              prev=$(gh run list --workflow 'iOS CI' --branch main --event push --status completed \
                        --limit 50 --json databaseId,conclusion,headSha,createdAt \
                      | jq -c --argjson id "$RUN_ID" --arg t "$RUN_CREATED" \
                          '[.[] | select(.databaseId != $id and .createdAt < $t)]
@@ -160,6 +171,17 @@ jobs:
 
           # Fall back to the parent commit when there is no usable base.
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base=$(git rev-parse "$head~1" 2>/dev/null || git rev-parse "$head")
+          fi
+
+          # Trust boundary: only review commits that are on this repository's main branch.
+          # This rejects fork commits, arbitrary dispatch SHAs and anything not yet merged.
+          if ! git cat-file -e "$head^{commit}" 2>/dev/null || \
+             ! git merge-base --is-ancestor "$head" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::Commit $head is not on this repository's $DEFAULT_BRANCH branch; refusing to review it."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$base" "$head" 2>/dev/null; then
             base=$(git rev-parse "$head~1" 2>/dev/null || git rev-parse "$head")
           fi
 
@@ -239,6 +261,7 @@ jobs:
         with:
           ref: ${{ needs.setup.outputs.head }}
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/download-artifact@v4
         with:
