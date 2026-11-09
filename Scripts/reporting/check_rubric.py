@@ -109,23 +109,24 @@ def check(tex_path: Path) -> list[Result]:
         r.append(Result("F-TEMPLATE", "ACM double-column template", "−5%", FAIL, "document class is not `acmart`"))
 
     if "appendix" in pages or "refs" in pages:
-        # The rubric excludes only the appendix, so references count toward the 10-page limit.
-        # The page where references start usually still holds body text, so it counts as body.
-        body_end = pages.get("refs", pages.get("appendix", 1))
-        non_appendix = pages.get("appendix", pages.get("total", body_end) + 1) - 1
-        ev = (f"body pp. 1–{body_end}; with references pp. 1–{non_appendix} (limit counts references); "
-              f"total {pages.get('total', '?')}")
-        if body_end < 5:
+        # Per the course, references and the appendix are both excluded: only the body counts.
+        # Body pages are those before the page where references start. A page shared by body text
+        # and the start of the references is not counted against the 10-page maximum, but it does
+        # count toward the 5-page minimum.
+        refs = pages.get("refs", pages.get("appendix"))
+        body_full = refs - 1
+        ev = f"body pp. 1–{body_full} (+ shared p.{refs}); references and appendix excluded; total {pages.get('total', '?')}"
+        if refs < 5:
             st = FAIL
             ev += " (under 5 pages)"
-        elif non_appendix > 10:
+        elif body_full > 10:
             st = FAIL
-            ev += f" (non-appendix pages exceed 10 by {non_appendix - 10})"
+            ev += f" (body exceeds 10 pages by {body_full - 10})"
         else:
             st = PASS
-        r.append(Result("F-LENGTH", "5–10 pages excl. appendix", "—", st, ev))
+        r.append(Result("F-LENGTH", "5–10 body pages (excl. refs & appendix)", "—", st, ev))
     else:
-        r.append(Result("F-LENGTH", "5–10 pages excl. appendix", "—", WARN, "no main.aux; compile first to measure pages"))
+        r.append(Result("F-LENGTH", "5–10 body pages (excl. refs & appendix)", "—", WARN, "no main.aux; compile first to measure pages"))
 
     # --- Required sections --------------------------------------------------------------
     def section_check(rid, crit, pts, title_re, content_checks):

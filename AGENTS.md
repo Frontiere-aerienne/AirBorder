@@ -40,7 +40,7 @@ Any task that edits `Report/` must keep the report rubric-compliant:
 
 - Keep the required sections: Introduction, Initial Design, System, Implementation Status,
   and Evaluation Plan with Population, Hypotheses with nulls, Method and Metrics.
-- Keep the report at 5–10 pages excluding the appendix (references count), in the double-column template.
+- Keep the body at 5–10 pages, excluding references and the appendix, in the double-column template.
 - It is a **plan**: never present user-study results, and never invent participants,
   hypotheses, numbers or citations.
 - Run `python3 Scripts/reporting/check_rubric.py` after compiling (`latexmk -pdf` in `Report/`).

@@ -57,7 +57,7 @@ quoting the evidence (section name or line). Focus on what keywords cannot show:
 - **Metrics (5):** primary and secondary metrics with how each is measured, interview
   questions where interviews are used, and a quantitative measure that supports statistics.
 - **Plan, not results:** the deliverable is a plan, so flag any text that presents user-study results.
-- **Format:** double-column acmart and 5–10 pages excluding the appendix.
+- **Format:** double-column acmart and a 5–10 page body, excluding references and the appendix.
 - **Communication style (5):** grammar, spelling, clarity and concision in the sections you read.
 
 ## What you may change (consistency mode only)
