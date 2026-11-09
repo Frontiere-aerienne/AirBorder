@@ -4,6 +4,10 @@
 
 Updated November 8, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
 
+### November 8 organization transfer and confirmation owner mismatch
+
+The current upstream is Frontiere-aerienne/AirBorder. App PR #1 remains separate from report automation PR #3. On PR #1, the owner-mismatch POST finding (discussion_r4508545389) was reproduced in Chromium. The client now uses the existing account reset on an explicit 403 owner_mismatch, preserving the previous account's scoped outbox and leaving ordinary authentication failures on the reauthentication path. The browser regression checks closure and clearing of the old checklist, disabled edits before reload, and no replay under the next account. Local browser suite passed 51/51 and relay, engine, API and sync suites passed 51/51. Fresh hosted checks are required on the new revision. Leave PR #1 unmerged.
+
 ### November 8 workflow reconciliation
 
 Automation PR #2 merged as f4c16ac. Live comment forwarding reached Codex (issuecomment-6720247227), which completed a review (issuecomment-6720261568). The approved exception applied only to PR #2 and the original branch protections were verified restored. App PR #1 stays open and unmerged.

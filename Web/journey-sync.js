@@ -8,7 +8,52 @@ class JourneySync {
  append(event){const previous=this.queue.at(-1);this.queue.push({...event,eventId:crypto.randomUUID(),expectedRevision:previous?Math.max(this.record.revision,previous.expectedRevision+1):this.record.revision,expectedOwner:this.owner});this.persist();}
  publishPending(){const view=structuredClone(this.record);for(const event of this.queue){view.phase=event.phase;if(event.step!==null){if(event.value==='pending')delete view.status[event.phase][event.step];else view.status[event.phase][event.step]=event.value;}}this.onRecord(view);}
  enqueue(event){if(this.stopped)return;if(!this.owner||this.initializing){this.initialEdits.push({...event});this.onStatus('Changes waiting to sync');return;}this.append(event);this.onStatus('Changes waiting to sync');void this.flush();}
- async flush(){if(this.busy||this.stopped||this.authRequired||!this.queue.length)return;this.busy=true;try{while(this.queue.length&&!this.stopped){const res=await this.fetcher(this.url,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(this.queue[0])});if(res.status===409){this.onStatus('Progress changed on another device. Reopen the app to review the saved progress.');return;}if(res.status===401||res.status===403){this.authRequired=true;this.onStatus('Sign in again to sync journey progress');return;}if(!res.ok)throw Error();const record=await res.json();if(this.stopped)return;if(record.owner!==this.owner){this.stop(false);return;}if(record.revision>=this.record.revision)this.record=record;this.queue.shift();this.persist();}if(!this.stopped)this.onRecord(this.record);this.onStatus('Journey progress saved');}catch{this.onStatus('Changes waiting to sync');}finally{this.busy=false;}}
+ async flush() {
+  if (this.busy || this.stopped || this.authRequired || !this.queue.length) return;
+  this.busy = true;
+  try {
+   while (this.queue.length && !this.stopped) {
+    const res = await this.fetcher(this.url, {
+     method: 'POST', credentials: 'same-origin',
+     headers: {'content-type': 'application/json'}, body: JSON.stringify(this.queue[0]),
+    });
+    if (this.stopped) return;
+    if (res.status === 409) {
+     this.onStatus('Progress changed on another device. Reopen the app to review the saved progress.');
+     return;
+    }
+    if (res.status === 401 || res.status === 403) {
+     if (res.status === 403) {
+      const problem = await res.json().catch(() => null);
+      if (this.stopped) return;
+      if (problem?.error === 'owner_mismatch') {
+       this.stop(false);
+       return;
+      }
+     }
+     this.authRequired = true;
+     this.onStatus('Sign in again to sync journey progress');
+     return;
+    }
+    if (!res.ok) throw Error();
+    const record = await res.json();
+    if (this.stopped) return;
+    if (record.owner !== this.owner) {
+     this.stop(false);
+     return;
+    }
+    if (record.revision >= this.record.revision) this.record = record;
+    this.queue.shift();
+    this.persist();
+   }
+   if (!this.stopped) this.onRecord(this.record);
+   this.onStatus('Journey progress saved');
+  } catch {
+   this.onStatus('Changes waiting to sync');
+  } finally {
+   this.busy = false;
+  }
+ }
  // Conflict recovery discards queued changes only after an explicit user action.
  async useSaved(){if(this.busy||!this.owner)return;this.queue=[];this.persist();await this.start();}
  stop(clear=true){this.stopped=true;this.initialEdits=[];if(clear&&this.owner){try{this.storage.removeItem(this.key());}catch{}}this.queue=[];this.owner=null;this.onReset();this.onStatus('Sign in again to sync journey progress');}

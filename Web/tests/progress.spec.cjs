@@ -153,3 +153,49 @@ test('account change without logout clears old progress and open checklist',asyn
  await page.route('**/v1/journeys/switch/leg',r=>r.fulfill({json:{owner:(changed?'b':'a').repeat(64),revision:1,phase:'arrival',status:{arrival:{landed:'done'},departure:{},transfer:{}}}}));
  await page.goto('/');await expect(page.getByRole('region',{name:'Journey steps'})).toContainText('Arrival checklist');await page.getByRole('button',{name:'View steps'}).click();changed=true;await page.evaluate(()=>progressSync.start());await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('#dialog')).toBeEmpty();expect(await page.evaluate(()=>journeyProgress.status.arrival)).toEqual({});await expect(page.getByRole('region',{name:'Journey steps'})).toContainText('Transfer checklist');
 });
+
+test('owner mismatch on confirmation clears the old checklist and preserves its scoped outbox', async ({page}) => {
+  const oldOwner = 'a'.repeat(64);
+  const newOwner = 'b'.repeat(64);
+  const posted = [];
+  let currentOwner = oldOwner;
+
+  await page.addInitScript(() => {
+    window.AIRBORDER_JOURNEY = {trip: 'post-switch', leg: 'leg'};
+  });
+  await page.route('**/v1/journeys/post-switch/leg', route => {
+    if (route.request().method() === 'POST') {
+      posted.push(route.request().postDataJSON());
+      return route.fulfill({status: 403, json: {error: 'owner_mismatch'}});
+    }
+    return route.fulfill({json: {
+      owner: currentOwner,
+      revision: 0,
+      phase: 'arrival',
+      status: {arrival: currentOwner === oldOwner ? {landed: 'done'} : {}, departure: {}, transfer: {}},
+    }});
+  });
+
+  const tracker = page.getByRole('region', {name: 'Journey steps'});
+  await page.goto('/');
+  await expect(tracker).toContainText('Arrival checklist');
+  await tracker.getByRole('button', {name: 'View steps'}).click();
+  currentOwner = newOwner;
+  await page.getByRole('button', {name: 'Confirm passport control, if required', exact: true}).click();
+
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(tracker).toContainText('Transfer checklist');
+  await tracker.getByRole('button', {name: 'View steps'}).click();
+  await expect(page.getByLabel('Journey stage')).toBeDisabled();
+  expect(posted).toHaveLength(1);
+  expect(posted[0].expectedOwner).toBe(oldOwner);
+  const outbox = await page.evaluate(owner => {
+    const key = Object.keys(sessionStorage).find(key => key.startsWith(`airborder-sync:${owner}:`));
+    return key ? JSON.parse(sessionStorage.getItem(key)) : null;
+  }, oldOwner);
+  expect(outbox).toEqual(posted);
+
+  await page.reload();
+  await expect(tracker).toContainText('Confirm landing');
+  expect(posted).toHaveLength(1);
+});
