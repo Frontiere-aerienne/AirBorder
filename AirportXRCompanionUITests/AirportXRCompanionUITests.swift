@@ -19,19 +19,20 @@ final class AirportXRCompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["BKK"].exists)
         XCTAssertTrue(app.staticTexts["HND"].exists)
 
-        let why = app.buttons["Why this recommendation?"]
+        let why = app.buttons["Plan details"]
         scrollToElement(why)
         XCTAssertTrue(why.exists)
         why.tap()
         XCTAssertTrue(element("calculationTraceView").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["What we included"].exists)
+        XCTAssertTrue(app.staticTexts["Your timing"].exists)
     }
 
     func testSafestFirstActionOpensDerivedTerminalMap() {
         launch()
 
         let goToGate = app.buttons["goToGateButton"]
-        XCTAssertTrue(goToGate.waitForExistence(timeout: 5))
+        scrollToElement(goToGate)
+        waitForHittable(goToGate)
         XCTAssertTrue(goToGate.label.localizedCaseInsensitiveContains("Go to Gate"))
         goToGate.tap()
 
@@ -51,13 +52,16 @@ final class AirportXRCompanionUITests: XCTestCase {
         app.buttons["searchFlightButton"].tap()
         XCTAssertTrue(element("flightSearchResult").waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS[c] 'Example flight updates'")
+            NSPredicate(format: "label == 'Example'")
         ).firstMatch.exists)
 
-        app.staticTexts["AX 204"].firstMatch.tap()
+        let result = app.buttons["flightSearchDetailButton"].firstMatch
+        scrollToElement(result, fullyVisible: true)
+        XCTAssertTrue(result.label.contains("AX 204"))
+        result.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(element("flightDetailView").waitForExistence(timeout: 5))
         let exampleDetails = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS[c] 'Example flight details'")
+            NSPredicate(format: "label CONTAINS[c] 'Practice flight details'")
         ).firstMatch
         scrollToElement(exampleDetails)
         XCTAssertTrue(exampleDetails.exists)
@@ -66,7 +70,9 @@ final class AirportXRCompanionUITests: XCTestCase {
     func testARGuidanceAndAccessibleMapAreAvailableForMappedGate() {
         launch()
 
-        app.buttons["universalReturnToGateButton"].tap()
+        let gateButton = app.buttons["universalReturnToGateButton"]
+        waitForHittable(gateButton)
+        gateButton.tap()
         XCTAssertTrue(element("arGuideView").waitForExistence(timeout: 8))
 
         app.buttons["arMapFallbackButton"].tap()
@@ -92,17 +98,23 @@ final class AirportXRCompanionUITests: XCTestCase {
 
     func testARPreviewChangesGuidanceWithSimulatedPosition() {
         app.launchArguments = [
-            "--uitesting", "--launch-mode", "demo", "--qa-simulated-walk"
+            "--uitesting", "--launch-mode", "demo", "--qa-simulated-walk", "--qa-start-paused"
         ]
         app.launch()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
+        waitForJourneyReady()
 
         app.buttons["universalReturnToGateButton"].tap()
         XCTAssertTrue(element("arGuideView").waitForExistence(timeout: 8))
         let maneuver = app.descendants(matching: .any)["arManeuverCard"].firstMatch
         XCTAssertTrue(maneuver.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Start walking"].exists, "The preview must begin paused")
         let startingInstruction = maneuver.label
         app.buttons["Next point"].tap()
+        // A route segment contains multiple location samples. Guidance changes
+        // at the next landmark, not necessarily at its midpoint.
+        for _ in 0..<6 where maneuver.label == startingInstruction {
+            app.buttons["Next point"].tap()
+        }
         let changedManeuver = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier == 'arManeuverCard' AND label != %@", startingInstruction)
         ).firstMatch
@@ -111,20 +123,25 @@ final class AirportXRCompanionUITests: XCTestCase {
 
     func testTerminalWalkthroughCoversCoreFeaturesAndFillsTravelerDetails() {
         app.launchArguments = [
-            "--uitesting", "--launch-mode", "demo", "--qa-walkthrough"
+            "--uitesting", "--launch-mode", "demo", "--qa-walkthrough", "--qa-start-paused"
         ]
         app.launch()
+        waitForJourneyReady()
         XCTAssertTrue(element("automatedWalkthroughBanner").waitForExistence(timeout: 8))
-        app.buttons["walkthroughPauseButton"].tap()
+        XCTAssertEqual(app.buttons["walkthroughPauseButton"].label, "Resume")
+        XCTAssertTrue(app.staticTexts["Tour 1 of 8"].exists)
 
         app.buttons["walkthroughNextButton"].tap()
+        XCTAssertTrue(element("layoverTransitView").waitForExistence(timeout: 5))
+        app.buttons["walkthroughNextButton"].tap()
         XCTAssertTrue(element("itineraryEditor").waitForExistence(timeout: 5))
-
+        app.buttons["walkthroughNextButton"].tap()
+        XCTAssertTrue(element("terminalMapView").waitForExistence(timeout: 5))
         app.buttons["walkthroughNextButton"].tap()
         XCTAssertTrue(element("arGuideView").waitForExistence(timeout: 5))
         XCTAssertTrue(element("arManeuverCard").waitForExistence(timeout: 5))
 
-        for _ in 0..<3 { app.buttons["walkthroughNextButton"].tap() }
+        app.buttons["walkthroughNextButton"].tap()
         XCTAssertTrue(element("settingsView").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["universalReturnToGateButton"].exists)
         XCTAssertTrue(app.staticTexts.matching(
@@ -156,11 +173,8 @@ final class AirportXRCompanionUITests: XCTestCase {
 
     func testLayoverAffordabilityLayerShowsLocalCostsAndFreeOptions() {
         launch()
-
-        let workPods = app.buttons["Landside work pods"]
-        scrollToElement(workPods)
-        XCTAssertTrue(workPods.exists)
-        workPods.tap()
+        // Costs belong to the full layover plan, not a filtered work-pod search.
+        selectTab("Layover")
 
         XCTAssertTrue(element("layoverTransitView").waitForExistence(timeout: 5))
         let affordability = app.staticTexts["Plan your spend"]
@@ -190,8 +204,12 @@ final class AirportXRCompanionUITests: XCTestCase {
 
         XCTAssertTrue(element("layoverTransitView").waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS[c] 'Mandatory HND' AND label CONTAINS[c] 'NRT transfer'")
+            NSPredicate(format: "label == 'Airport transfer'")
         ).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS 'HND → NRT'")
+        ).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Reach your next airport before adding a stop."].exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS[c] 'Recommended route'")
         ).firstMatch.exists)
@@ -205,7 +223,7 @@ final class AirportXRCompanionUITests: XCTestCase {
         scrollToElement(transferAction)
         XCTAssertTrue(transferAction.exists)
         XCTAssertEqual(
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH[c] 'Fastest'")).count,
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH[c] 'Fastest' OR label BEGINSWITH[c] 'Quickest'")).count,
             0,
             "An example transfer snapshot must never be presented as fastest"
         )
@@ -259,7 +277,7 @@ final class AirportXRCompanionUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Saved trip"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS[c] 'out of date'")
+            NSPredicate(format: "label CONTAINS[c] 'Needs refresh before planning'")
         ).firstMatch.exists)
         XCTAssertTrue(element("longHaulJourneyDashboard").exists)
     }
@@ -271,31 +289,90 @@ final class AirportXRCompanionUITests: XCTestCase {
         ]
         app.launchEnvironment["UIAccessibilityIsReduceMotionEnabled"] = "YES"
         app.launch()
+        waitForJourneyReady()
 
         XCTAssertTrue(element("longHaulJourneyDashboard").waitForExistence(timeout: 8))
+        let persistentGate = app.buttons["universalReturnToGateButton"]
+        XCTAssertLessThan(persistentGate.frame.height, app.frame.height / 3,
+                          "The fixed gate action must leave room to read and scroll the journey")
         let gateAction = app.buttons["goToGateButton"]
-        scrollToElement(gateAction)
+        scrollToElement(gateAction, attempts: 80)
         XCTAssertTrue(gateAction.isHittable)
         // Audit at the scroll boundary where the derived tab-bar clearance keeps
         // passenger content out from under iOS 26's translucent system material.
-        for _ in 0..<8 { app.swipeUp() }
-        try app.performAccessibilityAudit(for: [
-            .contrast,
-            .elementDetection,
-            .hitRegion,
-            .sufficientElementDescription,
-            .textClipped,
-            .trait
-        ]) { issue in
-            if issue.auditType == .contrast, issue.element == nil {
-                XCTContext.runActivity(named: "Unassociated iOS simulator contrast diagnostic") { activity in
-                    let evidence = "\(issue.compactDescription)\n\(issue.detailedDescription)\nThe audit supplied no XCUIElement; associated contrast issues remain test failures."
-                    activity.add(XCTAttachment(string: evidence))
+        scrollToElement(app.buttons["AR guide"], attempts: 80)
+        let swipeStart = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: app.frame.midX, dy: persistentGate.frame.minY - 24))
+        let swipeEnd = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: app.frame.midX, dy: app.navigationBars.firstMatch.frame.maxY + 40))
+        for _ in 0..<4 { swipeStart.press(forDuration: 0.05, thenDragTo: swipeEnd) }
+        // The simulator sometimes audits a lazy-grid label above the visible
+        // navigation boundary. Recheck every such finding with that label in
+        // view; never accept an associated contrast finding without validation.
+        var deferred: [String: XCUIElement] = [:]
+        var rechecked = Set<String>()
+        var activeRecheck: String?
+        func audit(_ types: XCUIAccessibilityAuditType) throws {
+            // XCTest can time out before completing an audit on a busy runner.
+            // Retry only that infrastructure error; every completed audit keeps all checks.
+            for attempt in 0..<3 {
+                do {
+                    try app.performAccessibilityAudit(for: types) { issue in
+                        if issue.auditType == .contrast, issue.element == nil {
+                            XCTContext.runActivity(named: "Unassociated iOS simulator contrast diagnostic") { activity in
+                                activity.add(XCTAttachment(string: "\(issue.compactDescription)\n\(issue.detailedDescription)\nThe audit supplied no XCUIElement; associated issues are checked."))
+                            }
+                            return true
+                        }
+                        if issue.auditType == .contrast, let reported = issue.element {
+                            let top = self.app.navigationBars.firstMatch.frame.maxY
+                            let bottom = persistentGate.frame.minY
+                            let visible = CGRect(x: 0, y: top, width: self.app.frame.width, height: bottom - top)
+                            if !visible.contains(reported.frame) {
+                                let identifier = reported.identifier
+                                let key = identifier.isEmpty
+                                    ? "\(reported.elementType.rawValue):label:\(reported.label)"
+                                    : "\(reported.elementType.rawValue):id:\(identifier)"
+                                // Stable identifiers survive dynamic timestamps. Never
+                                // conflate elements or suppress an active recheck.
+                                let elements = self.app.descendants(matching: reported.elementType)
+                                let matches = identifier.isEmpty
+                                    ? elements.matching(NSPredicate(format: "label == %@", reported.label))
+                                    : elements.matching(identifier: identifier)
+                                guard matches.count == 1, activeRecheck != key else { return false }
+                                if !rechecked.contains(key) { deferred[key] = matches.firstMatch }
+                                XCTContext.runActivity(named: "Recheck offscreen contrast in view: \(reported.label)") { activity in
+                                    activity.add(XCTAttachment(string: "Reported frame: \(reported.frame); unobstructed content: \(visible)"))
+                                }
+                                return true
+                            }
+                        }
+                        return false
+                    }
+                    return
+                } catch {
+                    let failure = error as NSError
+                    guard failure.domain == "com.apple.xcode.xctest.accessibilityAudit",
+                          failure.code == -56, attempt < 2 else { throw error }
+                    XCTContext.runActivity(named: "Retry timed-out accessibility audit") { activity in
+                        activity.add(XCTAttachment(string: "Attempt \(attempt + 1) timed out; the complete audit is retried."))
+                    }
                 }
-                return true
             }
-            return false
         }
+        try audit([.contrast, .elementDetection, .hitRegion,
+                   .sufficientElementDescription, .textClipped, .trait])
+        for _ in 0..<20 {
+            guard let (key, target) = deferred.first else { break }
+            deferred.removeValue(forKey: key)
+            scrollToElement(target, attempts: 80, fullyVisible: true)
+            XCTAssertTrue(target.isHittable, "A deferred contrast finding must be visible for recheck")
+            activeRecheck = key
+            try audit(.contrast)
+            activeRecheck = nil
+            rechecked.insert(key)
+        }
+        XCTAssertTrue(deferred.isEmpty, "Every offscreen contrast finding must be rechecked in view")
     }
 
     func testJourneySupportsDynamicTypeAudit() throws {
@@ -308,29 +385,78 @@ final class AirportXRCompanionUITests: XCTestCase {
         app.launchArguments = ["--uitesting", "--launch-mode", mode]
         if let scenario { app.launchArguments += ["--scenario", scenario] }
         app.launch()
+        waitForJourneyReady()
+    }
+
+    private func waitForJourneyReady() {
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
+        // The tab bar is present in the accessibility tree under the opaque
+        // preparation screen. Wait for that screen to leave before tapping.
+        XCTAssertTrue(app.staticTexts["Preparing your journey"].waitForNonExistence(timeout: 60),
+                      "Journey preparation must finish before navigation")
     }
 
     private func selectTab(_ name: String) {
-        let direct = app.tabBars.buttons[name]
+        let direct = app.tabBars.firstMatch.buttons[name].firstMatch
         if direct.waitForExistence(timeout: 1) {
+            waitForHittable(direct)
             direct.tap()
             return
         }
-        app.tabBars.buttons["More"].tap()
+        let more = app.tabBars.firstMatch.buttons["More"].firstMatch
+        waitForHittable(more)
+        more.tap()
         let item = app.tables.staticTexts[name]
         XCTAssertTrue(item.waitForExistence(timeout: 3), "Could not find the \(name) tab")
         item.tap()
+    }
+
+    private func waitForHittable(_ element: XCUIElement, timeout: TimeInterval = 15) {
+        XCTAssertTrue(element.waitForExistence(timeout: timeout))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: timeout), .completed,
+                       "Control must be hittable before interaction: \(element)")
     }
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
     }
 
-    private func scrollToElement(_ element: XCUIElement, attempts: Int = 8) {
-        guard !element.exists || !element.isHittable else { return }
-        for _ in 0..<attempts where !element.exists || !element.isHittable {
-            app.swipeUp()
+    private func scrollToElement(_ element: XCUIElement, attempts: Int = 24, fullyVisible: Bool = false) {
+        // XCTest can report an offscreen child as hittable even beneath the
+        // persistent gate action or tab bar. Keep taps inside passenger content.
+        let top = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY : 100
+        let gate = app.buttons["universalReturnToGateButton"]
+        let bottom = gate.exists ? gate.frame.minY : app.tabBars.firstMatch.frame.minY
+        func safelyVisible() -> Bool {
+            guard element.exists && element.isHittable else { return false }
+            let frame = element.frame
+            return fullyVisible
+                ? frame.minY >= top + 8 && frame.maxY <= bottom - 8
+                : frame.midY > top + 8 && frame.midY < bottom - 8
         }
+        for _ in 0..<attempts {
+            if safelyVisible() { return }
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+                .withOffset(CGVector(dx: 0, dy: bottom - 24))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+                .withOffset(CGVector(dx: 0, dy: top + 60))
+            let frame = element.exists ? element.frame : .zero
+            let above = !frame.isEmpty && frame.minY != 0 && (fullyVisible ? frame.minY < top + 8 : frame.midY <= top + 8)
+            if fullyVisible && !frame.isEmpty && frame.minY != 0 {
+                let delta = above ? top + 16 - frame.minY : frame.maxY - bottom + 16
+                let distance = min(max(delta, 30), max(30, (bottom - top) / 2 - 30))
+                let anchor = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+                let midpoint = (top + bottom) / 2
+                let from = anchor.withOffset(CGVector(dx: 0, dy: midpoint))
+                let to = anchor.withOffset(CGVector(dx: 0, dy: midpoint + (above ? distance : -distance)))
+                from.press(forDuration: 0.15, thenDragTo: to)
+            } else if above {
+                end.press(forDuration: 0.05, thenDragTo: start)
+            } else {
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+        }
+        XCTAssertTrue(safelyVisible(), "Could not reveal \(element) above persistent controls")
     }
 }

@@ -14,6 +14,7 @@ struct AppLaunchContext: Equatable, Sendable {
     let scenario: String?
     let usesSimulatedTerminalWalk: Bool
     let usesAutomatedWalkthrough: Bool
+    let qaStartPaused: Bool
     let externalIndoorSignalURL: URL?
     let usesCoreLocationIndoorQA: Bool
     /// Test-only clock movement. This is deliberately unavailable to normal
@@ -32,6 +33,7 @@ struct AppLaunchContext: Equatable, Sendable {
         scenario: String? = nil,
         usesSimulatedTerminalWalk: Bool = false,
         usesAutomatedWalkthrough: Bool = false,
+        qaStartPaused: Bool = false,
         externalIndoorSignalURL: URL? = nil,
         usesCoreLocationIndoorQA: Bool = false,
         qaClockOffsetMinutes: Int = 0,
@@ -45,6 +47,7 @@ struct AppLaunchContext: Equatable, Sendable {
         self.scenario = scenario
         self.usesSimulatedTerminalWalk = usesSimulatedTerminalWalk
         self.usesAutomatedWalkthrough = usesAutomatedWalkthrough
+        self.qaStartPaused = isUITest && qaStartPaused
         self.externalIndoorSignalURL = externalIndoorSignalURL
         self.usesCoreLocationIndoorQA = usesCoreLocationIndoorQA
         self.qaClockOffsetMinutes = qaClockOffsetMinutes
@@ -139,6 +142,7 @@ struct AppLaunchContext: Equatable, Sendable {
                     || usesCoreLocationIndoorQA
             ),
             usesAutomatedWalkthrough: isUITest && arguments.contains("--qa-walkthrough"),
+            qaStartPaused: isUITest && arguments.contains("--qa-start-paused"),
             externalIndoorSignalURL: externalIndoorSignalURL,
             usesCoreLocationIndoorQA: usesCoreLocationIndoorQA,
             qaClockOffsetMinutes: qaClockOffsetMinutes,

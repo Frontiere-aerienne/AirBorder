@@ -9,9 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: hci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  required:
-    name: HCI required tests
+  engine:
+    name: HCI engine
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -19,5 +23,68 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Test PR comment forwarding
-        run: node --test Scripts/tests/forward-pr-feedback.test.cjs
+      - run: node --test Scripts/tests/forward-pr-feedback.test.cjs
+      - run: node --test Web/journey-engine.test.cjs
+      - run: python3 Scripts/select-ci-simulator.py --self-test
+  backend:
+    name: HCI backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Backend/package-lock.json
+      - run: npm ci
+        working-directory: Backend
+      - run: npm run check && npm test
+        working-directory: Backend
+      - run: node --test Web/backend/test/*.test.mjs
+  browser:
+    name: HCI browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            Backend/package-lock.json
+            Web/package-lock.json
+      - run: npm ci
+        working-directory: Backend
+      - run: npm ci
+        working-directory: Web
+      - run: npx playwright install --with-deps chromium
+        working-directory: Web
+      - run: npm run test:ui
+        working-directory: Web
+      - name: Browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-results
+          path: |
+            Web/test-results/
+            Web/playwright-report/
+          if-no-files-found: warn
+  required:
+    name: HCI required tests
+    if: always()
+    needs: [engine, backend, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every suite to succeed
+        env:
+          ENGINE_RESULT: ${{ needs.engine.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          test "$ENGINE_RESULT" = success
+          test "$BACKEND_RESULT" = success
+          test "$BROWSER_RESULT" = success

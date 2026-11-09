@@ -787,8 +787,10 @@ struct FlightsView: View {
                                     Spacer()
                                     StatusPill(status: flight.status)
                                 }
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("flightSearchDetailButton")
                             Button("Add to itinerary") {
                                 Task {
                                     await longHaulViewModel.addLeg(flight)
@@ -801,6 +803,7 @@ struct FlightsView: View {
                             .accessibilityIdentifier("addItineraryLegButton")
                         }
                     }
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("flightSearchResult")
                 }
             }
@@ -1042,6 +1045,9 @@ struct FlightDetailView: View {
                 Text(flight.source.isDemo ? "Practice flight details." : "Some flight details may not be available yet.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: AirportXRLayout.floatingTabBarClearance)
         }
         .navigationTitle("Flight detail")
         .accessibilityIdentifier("flightDetailView")

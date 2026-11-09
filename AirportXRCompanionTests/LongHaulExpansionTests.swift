@@ -4,6 +4,12 @@ import XCTest
 @testable import AirBorder
 
 final class LongHaulExpansionTests: XCTestCase {
+    func testPausedStartRequiresExplicitUITestOptIn() {
+        XCTAssertFalse(AppLaunchContext.current(arguments: ["AirBorder", "--qa-start-paused"]).qaStartPaused)
+        XCTAssertFalse(AppLaunchContext.current(arguments: ["AirBorder", "--uitesting"]).qaStartPaused)
+        XCTAssertTrue(AppLaunchContext.current(arguments: ["AirBorder", "--uitesting", "--qa-start-paused"]).qaStartPaused)
+    }
+
     func testDecisionReadyPlanSeparatesTravelQueuesAndQuietCallSuitability() {
         let workPod = LayoverPlace(
             id: "work", name: "Work pod", airportCode: "HND", terminal: "3",

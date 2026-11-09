@@ -4,6 +4,7 @@ struct JourneyDashboardView: View {
     @EnvironmentObject private var container: AppContainer
     @EnvironmentObject private var viewModel: LongHaulExperienceViewModel
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var itineraryEyebrowSize: CGFloat = 11
 
     var body: some View {
         Group {
@@ -160,8 +161,11 @@ struct JourneyDashboardView: View {
         showsRefresh: Bool,
         identifier: String? = nil
     ) -> some View {
-        SurfaceCard {
-            HStack(alignment: .center, spacing: 12) {
+        let layout: AnyLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+        return SurfaceCard {
+            layout {
                 Image(systemName: "cloud.sun.fill")
                     .font(.title2)
                     .foregroundStyle(.teal)
@@ -174,6 +178,7 @@ struct JourneyDashboardView: View {
                         Text("Observed \(relative(metric.observedAt)) · checked \(relative(metric.receivedAt))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("\(identifier ?? (showsRefresh ? "departureWeatherCard" : "destinationWeatherCard"))-observed")
                     }
                     if showsRefresh, let message = viewModel.weatherRefreshMessage {
                         Text(message)
@@ -181,7 +186,7 @@ struct JourneyDashboardView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Spacer(minLength: 8)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                 if showsRefresh {
                     Button { Task { await viewModel.refreshWeather(force: true) } } label: {
                         if viewModel.isRefreshingWeather {
@@ -198,6 +203,7 @@ struct JourneyDashboardView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier ?? (showsRefresh ? "departureWeatherCard" : "destinationWeatherCard"))
     }
 
@@ -226,6 +232,7 @@ struct JourneyDashboardView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("delayOutlookCard")
     }
 
@@ -269,18 +276,26 @@ struct JourneyDashboardView: View {
 
         return SurfaceCard {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
+                let headerLayout: AnyLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading))
+                    : AnyLayout(HStackLayout())
+                headerLayout {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("YOUR TRIP")
-                            .font(.caption2.bold())
+                            // Keep the original 11-point default while scaling
+                            // through every content-size category.
+                            .font(.system(size: itineraryEyebrowSize, weight: .bold))
                             .foregroundStyle(AirportXRPalette.actionTeal)
+                            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                         Text("\(itinerary.legs.first?.flight.origin.city ?? itinerary.legs.first?.flight.origin.iata ?? "Departure") to \(itinerary.legs.last?.flight.destination.city ?? itinerary.legs.last?.flight.destination.iata ?? "destination")")
                             .font(.title3.bold())
+                            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                     }
-                    Spacer()
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                     Text("\(itinerary.legs.count) \(itinerary.legs.count == 1 ? "flight" : "flights")")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                 }
                 ForEach(Array(displayedLegs.enumerated()), id: \.element.id) { index, leg in
                     if index > 0 { Divider() }
@@ -320,6 +335,7 @@ struct JourneyDashboardView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("itineraryTimeline")
     }
 
@@ -448,6 +464,7 @@ struct JourneyDashboardView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("layoverOverviewCard")
     }
 

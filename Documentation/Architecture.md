@@ -1,4 +1,4 @@
-# Airport XR Companion architecture
+# AirBorder architecture
 
 ## System shape
 
@@ -14,11 +14,20 @@ SwiftUI six-tab shell
      -> TerminalRouter + RouteManeuverBuilder
 
 iOS HTTPS client -> Cloudflare Worker -> Amadeus / FlightAware / Sherpa or Timatic / optional services
-Native adapters  -> MapKit / Vision / WeatherKit
+Native adapters  -> MapKit / Vision / optional WeatherKit
+Airport weather  -> keyless Open-Meteo and AviationWeather composition
 Direct adapters  -> agency-specific GTFS and GTFS-Realtime feeds
 ```
 
 The Worker returns normalized data and provider-policy metadata. It never returns provider credentials. The app can operate in `live`, `demo`, `offline`, or DEBUG-only `stochastic` mode; every user-visible value retains a live/cached/stale/demo/unknown state.
+
+## Browser application and journey storage
+
+The browser interface in `Web/` uses a separate deterministic plan engine and synthetic driver. Its progress overlay supports explicit arrival, departure and transfer confirmations. It does not inherit all native app capabilities.
+
+`Web/backend/index.mjs` adds bounded public directory/timing routes to the canonical protected API. Journey progress follows the authenticated browser host → `/v1/journeys/:trip/:leg` → SQLite Durable Object path. The account subject, trip and leg scope the record; atomic revisions and idempotent events prevent stale or duplicate writes. The browser adapter handles session outboxes, conflicts, account changes and logout independently of selected-plan and timing state.
+
+Storage and client adapters are implemented and tested; production deployment and host identity acquisition remain separate requirements. See [Journey Integration](../Web/docs/journey-backend-integration.md) for the contract and [implementation status](../Web/docs/journey-backend-plan.md) for remaining work.
 
 ## Domain model
 

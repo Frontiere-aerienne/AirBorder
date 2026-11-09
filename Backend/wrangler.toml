@@ -37,3 +37,12 @@ namespace_id = "26071401"
 # Never put credentials in this file or commit Backend/.dev.vars.
 # The AI binding above uses the Cloudflare account directly; it does not use an
 # application secret. Future Gemini/Hugging Face keys are not read by this code.
+
+# Durable progress is scoped by authenticated principal and itinerary segment.
+[[durable_objects.bindings]]
+name = "JOURNEY_STORE"
+class_name = "JourneyStore"
+
+[[migrations]]
+tag = "journey-v1"
+new_sqlite_classes = ["JourneyStore"]

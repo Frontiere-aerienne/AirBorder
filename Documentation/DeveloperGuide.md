@@ -1,10 +1,10 @@
-# Airport XR Companion developer guide
+# AirBorder developer guide
 
-Last source review: 2026-07-14
+Entry points and verification references updated November 8, 2026. The detailed native algorithm discussion and research roadmap are not production certification. See the [current verification snapshot](Verification-2026-11-08.md).
 
-Airport XR Companion is a native SwiftUI research prototype for long-haul international connections, same-region airport changes, and conservative layover decision support. This document describes the current source, not a promised production service. No credential-backed live-provider run, physical-device AR result, cross-device reminder delivery, or airline capacity result is implied.
+AirBorder includes a native SwiftUI research application for long-haul international connections, same-region airport changes, and conservative layover decision support. This document describes the current source, not a promised production service. No credential-backed live-provider run, physical-device AR result, cross-device reminder delivery, or airline capacity result is implied.
 
-## Non-negotiable product invariants
+## Product invariants
 
 1. Unknown inputs remain unknown. Never map a missing queue, gate close, border step, return service, accessibility fact, or transfer duration to zero.
 2. Every operational number retains source, provider field, record ID, observation/receipt/expiry times, uncertainty, and derivation where applicable.
@@ -21,19 +21,25 @@ Airport XR Companion is a native SwiftUI research prototype for long-haul intern
 
 | Area | Primary source |
 |---|---|
-| SwiftUI app shell and dependency composition | [`AirportXRCompanion/App`](../AirportXRCompanion/App) |
-| Itinerary, entry, place, provenance, and recommendation domain | [`AirportXRCompanion/Models/LongHaul`](../AirportXRCompanion/Models/LongHaul) |
-| Long-haul decision and reference providers | [`AirportXRCompanion/Services/LongHaul`](../AirportXRCompanion/Services/LongHaul) |
-| Flight provider/repository/cache stack | [`AirportXRCompanion/Aviation`](../AirportXRCompanion/Aviation) |
-| Terminal routing and AR | [`AirportXRCompanion/Routing`](../AirportXRCompanion/Routing), [`AirportXRCompanion/AR`](../AirportXRCompanion/AR) |
-| On-device personalization | [`OnDevicePredictionService.swift`](../AirportXRCompanion/Services/OnDevicePredictionService.swift) |
-| Cross-device reminder foundation | [`AirportXRCompanion/Reminders`](../AirportXRCompanion/Reminders) |
+| SwiftUI app shell and dependency composition | [`AirBorder/App`](../AirBorder/App) |
+| Itinerary, entry, place, provenance, and recommendation domain | [`AirBorder/Models/LongHaul`](../AirBorder/Models/LongHaul) |
+| Long-haul decision and reference providers | [`AirBorder/Services/LongHaul`](../AirBorder/Services/LongHaul) |
+| Flight provider/repository/cache stack | [`AirBorder/Aviation`](../AirBorder/Aviation) |
+| Terminal routing and AR | [`AirBorder/Routing`](../AirBorder/Routing), [`AirBorder/AR`](../AirBorder/AR) |
+| On-device personalization | [`OnDevicePredictionService.swift`](../AirBorder/Services/OnDevicePredictionService.swift) |
+| Cross-device reminder foundation | [`AirBorder/Reminders`](../AirBorder/Reminders) |
 | Cloudflare Worker | [`Backend/src`](../Backend/src) |
 | Deterministic unit and UI tests | [`AirportXRCompanionTests`](../AirportXRCompanionTests), [`AirportXRCompanionUITests`](../AirportXRCompanionUITests) |
 | XcodeGen source of truth | [`project.yml`](../project.yml) |
 | Deterministic report exporter | [`Scripts/reporting/export_report_pdf.py`](../Scripts/reporting/export_report_pdf.py) |
 
 Do not hand-maintain generated project-file membership. Change `project.yml` when target configuration changes and run `./Scripts/generate.sh`.
+
+## Browser and journey backend
+
+`Web/` contains the original iPhone 13 browser interface, deterministic plan engine and synthetic driver. `Web/backend/index.mjs` exposes bounded public directory/timing routes and forwards protected routes to the canonical Worker. `Backend/src/journey-store.js` implements account/trip/leg-scoped durable progress; `Web/journey-sync.js` handles the client outbox, replay, conflicts, ownership changes and logout. See [Journey Integration](../Web/docs/journey-backend-integration.md) for activation and unresolved production boundaries.
+
+Native and browser feature coverage differ. Keep their launch modes, authentication, persistence and verification claims separate. The [repository README](../README.md) provides current install and test commands for both.
 
 ## Architecture
 
@@ -87,12 +93,12 @@ The six UI roots are Journey, Flights, AR Guide, Map, Layover & Transit, and Set
 - `PlaceProvider`
 - `AccommodationProvider`
 - `QueueTimeProvider`
-- `WeatherContextProvider`, implemented by the native `WeatherKitContextProvider` for current airport conditions
+- `WeatherContextProvider`, composed from `OpenMeteoWeatherContextProvider` and `AviationWeatherMETARContextProvider` for current airport conditions
 - `InterAirportTransferProvider`
 - `LayoverContextRepository`
 - `LayoverRecommendationEngine`
 
-Protocol conformance is not itself evidence of end-to-end availability. `WeatherKitContextProvider` is wired into `AppContainer` for current airport conditions; it still requires a WeatherKit-enabled signing profile on a physical device. `QueueTimeProvider` remains a boundary without a live adapter.
+Protocol conformance alone does not establish live availability. `AppContainer` uses keyless Open-Meteo and AviationWeather providers, with explicit QA and offline alternatives. The separate WeatherKit adapter requires its applicable signing capability; `QueueTimeProvider` remains a boundary without a live adapter.
 
 ## Launch modes and data truth
 
@@ -317,7 +323,7 @@ User-owned walking/transit duration, reported delay, plan acceptance, and explic
 - `OnDevicePredictionService` groups delay residuals by airline, origin-destination route, airport-local weekday, and hour, with a route-only fallback.
 - Confidence is based on versioned sample-count and age rules.
 
-This is a small private baseline, not a weather/congestion forecasting system. `WeatherContextProvider` exists but has no adapter in `AppContainer`. There is no current congestion, runway, air-traffic-flow, inbound-aircraft rotation, crew, NOTAM, or airport-demand feature pipeline, and the current UI does not expose a predicted delay.
+The native UI includes a delay outlook when sufficient historical evidence is available, alongside sourced airport weather. These are bounded estimates, not a complete weather/congestion forecasting system. A comprehensive runway, air-traffic-flow, rotation, crew, NOTAM, or airport-demand pipeline is not established by this implementation.
 
 ### Recommended delay architecture
 
@@ -420,16 +426,9 @@ Guardrails:
 
 The backend is implemented and tested with a mock `AI` binding. No iOS explanation affordance or request mapping is wired.
 
-### Free/trial options reviewed on 2026-07-14
+### Optional provider selection
 
-| Option | Recommended role | Credential/data boundary | Current status |
-|---|---|---|---|
-| Cloudflare Workers AI | Grounded ordering/explanation of existing facts | `AI` binding; no app key. Recheck the documented limited daily free allowance and model license at release. | Backend implemented. |
-| Gemini Developer API + Google Search | Discover allowlisted official government entry links only | `GEMINI_API_KEY` in Worker secrets. Do not send traveler profiles/documents on an unpaid tier. | Backend fallback implemented; no eligibility inference. |
-| Apple Foundation Models | Future offline/on-device explanation on supported Apple Intelligence devices | No API key; availability-gated and not a world-knowledge authority. | Not implemented. |
-| Hugging Face Inference Providers | Experiments/provider portability | Fine-grained token in Worker secret; review selected model and routed provider. Starter credit is small and changeable. | Not implemented. |
-
-Quotas, free allowances, available models, regions, and data terms are unstable. Recheck official documentation at deployment. An AI fallback should return the deterministic trace or official links, never make up missing operational data.
+The implemented Workers AI explanation and Gemini official-link discovery paths have bounded roles described in [AI Integrations](AIIntegrations.md). Provider pricing, quotas, model availability and data terms require deployment-specific review; this guide does not promise a free tier. Additional inference providers remain proposed work until an adapter and acceptance evidence exist.
 
 ## Secrets, entitlements, and authentication
 
@@ -438,7 +437,7 @@ Quotas, free allowances, available models, regions, and data terms are unstable.
 Copy the ignored example or run the helper:
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion
+# From the repository root
 AVIATION_PROXY_BASE_URL=https://your-worker.example.workers.dev \
   ./Scripts/configure-secrets.sh
 ```
@@ -450,14 +449,14 @@ AVIATION_PROXY_BASE_URL=https://your-worker.example.workers.dev \
 
 Do not put commercial keys, Google OAuth tokens, Cloudflare Access assertions, or provider secrets in Swift, Info.plist, app environment arguments, or xcconfig.
 
-MapKit needs no app API key. Native WeatherKit requires the app capability/entitlement and is wired for current airport conditions. EventKit requires explicit user authorization at runtime.
+MapKit needs no app API key. The separate WeatherKit adapter requires its capability/entitlement; current AppContainer composition uses keyless weather providers. EventKit requires explicit user authorization at runtime.
 
 ### Worker secrets
 
 Set only integrations that are actually enabled:
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion/Backend
+cd Backend
 npx wrangler secret put FLIGHTAWARE_AEROAPI_KEY
 npx wrangler secret put AMADEUS_CLIENT_ID
 npx wrangler secret put AMADEUS_CLIENT_SECRET
@@ -489,6 +488,7 @@ The iOS client does not yet acquire/attach a Cloudflare Access session, and App 
 
 | Method | Route | Current role |
 |---|---|---|
+| `GET`, `POST` | `/v1/journeys/:trip/:leg` | Revisioned account-scoped journey confirmations. |
 | `GET` | `/health` | Public liveness and configured-provider booleans. |
 | `GET` | `/v1/provider-policies` | Versioned cache/training metadata. |
 | `GET` | `/v1/flights/search` | FlightAware search with bounded Amadeus fallback. |
@@ -511,31 +511,31 @@ All `/v1` routes are protected. Provider 429 responses propagate with bounded `R
 ### Toolchain setup
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion
+# From the repository root
 ./Scripts/bootstrap.sh
 ./Scripts/generate.sh
-./Scripts/build.sh
+SIMULATOR_NAME='iPhone 13' ./Scripts/build.sh
 ```
 
-The scripts target `iPhone 17 Pro` by default. Override with `SIMULATOR_NAME`. Keep at least 5 GB free. `./Scripts/clean.sh` removes only this project's `build/` directory.
+The scripts retain an `iPhone 17 Pro` default; use `SIMULATOR_NAME='iPhone 13'` for the approved design target. Keep at least 5 GB free. `./Scripts/clean.sh` removes only this project's `build/` directory.
 
 ### iOS tests
 
 Full unit and UI suite:
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion
-./Scripts/test.sh
+# From the repository root
+SIMULATOR_NAME='iPhone 13' ./Scripts/test.sh
 ```
 
 Deterministic unit target only:
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion
+# From the repository root
 xcodebuild \
-  -project AirportXRCompanion.xcodeproj \
-  -scheme AirportXRCompanion \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -project AirBorder.xcodeproj \
+  -scheme AirBorder \
+  -destination 'platform=iOS Simulator,name=iPhone 13' \
   -derivedDataPath build/DerivedData \
   CODE_SIGNING_ALLOWED=NO \
   test \
@@ -546,9 +546,9 @@ Reminder foundation only:
 
 ```bash
 xcodebuild \
-  -project AirportXRCompanion.xcodeproj \
-  -scheme AirportXRCompanion \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -project AirBorder.xcodeproj \
+  -scheme AirBorder \
+  -destination 'platform=iOS Simulator,name=iPhone 13' \
   -derivedDataPath build/DerivedData \
   CODE_SIGNING_ALLOWED=NO \
   test \
@@ -560,8 +560,8 @@ Test counts can change as coverage is added. Treat only the current command and 
 ### Worker tests
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion/Backend
-npm install
+cd Backend
+npm ci
 npm test
 npm run check
 npx wrangler deploy --dry-run
@@ -572,12 +572,12 @@ Tests mock upstream services and AI. They validate schemas, auth/rate boundaries
 ### Simulator modes
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion
-./Scripts/run-simulator.sh live
-./Scripts/run-simulator.sh offline
-./Scripts/run-simulator.sh ar-preview
-./Scripts/run-simulator.sh ar-corelocation
-./Scripts/run-simulator.sh walkthrough
+# From the repository root
+SIMULATOR_NAME='iPhone 13' ./Scripts/run-simulator.sh live
+SIMULATOR_NAME='iPhone 13' ./Scripts/run-simulator.sh offline
+SIMULATOR_NAME='iPhone 13' ./Scripts/run-simulator.sh ar-preview
+SIMULATOR_NAME='iPhone 13' ./Scripts/run-simulator.sh ar-corelocation
+SIMULATOR_NAME='iPhone 13' ./Scripts/run-simulator.sh walkthrough
 ```
 
 Ordinary launches do not pass `--uitesting`. Physical-device AR, account synchronization, background delivery, and real provider data need separate acceptance evidence.
@@ -589,7 +589,7 @@ For an indoor signal source that runs independently of the app:
 python3 Scripts/indoor-signal-emulator.py
 
 # Terminal 2
-./Scripts/run-simulator.sh ar-external
+SIMULATOR_NAME='iPhone 13' ./Scripts/run-simulator.sh ar-external
 ```
 
 `LocalIndoorSignalFeedClient` accepts only loopback HTTP and only when `--uitesting --qa-indoor-feed` is explicit. The server exposes `GET /reading`, `GET /status`, and `POST /control/pause|resume|next|previous|reset`. This isolates signal timing from app timing and makes disconnect/reconnect behavior testable.
@@ -601,8 +601,8 @@ For Apple Core Location delivery, boot the simulator and start the same process 
 ### Local Worker development
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion/Backend
-npx wrangler dev --var REQUEST_AUTH_MODE:none --var REQUIRE_RATE_LIMITER:false
+cd Backend
+npx wrangler dev --var DEPLOYMENT_ENVIRONMENT:development --var REQUEST_AUTH_MODE:none --var REQUIRE_RATE_LIMITER:false
 ```
 
 Use unauthenticated mode only for explicit local development. Workers AI bindings can consume Cloudflare account usage even during local `wrangler dev`; automated tests mock the binding.
@@ -663,7 +663,7 @@ The canonical report is [`Documentation/Reports/2026-07-14-airportxr-long-haul-l
 One-time local tools:
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion
+# From the repository root
 python3 -m venv build/reporting-venv
 build/reporting-venv/bin/pip install reportlab
 brew install poppler
@@ -672,7 +672,7 @@ brew install poppler
 Deterministic export with a fixed timestamp:
 
 ```bash
-cd /Users/anony/Downloads/AirportXRCompanion
+# From the repository root
 build/reporting-venv/bin/python Scripts/reporting/export_report_pdf.py \
   Documentation/Reports/2026-07-14-airportxr-long-haul-layover.md \
   --output-root output/pdf \
@@ -693,23 +693,9 @@ output/pdf/2026-07-14-airportxr-long-haul-layover/
 
 Re-export to a separate temporary root with the same timestamp and compare SHA-256 hashes. Inspect every rendered page for clipping and layout defects; a successful PNG render is not a visual inspection.
 
-## Smart project-context compaction
+## Repository continuity
 
-The installed Codex skill `project-context-manager` keeps a durable, evidence-backed ledger at `.codex/project-context.json` and renders the human-readable `.codex/project-context.md`. It is intentionally not a chronological chat summary: P0/P1 constraints, requested-versus-implemented-versus-verified state, decision rationale, test evidence, risks, and exact next actions survive first. Secret values and private traveler/provider payloads are prohibited.
-
-It does not replace the platform's internal conversation compactor. It provides a deterministic resume source that a later session can audit against the repository:
-
-```bash
-cd /Users/anony/Downloads/AirportXRCompanion
-python3 /Users/anony/.codex/skills/project-context-manager/scripts/project_context.py \
-  validate .codex/project-context.json
-python3 /Users/anony/.codex/skills/project-context-manager/scripts/project_context.py \
-  render .codex/project-context.json --output .codex/project-context.md --mode full
-python3 /Users/anony/.codex/skills/project-context-manager/scripts/project_context.py \
-  render .codex/project-context.json --mode resume
-```
-
-Refresh the JSON from current source and verification artifacts before relying on a resume packet; an old ledger is a lead, not proof.
+`.codex/project-context.md` preserves implementation constraints and verification leads for development sessions. Read the latest checkpoint alongside current source, PR checks, and the acceptance contract. Older entries are dated evidence, not current completion claims. This file does not configure the platform conversation compactor or require a separate locally installed skill.
 
 ## Current known limitations
 
@@ -717,7 +703,7 @@ Refresh the JSON from current source and verification artifacts before relying o
 - The current iOS client cannot acquire the Cloudflare Access session required by the protected production Worker.
 - No App Attest/device-attestation integration exists.
 - HND-NRT has demo transfer ranges only; no live Tokyo journey planner is wired.
-- WeatherKit, GTFS-Realtime regional routing, queues, congestion, and airport-operational feeds are not wired end to end.
+- Current airport weather is composed from keyless providers. Verified regional routing, live queues, congestion and operational-feed acceptance remain separate work.
 - The independent triangular duration model does not represent correlated disruption or heavy tails.
 - The `0.90`/`0.70` thresholds are provisional research policy, not empirically certified.
 - Structured entry providers return guidance and official links, not admission guarantees; search/AI fallback discovers links only.

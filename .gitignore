@@ -16,3 +16,8 @@ Backend/.wrangler/
 *.log
 output/presentations/~$*
 tmp-*.txt
+Web/node_modules/
+Web/test-results/
+Web/playwright-report/
+Web/.wrangler/
+Web/.dev.vars
