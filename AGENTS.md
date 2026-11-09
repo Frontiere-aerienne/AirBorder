@@ -43,7 +43,9 @@ Any task that edits `Report/` must keep the report rubric-compliant:
 - Keep the body at 5–10 pages, excluding references and the appendix, in the double-column template.
 - It is a **plan**: never present user-study results, and never invent participants,
   hypotheses, numbers or citations.
-- Run `python3 Scripts/reporting/check_rubric.py` after compiling (`latexmk -pdf` in `Report/`).
+- Cite only the anchor papers and project materials in `.github/report-review/ANCHORS.json`
+  (at most 3 conference papers). Never add a citation; ground claims on the anchors.
+- Run `python3 Scripts/reporting/check_rubric.py` and `check_citations.py` after compiling (`latexmk -pdf` in `Report/`).
 - Route report edits to `docs_reporter`. A change to evaluation method or hypotheses goes
   to a deep parent.
 

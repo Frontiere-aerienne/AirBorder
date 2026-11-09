@@ -4,6 +4,8 @@ name: ACM report
 #
 # Two REQUIRED pull-request checks on main (branch protection):
 #   "Compile ACM report": the report must compile.
+#   "Citation anchors":   the bibliography holds only the anchor papers and project materials in
+#                         .github/report-review/ANCHORS.json, and every anchor is cited in the body.
 #   "Rubric compliance":  no rubric item may FAIL, and no criterion may REGRESS against the PR's
 #                         base branch (pass→warn, warn→fail, more missing elements, more
 #                         undefined refs/cites/TODOs). Scripts/reporting/check_rubric.py --strict.
@@ -17,7 +19,9 @@ on:
     paths:
       - 'Report/**'
       - '.github/report-review/RUBRIC.md'
+      - '.github/report-review/ANCHORS.json'
       - 'Scripts/reporting/check_rubric.py'
+      - 'Scripts/reporting/check_citations.py'
       - '.github/workflows/report-build.yml'
   pull_request:
   workflow_dispatch:
@@ -54,7 +58,7 @@ jobs:
             echo "relevant=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           changed=$(git diff --name-only "$BASE_SHA"...HEAD)
-          if printf '%s\n' "$changed" | grep -qE '^(Report/|\.github/report-review/RUBRIC\.md$|Scripts/reporting/check_rubric\.py$|\.github/workflows/report-build\.yml$)'; then
+          if printf '%s\n' "$changed" | grep -qE '^(Report/|\.github/report-review/(RUBRIC\.md|ANCHORS\.json)$|Scripts/reporting/check_(rubric|citations)\.py$|\.github/workflows/report-build\.yml$)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
@@ -235,10 +239,52 @@ jobs:
           echo "::error file=Report/main.tex::Rubric check failed (a ❌ item or a regression vs base). See the job summary or the PR comment."
           exit 1
 
+  citations:
+    name: Citation anchors
+    needs: build
+    # Always report a result, so the required check never stays pending.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.cite.outputs.code }}
+    steps:
+      - name: Skip when the report is unchanged
+        if: needs.build.outputs.relevant != 'true'
+        run: echo "No report changes in this PR; citation check passes." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        if: needs.build.outputs.relevant == 'true'
+        with:
+          persist-credentials: false
+
+      - name: Check citation anchors
+        id: cite
+        if: needs.build.outputs.relevant == 'true'
+        run: |
+          set +e
+          python3 -I Scripts/reporting/check_citations.py --out citations.md --strict
+          code=$?
+          cat citations.md >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        if: needs.build.outputs.relevant == 'true'
+        with:
+          name: citation-result
+          path: citations.md
+
+      - name: Enforce citation anchors
+        if: needs.build.outputs.relevant == 'true' && steps.cite.outputs.code != '0'
+        run: |
+          echo "::error file=Report/main.tex::Citation-anchor check failed. Only the anchors and project materials in .github/report-review/ANCHORS.json may be cited."
+          exit 1
+
   # Posts the sticky PR comment. It runs no PR code, so it can safely hold pull-requests: write.
   rubric-comment:
     name: Post rubric comment
-    needs: [build, rubric]
+    needs: [build, rubric, citations]
     if: >-
       always() && needs.build.outputs.relevant == 'true' && github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -250,17 +296,22 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: rubric-result
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: citation-result
       - name: Upsert sticky comment
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           CODE: ${{ needs.rubric.outputs.code }}
+          CITE_CODE: ${{ needs.citations.outputs.code }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           marker='<!-- report-rubric-check -->'
-          if [ "$CODE" = 0 ]; then verdict="✅ No rubric failures. This check passes."; else verdict="❌ **Merge blocked:** fix every ❌ item and every regression vs the base branch below, then push again."; fi
-          { echo "$marker"; echo "$verdict"; echo; cat rubric.md; echo; echo "_Updated for ${HEAD_SHA::7}. ⚠️ warnings do not block._"; } > comment.md
+          if [ "$CODE" = 0 ] && [ "${CITE_CODE:-0}" = 0 ]; then verdict="✅ No rubric or citation failures. These checks pass."; else verdict="❌ **Merge blocked:** fix every ❌ item and every regression vs the base branch below, then push again."; fi
+          { echo "$marker"; echo "$verdict"; echo; cat rubric.md; echo; [ -f citations.md ] && cat citations.md; echo; echo "_Updated for ${HEAD_SHA::7}. ⚠️ warnings do not block._"; } > comment.md
           id=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
                  --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
           if [ -n "$id" ]; then

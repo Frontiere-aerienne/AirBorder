@@ -11,6 +11,17 @@ must not present study results.
 - ACM full-paper template, **double column** (`acmart` with `sigconf`).
 - **5–10 pages**, excluding the appendix and the references.
 
+## Citations (project rule, set by the authors)
+
+- The bibliography holds at most **3 authoritative peer-reviewed conference papers** (the anchor
+  sources), plus the project's own materials that cannot be reproduced in full in the report:
+  interview and survey records, evaluation instruments and verification records.
+- Appendix-only material is not cited.
+- The paper must be grounded on the anchors. Every anchor is cited in the body, and each
+  claim that cites one must match what that paper shows.
+- The anchors and project materials are listed in `.github/report-review/ANCHORS.json`
+  and checked by `Scripts/reporting/check_citations.py` (the **Citation anchors** check).
+
 ## Required sections and grading
 
 | ID | Criterion | Pts | What "meets expectations" requires |

@@ -14,6 +14,7 @@ Branch protection on `main` requires these checks, enforced for admins too:
 | Required check | Blocks the merge when |
 |---|---|
 | **Compile ACM report** | The PR's report does not compile. |
+| **Citation anchors** | The bibliography holds anything besides the anchors and project materials in `.github/report-review/ANCHORS.json`, or an anchor isn't cited in the body. |
 | **Rubric compliance** | Any rubric item is ❌, **or** any criterion regresses vs the PR's base branch: pass→warn, warn→fail, more missing elements, or more undefined refs/cites/TODOs (`check_rubric.py --strict --baseline-tex`). |
 | Resolved conversations | Any review thread (Codex, Claude or human) is unresolved. |
 | Build and test, HCI required tests, 1 approval | These were already required. |

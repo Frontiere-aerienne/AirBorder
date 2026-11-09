@@ -17,6 +17,7 @@ on:
       - 'Report/**'
       - '.github/report-review/**'
       - 'Scripts/reporting/check_rubric.py'
+      - 'Scripts/reporting/check_citations.py'
 
 permissions:
   contents: read
@@ -80,6 +81,9 @@ jobs:
                  statement, equipment, location or time, a missing % complete estimate, a body over 10
                  pages, or study results presented in a plan.
                - Report claims (features, test counts, results, architecture) contradicted by the repository.
+               - Citation grounding: the paper may cite only the anchors and project materials in
+                 .github/report-review/ANCHORS.json. Flag any other citation, any claim citing an anchor
+                 that the paper does not support, and any claim that needs outside evidence.
                - Grammar, spelling or clarity problems in changed text. Mark these as minor.
                Never ask for invented content. If a fix needs facts only the authors have, say so.
             4. Post one short summary with `gh pr comment`: the rubric grade per criterion
