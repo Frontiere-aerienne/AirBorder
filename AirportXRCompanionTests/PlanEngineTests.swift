@@ -195,3 +195,110 @@ final class TicketReaderTests: XCTestCase {
         XCTAssertNil(TicketReader.date(in: "45 OCT 2026", defaultYear: 2026))
     }
 }
+
+/// Situations come only from their conditions (Figma scenarios: gate change, return, at risk, assistance, transfer).
+final class JourneyConditionTests: XCTestCase {
+    private func inputs(now: ClockTime, feedGate: String? = nil, closes: ClockTime? = ClockTime(17, 25), atGate: Bool = false, transfer: Bool = false) -> ConditionInputs {
+        ConditionInputs(
+            now: now,
+            ticketGate: "105",
+            feed: feedGate.map { FlightFeed(gate: $0, receivedAt: ClockTime(12, 0)) },
+            gateCloses: closes,
+            walkToGate: 12,
+            leaveBy: ClockTime(16, 53),
+            atGate: atGate,
+            departsFromAnotherAirport: transfer
+        )
+    }
+
+    func testNothingToReportAtNoon() {
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(12, 0))), [])
+    }
+
+    func testGateChangeComesFromTheFeed() {
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(12, 0), feedGate: "108A")), [.gateChanged(from: "105", to: "108A")])
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(12, 0), feedGate: "105")), [], "Same gate is not a change")
+    }
+
+    func testReturnNowAtFigmaTime() {
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(17, 0))), [.returnNow(closesIn: 25, walk: 12)])
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(16, 52))), [], "Not before the leave time")
+    }
+
+    func testBoardingAtRiskAtFigmaTime() {
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(17, 10))), [.boardingAtRisk(closesIn: 15, walk: 12)])
+    }
+
+    func testArrivalAfterClosureAtFigmaTime() {
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(17, 17))), [.arrivesAfterClosure(arrival: ClockTime(17, 29), minutesLate: 4)])
+    }
+
+    func testMostUrgentFirstWhenSeveralHold() {
+        let found = JourneyConditions.evaluate(inputs(now: ClockTime(17, 10), feedGate: "108A"))
+        XCTAssertEqual(found, [.boardingAtRisk(closesIn: 15, walk: 12), .gateChanged(from: "105", to: "108A")])
+    }
+
+    func testNoTimingSituationOnceAtTheGateOrWhenClosingTimeIsUnknown() {
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(17, 17), atGate: true)), [])
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(17, 17), closes: nil)), [], "Unknown closing time is never treated as late or fine")
+    }
+
+    func testTransferReplacesHanedaSituations() {
+        XCTAssertEqual(JourneyConditions.evaluate(inputs(now: ClockTime(17, 10), feedGate: "108A", transfer: true)), [.airportTransfer])
+    }
+
+    func testReminderOnlyWhenSeenAndNotActedOn() {
+        let seen = Date(timeIntervalSince1970: 0)
+        var record = AlertRecord(issuedAt: ClockTime(12, 0), firstSeen: seen)
+        XCTAssertFalse(record.isReminder(at: seen.addingTimeInterval(60)))
+        XCTAssertTrue(record.isReminder(at: seen.addingTimeInterval(AlertRecord.reminderInterval)))
+        record.acknowledged = true
+        XCTAssertFalse(record.isReminder(at: seen.addingTimeInterval(3600)))
+        XCTAssertFalse(AlertRecord(issuedAt: ClockTime(12, 0)).isReminder(at: seen), "Never shown, so no reminder")
+    }
+}
+
+@MainActor
+final class JourneySituationStoreTests: XCTestCase {
+    private func makeStore() -> JourneyStore {
+        let defaults = UserDefaults(suiteName: "JourneySituationStoreTests-\(UUID().uuidString)")!
+        return JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+    }
+
+    func testGateUpdateRaisesOneAlertAndChangesTheGateEverywhere() {
+        let store = makeStore()
+        XCTAssertEqual(store.gate, "105")
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0)))
+        XCTAssertEqual(store.gate, "108A")
+        XCTAssertEqual(store.alertToPresent, .gateChange)
+        XCTAssertEqual(store.alerts[.gateChange]?.issuedAt, ClockTime(12, 0))
+        store.alertToPresent = nil
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 5)))
+        XCTAssertNil(store.alertToPresent, "The same update does not alert twice")
+        store.acknowledge(.gateChange)
+        XCTAssertEqual(store.alerts[.gateChange]?.acknowledged, true)
+    }
+
+    func testStopsMoveTheLeaveTimeForReturnNow() {
+        let store = makeStore()
+        store.setNow(ClockTime(16, 40))
+        XCTAssertNil(store.primaryCondition)
+        store.add(.cafe)
+        XCTAssertEqual(store.conditionInputs.leaveBy, store.schedule.leave)
+    }
+
+    func testChoosingNH6StartsTheNaritaTransfer() {
+        let store = makeStore()
+        store.beginEditingFlight()
+        store.flightDraft.number = "NH 6"
+        store.saveFlightDraft()
+        XCTAssertTrue(store.isAirportTransfer)
+        XCTAssertEqual(store.primaryCondition, .airportTransfer)
+        XCTAssertEqual(store.checklist.steps.map(\.id), ["arrival", "passport", "bags", "customs", "narita"])
+        XCTAssertEqual(store.layoverMinutes, 9 * 60 + 45)
+        store.beginEditingFlight()
+        store.flightDraft.number = "NH 106"
+        store.saveFlightDraft()
+        XCTAssertEqual(store.checklist, .haneda)
+    }
+}

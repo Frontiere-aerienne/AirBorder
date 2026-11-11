@@ -9,7 +9,7 @@ struct JourneyStepsView: View {
         let checklist = store.checklist
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Journey steps") { dismiss() }
-            SectionLabel(text: "Haneda connection · " + (checklist.currentIndex.map { "Step \($0 + 1) of \(checklist.steps.count)" } ?? "All steps done"))
+            SectionLabel(text: (store.isAirportTransfer ? "Transfer to Narita · " : "Haneda connection · ") + (checklist.currentIndex.map { "Step \($0 + 1) of \(checklist.steps.count)" } ?? "All steps done"))
                 .accessibilityIdentifier("stepCount")
             GroupedList {
                 ForEach(Array(checklist.steps.enumerated()), id: \.element.id) { index, step in

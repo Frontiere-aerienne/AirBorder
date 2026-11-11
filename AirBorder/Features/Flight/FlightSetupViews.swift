@@ -319,19 +319,19 @@ struct FlightSavedView: View {
     }
 }
 
-/// NH 106 has times from the ticket; NH 6 is shown with its route only until its schedule is in the trip.
+/// NH 106 and NH 6 show their scheduled times; other flights show the route only.
 @ViewBuilder
 private func draftTicket(_ trip: TripFlight, saved: Bool) -> some View {
-    let isTrip = trip.number == SampleJourney.outbound.number
+    let leg = [SampleJourney.outbound, SampleJourney.naritaOutbound].first { $0.number == trip.number }
     let ends = trip.route.components(separatedBy: " → ")
     TicketSummary(
         number: trip.number,
-        pill: isTrip ? durationText(SampleJourney.outbound.durationMinutes ?? 0) : nil,
+        pill: leg.map { durationText($0.durationMinutes ?? 0) },
         savedPill: saved,
         from: ends.first ?? "",
         to: ends.last ?? "",
-        departs: isTrip ? "18:00" : nil,
-        arrives: isTrip ? "11:45" : nil,
+        departs: leg?.departs.description,
+        arrives: leg?.arrives.description,
         pills: saved ? [TripDate.format(trip.date, "d MMM")] : [TripDate.format(trip.date, "d MMM"), trip.purpose]
     )
 }

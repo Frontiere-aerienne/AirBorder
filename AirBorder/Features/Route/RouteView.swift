@@ -10,31 +10,44 @@ struct RouteView: View {
 
     enum Mode { case map, camera }
 
-    static let steps = ["Follow the Gates 105–109 sign", "Gate 105 ahead", "Check your flight"]
+    static func steps(gate: String) -> [String] { ["Follow the Gates 105–109 sign", "Gate \(gate) ahead", "Check your flight"] }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Route to Gate \(SampleJourney.outbound.departureGate)").outfitText(30, .bold).tracking(-1.1)
+                Text(store.isAirportTransfer ? "Route to Narita" : "Route to Gate \(store.gate)").outfitText(30, .bold).tracking(-1.1)
                     .accessibilityAddTraits(.isHeader)
                 modeSwitch
-                if mode == .map {
+                if let condition = store.primaryCondition, !store.isAirportTransfer {
+                    TravelUpdateBanner(condition: condition, place: .route)
+                }
+                if store.isAirportTransfer {
+                    if mode == .camera {
+                        CameraPanel().frame(height: 330).clipShape(RoundedRectangle(cornerRadius: 18))
+                    }
+                } else if mode == .map {
                     summary
                     concourse
                 } else {
                     CameraPanel().frame(height: 330).clipShape(RoundedRectangle(cornerRadius: 18))
                 }
-                RouteStepCard(step: $store.routeStep, texts: Self.steps) {
+                RouteStepCard(step: $store.routeStep, texts: store.isAirportTransfer ? TransferRouteContent.steps : Self.steps(gate: store.gate)) {
                     store.routeStep = 1
                     mode = .map
                     store.tab = .flight
-                    let flight = SampleJourney.outbound
-                    store.showToast(ToastMessage(text: "Arrived, Gate \(flight.departureGate), \(flight.number), boarding \(SampleJourney.boarding)."))
+                    guard !store.isAirportTransfer else { return }
+                    let flight = store.outbound
+                    if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
+                    store.showToast(ToastMessage(text: "Arrived, Gate \(store.gate), \(flight.number), boarding \(SampleJourney.boarding)."))
                 }
-                HStack {
-                    Spacer()
-                    TextLink(title: "See route options") { open(.routeOptions) }
-                    Spacer()
+                if store.isAirportTransfer {
+                    TransferRouteContent().padding(.top, 14)
+                } else {
+                    HStack {
+                        Spacer()
+                        TextLink(title: "See route options") { open(.routeOptions) }
+                        Spacer()
+                    }
                 }
             }
             .padding(.horizontal, 18)
@@ -76,13 +89,13 @@ struct RouteView: View {
                 TimeChip(text: "\(store.gateWalkMinutes) min")
             }
             .frame(maxWidth: .infinity)
-            GateSign(gate: SampleJourney.outbound.departureGate)
+            GateSign(gate: store.gate)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(AB.card, in: RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(store.gateWalkMinutes) minute walk to Gate \(SampleJourney.outbound.departureGate)")
+        .accessibilityLabel("\(store.gateWalkMinutes) minute walk to Gate \(store.gate)")
         .accessibilityIdentifier("routeSummary")
     }
 
@@ -91,7 +104,7 @@ struct RouteView: View {
             Text("T3, 3F").outfitText(12, .medium, AB.ticket)
             ZStack(alignment: .topLeading) {
                 Image("concourseFrame").resizable().frame(width: 342, height: 48)
-                Text(SampleJourney.outbound.departureGate).outfitText(12, .bold, AB.ticket).offset(x: 150, y: -12)
+                Text(store.gate).outfitText(12, .bold, AB.ticket).offset(x: 150, y: -12)
                 Image("concourseCurrent").resizable().frame(width: 18, height: 18)
                     .offset(markerOffset)
                     .animation(.easeInOut, value: store.routeStep)

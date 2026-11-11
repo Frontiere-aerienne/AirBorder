@@ -86,6 +86,15 @@ final class JourneyStore: ObservableObject {
     @Published private(set) var lastHealthSync: Date?
     @Published var routeStep = 1
 
+    /// Airport local time the journey is shown at. The sample journey stays at 12:00.
+    @Published private(set) var now: ClockTime = SampleJourney.now
+    /// Latest departure-flight report from the flight-status feed.
+    @Published private(set) var feed: FlightFeed? { didSet { persist() } }
+    /// Alerts the traveller has been shown, keyed by kind.
+    @Published private(set) var alerts: [AlertKind: AlertRecord] { didSet { persist() } }
+    /// Set when a new alert should open the Alerts screen.
+    @Published var alertToPresent: AlertKind?
+
     /// Seeded queue report for Curacion Cafe in the sample journey: the wait is now about 18 min.
     let cafeQueueUpdate = QueueUpdate(stopID: .cafe, waitMinutes: 18)
     private var queueUpdateHandled: Bool { didSet { persist() } }
@@ -114,8 +123,102 @@ final class JourneyStore: ObservableObject {
         health = saved?.health ?? .notConnected
         queueUpdateHandled = saved?.queueUpdateHandled ?? false
         onboardingSeen = saved?.onboardingSeen ?? false
+        feed = saved?.feed
+        alerts = saved?.alerts ?? [:]
         routeChoice = (saved?.stepFreeRoutes ?? false) ? .stepFree : .direct
         refreshSuggestion()
+    }
+
+    // MARK: Flight status and situations
+
+    /// The next flight leaves from Narita (NH 6 chosen on Edit flight details).
+    var isAirportTransfer: Bool { tripFlight.number == "NH 6" }
+
+    /// The ticket's departure flight.
+    var outbound: FlightLeg { isAirportTransfer ? SampleJourney.naritaOutbound : SampleJourney.outbound }
+
+    /// Time between landing at Haneda and the next departure.
+    var layoverMinutes: Int { outbound.departs - SampleJourney.inbound.arrives }
+
+    /// The gate to show everywhere: the feed's latest gate, or the one on the ticket.
+    var gate: String {
+        if let reported = feed?.gate, !reported.isEmpty { return reported }
+        return outbound.departureGate
+    }
+
+    var conditionInputs: ConditionInputs {
+        let schedule = schedule
+        let leave = schedule.stops.isEmpty ? SampleJourney.gateArrivalTarget - gateWalkMinutes : schedule.leave
+        return ConditionInputs(
+            now: now,
+            ticketGate: outbound.departureGate,
+            feed: feed,
+            gateCloses: outbound.gateCloses,
+            walkToGate: gateWalkMinutes,
+            leaveBy: leave,
+            atGate: checklist.steps.first { $0.id == "gate" }?.state == .confirmed,
+            departsFromAnotherAirport: isAirportTransfer
+        )
+    }
+
+    /// Situations that hold right now, most urgent first.
+    var conditions: [JourneyCondition] { JourneyConditions.evaluate(conditionInputs) }
+    var primaryCondition: JourneyCondition? { conditions.first }
+
+    /// Return now, boarding at risk or arrival after closure: the Flight tab shows the countdown instead of the plan.
+    var hasTimingSituation: Bool {
+        switch primaryCondition {
+        case .returnNow, .boardingAtRisk, .arrivesAfterClosure: true
+        default: false
+        }
+    }
+
+    /// "Boarding soon" from 30 minutes before boarding.
+    var flightStatus: String { now >= SampleJourney.boarding - 30 ? "Boarding soon" : outbound.status }
+
+    /// Sets the airport time the journey is shown at (sample data and tests).
+    func setNow(_ time: ClockTime) {
+        now = time
+        refreshAlerts()
+    }
+
+    /// A departure-flight report arrived from the feed.
+    func receive(_ report: FlightFeed) {
+        feed = report
+        refreshAlerts()
+    }
+
+    /// The sample journey's gate update: Gate 108A, reported a short while after the app opens.
+    func startSampleFeed(after delay: Duration) {
+        guard feed == nil else { return refreshAlerts() }
+        Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard feed == nil else { return }
+            receive(FlightFeed(gate: "108A", receivedAt: now))
+        }
+    }
+
+    /// Records alerts for situations that just began and asks to show the most urgent new one.
+    func refreshAlerts() {
+        var newest: AlertKind?
+        for condition in conditions.reversed() {
+            guard let kind = condition.alertKind, alerts[kind] == nil else { continue }
+            let issued = kind == .gateChange ? (feed?.receivedAt ?? now) : now
+            alerts[kind] = AlertRecord(issuedAt: issued)
+            newest = kind
+        }
+        if let newest { alertToPresent = newest }
+    }
+
+    func alertSeen(_ kind: AlertKind) {
+        guard var record = alerts[kind], record.firstSeen == nil else { return }
+        record.firstSeen = Date()
+        alerts[kind] = record
+    }
+
+    /// "Heading to the gate": the traveller acted on the alert.
+    func acknowledge(_ kind: AlertKind) {
+        alerts[kind]?.acknowledged = true
     }
 
     // MARK: Walking
@@ -178,12 +281,14 @@ final class JourneyStore: ObservableObject {
         clearUndo()
         plan.stops.append(stop)
         refreshSuggestion()
+        refreshAlerts()
     }
 
     func remove(_ id: PlaceID) {
         clearUndo()
         plan.stops.removeAll { $0.id == id }
         refreshSuggestion()
+        refreshAlerts()
     }
 
     func replacePlan(with edited: Plan) {
@@ -229,7 +334,7 @@ final class JourneyStore: ObservableObject {
 
     // MARK: Journey steps
 
-    func confirmStep(_ id: String) { checklist.confirm(id) }
+    func confirmStep(_ id: String) { checklist.confirm(id); refreshAlerts() }
     func skipStep(_ id: String) { checklist.skip(id) }
     func undoStep() { checklist.undo() }
 
@@ -240,17 +345,26 @@ final class JourneyStore: ObservableObject {
         baggagePreference = .taggedThrough
         plan = Plan()
         undoPlan = nil
-        checklist = .haneda
+        checklist = isAirportTransfer ? .narita : .haneda
         queueUpdateHandled = false
         routeStep = 1
         refreshSuggestion()
+        refreshAlerts()
         showToast(ToastMessage(text: "Trip preferences reset"))
     }
 
     // MARK: Saved flights
 
     func beginEditingFlight() { flightDraft = tripFlight }
-    func saveFlightDraft() { tripFlight = flightDraft }
+    func saveFlightDraft() {
+        let changedAirport = (flightDraft.number == "NH 6") != isAirportTransfer
+        tripFlight = flightDraft
+        if changedAirport {
+            checklist = isAirportTransfer ? .narita : .haneda
+            routeStep = 1
+        }
+        refreshAlerts()
+    }
     func addManualFlight(_ flight: ManualFlight) { manualFlights.append(flight) }
 
     // MARK: Toasts (Figma section "Toasts")
@@ -286,6 +400,8 @@ final class JourneyStore: ObservableObject {
         var health: HealthConnection
         var queueUpdateHandled: Bool
         var onboardingSeen: Bool?
+        var feed: FlightFeed?
+        var alerts: [AlertKind: AlertRecord]?
     }
 
     private func persist() {
@@ -302,7 +418,9 @@ final class JourneyStore: ObservableObject {
             t2VisitPlanned: t2VisitPlanned,
             health: health,
             queueUpdateHandled: queueUpdateHandled,
-            onboardingSeen: onboardingSeen
+            onboardingSeen: onboardingSeen,
+            feed: feed,
+            alerts: alerts
         )
         if let data = try? JSONEncoder().encode(state) {
             defaults.set(data, forKey: Self.stateKey)

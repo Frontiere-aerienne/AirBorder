@@ -12,7 +12,13 @@ struct JourneyStep: Identifiable, Codable, Equatable {
     var state: StepState = .pending
 
     /// Label under the dot in the progress strip.
-    var shortTitle: String { id == "gate" ? "Gate" : title }
+    var shortTitle: String {
+        switch id {
+        case "gate": "Gate"
+        case "narita": "Narita"
+        default: title
+        }
+    }
 }
 
 /// Departure-to-arrival checkpoints for the Haneda connection.
@@ -34,6 +40,15 @@ struct JourneyChecklist: Codable, Equatable {
         JourneyStep(id: "security", title: "Security", canSkip: false),
         JourneyStep(id: "passport", title: "Passport control", canSkip: true),
         JourneyStep(id: "gate", title: "Gate and boarding", canSkip: false),
+    ])
+
+    /// Haneda → Narita: entering Japan, so passport control and customs come before the bus (Figma 1041:17207).
+    static let narita = JourneyChecklist(steps: [
+        JourneyStep(id: "arrival", title: "Arrival", canSkip: false, state: .confirmed),
+        JourneyStep(id: "passport", title: "Passport control", canSkip: false),
+        JourneyStep(id: "bags", title: "Bags", canSkip: false),
+        JourneyStep(id: "customs", title: "Customs", canSkip: false),
+        JourneyStep(id: "narita", title: "Transfer to Narita", canSkip: false),
     ])
 
     var currentIndex: Int? { steps.firstIndex { $0.state == .pending } }

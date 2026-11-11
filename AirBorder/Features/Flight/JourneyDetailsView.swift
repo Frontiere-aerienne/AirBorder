@@ -6,6 +6,7 @@ struct JourneyDetailsView: View {
     @Environment(\.openDestination) private var open
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @State private var showsTransferBaggage = false
 
     var body: some View {
         ScrollView {
@@ -18,13 +19,18 @@ struct JourneyDetailsView: View {
                     Color.clear.frame(width: 44, height: 44)
                 }
                 .padding(.bottom, 8)
+                if let condition = store.primaryCondition {
+                    TravelUpdateBanner(condition: condition, place: .details)
+                }
                 legLabel("FLIGHT 1 OF 2")
                 InboundCard(flight: SampleJourney.inbound)
                 layover
                 legLabel("FLIGHT 2 OF 2")
-                TicketCard(flight: SampleJourney.outbound)
+                TicketCard(flight: store.outbound, status: store.flightStatus, gate: store.gate)
                 Color.clear.frame(height: 24)
-                CTAButton(title: "Baggage for this flight", height: 52, fullWidth: false) { open(.baggage) }
+                CTAButton(title: "Baggage for this flight", height: 52, fullWidth: false) {
+                    if store.isAirportTransfer { showsTransferBaggage = true } else { open(.baggage) }
+                }
                     .frame(width: 216)
                 CTAButton(title: "View return flight", height: 52, fullWidth: false) { open(.returnFlight) }
                     .frame(width: 206)
@@ -49,6 +55,7 @@ struct JourneyDetailsView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showsTransferBaggage) { TransferBaggageSheet() }
     }
 
     private func legLabel(_ text: String) -> some View {
@@ -60,8 +67,8 @@ struct JourneyDetailsView: View {
             Rectangle().fill(AB.primary.opacity(0.3)).frame(width: 2)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(durationText(SampleJourney.layoverMinutes)).outfitText(14, .medium, AB.muted)
-                    Text("layover at \(SampleJourney.haneda.city)").outfitText(14, .regular, AB.muted)
+                    Text(durationText(store.layoverMinutes)).outfitText(14, .medium, AB.muted)
+                    Text(store.isAirportTransfer ? "layover, change to Narita" : "layover at \(SampleJourney.haneda.city)").outfitText(14, .regular, AB.muted)
                 }
                 JourneyProgressStrip(checklist: store.checklist)
                     .padding(.top, 4)

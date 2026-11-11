@@ -71,14 +71,15 @@ struct LightTimeChip: View {
 
 /// "Gate 105 closes 17:25" on a navy card.
 struct GateClosesRow: View {
+    @EnvironmentObject private var store: JourneyStore
     var body: some View {
         HStack(spacing: 8) {
-            GateSign(gate: SampleJourney.outbound.departureGate)
+            GateSign(gate: store.gate)
             Text("closes").outfitText(15, .regular, AB.ice.opacity(0.75))
             LightTimeChip(text: (SampleJourney.outbound.gateCloses ?? SampleJourney.gateArrivalTarget).description)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Gate \(SampleJourney.outbound.departureGate) closes \(SampleJourney.outbound.gateCloses?.description ?? "")")
+        .accessibilityLabel("Gate \(store.gate) closes \(SampleJourney.outbound.gateCloses?.description ?? "")")
     }
 }
 
@@ -124,7 +125,7 @@ struct ReturnToGateView: View {
 
     var body: some View {
         let walk = store.venueToGateMinutes(place)
-        PlaceScreen(title: "Gate \(SampleJourney.outbound.departureGate)") {
+        PlaceScreen(title: "Gate \(store.gate)") {
             HStack(spacing: 6) {
                 Text("From \(venue.name)").outfitText(15, .regular, AB.muted)
                 TerminalSign(terminal: SampleJourney.outbound.departureTerminal)
@@ -136,12 +137,12 @@ struct ReturnToGateView: View {
                     Image("routeDots").resizable().frame(height: 2)
                     TimeChip(text: "\(walk) min")
                 }
-                GateSign(gate: SampleJourney.outbound.departureGate)
+                GateSign(gate: store.gate)
             }
             .padding(.horizontal, 20).padding(.vertical, 16)
             .background(AB.card, in: RoundedRectangle(cornerRadius: 18))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(walk) minute walk to Gate \(SampleJourney.outbound.departureGate)")
+            .accessibilityLabel("\(walk) minute walk to Gate \(store.gate)")
             NavyPanel {
                 HStack(spacing: 8) {
                     Text("Leave by").outfitText(18, .semibold, AB.ice)
@@ -150,7 +151,7 @@ struct ReturnToGateView: View {
                 .accessibilityElement(children: .combine)
                 GateClosesRow()
             }
-            StepList(steps: [(venue.first, nil), ("Follow the overhead signs to Gate \(SampleJourney.outbound.departureGate)", nil), ("Check \(SampleJourney.outbound.number) on the gate display", nil)])
+            StepList(steps: [(venue.first, nil), ("Follow the overhead signs to Gate \(store.gate)", nil), ("Check \(SampleJourney.outbound.number) on the gate display", nil)])
             if let phone = venue.phone {
                 Button { if let url = URL(string: "tel:\(phone)") { openURL(url) } } label: {
                     HStack(spacing: 8) {
@@ -482,10 +483,10 @@ struct ReturnFromT2View: View {
     @Environment(\.popToRoot) private var popToRoot
 
     var body: some View {
-        PlaceScreen(title: "Return to Gate \(SampleJourney.outbound.departureGate)") {
+        PlaceScreen(title: "Return to Gate \(store.gate)") {
             HStack(spacing: 6) {
                 TerminalSign(terminal: "3")
-                GateSign(gate: SampleJourney.outbound.departureGate)
+                GateSign(gate: store.gate)
             }
             HStack(spacing: 8) {
                 Text("Leave Terminal 2 by").outfitText(16, .semibold)

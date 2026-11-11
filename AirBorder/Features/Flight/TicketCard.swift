@@ -5,6 +5,9 @@ import SwiftUI
 struct TicketCard: View {
     let flight: FlightLeg
     var previous: FlightLeg?
+    /// Live values from the flight-status feed, when they differ from the ticket.
+    var status: String?
+    var gate: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: previous == nil ? 18 : 8) {
@@ -29,7 +32,7 @@ struct TicketCard: View {
                 Text(flight.number).outfitText(16, .semibold, AB.ice)
             }
             Spacer()
-            Text(flight.status).outfitText(12, .semibold, AB.sky)
+            Text(status ?? flight.status).outfitText(12, .semibold, AB.sky)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(AB.sky.opacity(0.18), in: Capsule())
@@ -52,7 +55,15 @@ struct TicketCard: View {
             HStack(alignment: .bottom) {
                 airport(previous.from, size: 18, alignment: .leading, dimmed: true)
                 Spacer()
-                airport(flight.from, size: 30, alignment: .center, dimmed: false)
+                if previous.to.code != flight.from.code {
+                    VStack(alignment: .center, spacing: 4) {
+                        Text("\(previous.to.code) → \(flight.from.code)").outfitText(22, .bold, AB.ice)
+                        Text("Airport transfer").outfitText(13, .regular, AB.ice.opacity(0.6))
+                    }
+                    .accessibilityElement(children: .combine)
+                } else {
+                    airport(flight.from, size: 30, alignment: .center, dimmed: false)
+                }
                 Spacer()
                 airport(flight.to, size: 30, alignment: .trailing, dimmed: false)
             }
@@ -102,7 +113,7 @@ struct TicketCard: View {
                     if flight.departureGate.isEmpty {
                         TerminalSign(terminal: flight.departureTerminal, size: 26)
                     } else {
-                        GateSign(gate: flight.departureGate, size: 26)
+                        GateSign(gate: gate ?? flight.departureGate, size: 26, previous: gate.flatMap { $0 == flight.departureGate ? nil : flight.departureGate })
                         Text("Terminal \(flight.departureTerminal)").outfitText(13, .medium, AB.ice.opacity(0.7))
                     }
                 }

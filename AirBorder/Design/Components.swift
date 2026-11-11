@@ -14,6 +14,8 @@ struct GateSign: View {
     let gate: String
     var direction: SignDirection = .departure
     var size: CGFloat = 15
+    /// The gate before a gate change, shown struck through ("Gate 105 108A").
+    var previous: String?
 
     var body: some View {
         HStack(spacing: size >= 26 ? 8 : 4) {
@@ -22,13 +24,16 @@ struct GateSign: View {
                 .frame(width: arrowSize, height: arrowSize)
                 .rotationEffect(direction.rotation)
             Text("Gate").outfitText(size, .medium, AB.gateText)
+            if let previous {
+                Text(previous).outfitText(size * 0.6, .medium, AB.gateText.opacity(0.55)).strikethrough()
+            }
             Text(gate).outfitText(size, .bold, AB.gateText)
         }
         .padding(.horizontal, size >= 26 ? 12 : 8)
         .padding(.vertical, size >= 26 ? 6 : 4)
         .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: size >= 26 ? 8 : 6))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Gate \(gate)")
+        .accessibilityLabel(previous.map { "Gate \(gate), changed from \($0)" } ?? "Gate \(gate)")
     }
 
     private var arrowSize: CGFloat { size >= 26 ? 22 : (size >= 18 ? 17 : 14) }
@@ -136,7 +141,7 @@ struct TextLink: View {
         Button(action: action) {
             HStack(spacing: 7) {
                 Text(title).outfitText(13, .semibold, color)
-                Image("icArrowRightLink16").resizable().frame(width: 16, height: 16)
+                Image("icArrowRightLink16").renderingMode(.template).resizable().foregroundStyle(color).frame(width: 16, height: 16)
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())

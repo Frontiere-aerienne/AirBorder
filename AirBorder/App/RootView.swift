@@ -11,6 +11,7 @@ enum Destination: Hashable {
     case choosePDF, importWallet, connectGmail, connectCalendar, reviewImported(ParsedTicket), flightUpdated, reviewFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
     case language, about, help, editProfile, tutorial, routeOptions
+    case alerts(AlertKind)
 }
 
 struct RootView: View {
@@ -52,8 +53,21 @@ struct RootView: View {
             }
             paths[store.tab] = path
         })
+        .onChange(of: store.alertToPresent) { presentAlert() }
+        .onAppear { presentAlert() }
+        .onChange(of: store.onboardingSeen) { presentAlert() }
         .fullScreenCover(isPresented: Binding(get: { !store.onboardingSeen }, set: { _ in })) {
             OnboardingFlow(startAt: 0) {}.environmentObject(store)
+        }
+    }
+
+    /// A new alert opens the Alerts screen on the Flight tab, as the Figma gate update does.
+    private func presentAlert() {
+        guard let kind = store.alertToPresent, store.onboardingSeen else { return }
+        store.alertToPresent = nil
+        store.tab = .flight
+        if paths[.flight]?.last != .alerts(kind) {
+            paths[.flight, default: []].append(.alerts(kind))
         }
     }
 
@@ -138,6 +152,7 @@ struct RootView: View {
         case .editProfile: EditProfileView()
         case .tutorial: TutorialReplay()
         case .routeOptions: RouteOptionsView()
+        case let .alerts(kind): AlertsView(kind: kind)
         }
     }
 }

@@ -14,6 +14,9 @@ struct LayoverView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Layover & transit").outfitText(30, .bold).tracking(-1.1).accessibilityAddTraits(.isHeader)
+                if let condition = store.primaryCondition {
+                    TravelUpdateBanner(condition: condition, place: .layover).padding(.top, 16)
+                }
                 areaTabs.padding(.top, 22)
                 switch area {
                 case .airside: airside

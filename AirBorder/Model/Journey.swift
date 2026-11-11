@@ -62,6 +62,7 @@ enum SampleJourney {
     static let bangkok = Airport(code: "BKK", city: "Bangkok")
     static let haneda = Airport(code: "HND", city: "Tokyo Haneda")
     static let losAngeles = Airport(code: "LAX", city: "Los Angeles")
+    static let narita = Airport(code: "NRT", city: "Tokyo Narita")
 
     static let inbound = FlightLeg(
         id: "TG660",
@@ -100,6 +101,28 @@ enum SampleJourney {
         cabin: "Business",
         date: "2026-10-15",
         durationMinutes: 9 * 60 + 45
+    )
+
+    /// NH 6 from Narita, chosen on Edit flight details (Figma "Transfer HND → NRT", 858:9828).
+    static let naritaOutbound = FlightLeg(
+        id: "NH6",
+        airline: .ana,
+        number: "NH 6",
+        from: narita,
+        to: losAngeles,
+        departs: ClockTime(21, 0),
+        arrives: ClockTime(15, 0),
+        arrivalDayOffset: nil,
+        status: "Scheduled",
+        departureTerminal: "1",
+        departureGate: "",
+        gateCloses: ClockTime(20, 20),
+        arrivalTerminal: "B",
+        arrivalGate: "148",
+        baggageBelt: "7",
+        cabin: "Business",
+        date: "2026-10-15",
+        durationMinutes: 10 * 60
     )
 
     /// Return flight shown from Journey details (Figma 858:13081).

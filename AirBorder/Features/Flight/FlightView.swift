@@ -10,10 +10,22 @@ struct FlightView: View {
             VStack(alignment: .leading, spacing: 32) {
                 VStack(spacing: 8) {
                     titleRow
-                    TicketCard(flight: SampleJourney.outbound, previous: SampleJourney.inbound)
+                    if let condition = store.primaryCondition {
+                        TravelUpdateBanner(condition: condition, place: .flight)
+                            .padding(.bottom, 16)
+                    }
+                    TicketCard(flight: store.outbound, previous: SampleJourney.inbound, status: store.flightStatus, gate: store.gate)
                     links
                 }
-                planSection
+                if store.isAirportTransfer {
+                    TransferPlanSection()
+                } else if let condition = store.primaryCondition, store.hasTimingSituation {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ScenarioPlanSection(condition: condition)
+                    }
+                } else {
+                    planSection
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 49)
@@ -45,8 +57,10 @@ struct FlightView: View {
         HStack(spacing: 24) {
             TextLink(title: "Journey details") { open(.journeyDetails) }
                 .accessibilityIdentifier("journeyDetailsLink")
-            TextLink(title: "My plan") { open(.myPlan) }
-                .accessibilityIdentifier("myPlanLink")
+            if !store.hasTimingSituation && !store.isAirportTransfer {
+                TextLink(title: "My plan") { open(.myPlan) }
+                    .accessibilityIdentifier("myPlanLink")
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -54,20 +68,21 @@ struct FlightView: View {
 
     private var planSection: some View {
         let schedule = store.schedule
-        let gate = SampleJourney.outbound
-        let untilClose = (gate.gateCloses ?? SampleJourney.gateArrivalTarget) - SampleJourney.now
+        let gate = store.outbound
+        let untilClose = (gate.gateCloses ?? SampleJourney.gateArrivalTarget) - store.now
         let firstLeave = schedule.stops.first.map { $0.start - $0.walkFromPrevious } ?? schedule.leave
         return VStack(alignment: .leading, spacing: 16) {
             Text("Your plan").outfitText(30, .bold).tracking(-1).accessibilityAddTraits(.isHeader)
             HStack(spacing: 6) {
                 TimeChip(text: durationText(untilClose))
                 Text("before").outfitText(22, .regular, AB.muted)
-                GateSign(gate: gate.departureGate, size: 18)
+                GateSign(gate: store.gate, size: 18)
                 Text("closes.").outfitText(22, .regular, AB.muted)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(durationText(untilClose)) before Gate \(gate.departureGate) closes.")
+            .accessibilityLabel("\(durationText(untilClose)) before Gate \(store.gate) closes.")
             Button {
+                if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
                 if let last = schedule.stops.last {
                     open(.returnToGate(last.stop.id))
                 } else if store.t2VisitPlanned {
@@ -88,7 +103,7 @@ struct FlightView: View {
             .padding(.vertical, 8)
             .accessibilityIdentifier("routeButton")
             if schedule.stops.isEmpty && !store.t2VisitPlanned {
-                PlanCard(spare: firstLeave - SampleJourney.now, leave: firstLeave, arrive: schedule.arriveAtGate, closes: schedule.gateCloses) {
+                PlanCard(spare: firstLeave - store.now, leave: firstLeave, arrive: schedule.arriveAtGate, closes: schedule.gateCloses) {
                     store.tab = .layover
                 }
             } else {

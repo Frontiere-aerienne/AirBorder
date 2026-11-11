@@ -69,8 +69,9 @@ struct MyPlanView: View {
 }
 
 struct GateChip: View {
+    @EnvironmentObject private var store: JourneyStore
     var body: some View {
-        Text("Gate \(SampleJourney.outbound.departureGate)").outfitText(18, .semibold, AB.gateText)
+        Text("Gate \(store.gate)").outfitText(18, .semibold, AB.gateText)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 8))
