@@ -62,6 +62,16 @@ final class PlanEngineTests: XCTestCase {
         XCTAssertEqual(WalkingTimes.minutes(average: 12, pace: .personal(kmh: 0.2)), 12)
         XCTAssertEqual(PaceText.kmh(4.64), "4.6 km/h")
     }
+
+    func testEstimatesStartFromAirportWalksAndAppleHealthRefinesThem() {
+        let walks = SampleJourney.airportWalks
+        XCTAssertEqual(WalkingEstimate.kmh(walks: walks), 4.2)
+        XCTAssertEqual(WalkingEstimate.pace(walks: walks, healthKmh: nil), .personal(kmh: 4.2))
+        guard case let .personal(blended) = WalkingEstimate.pace(walks: walks, healthKmh: 5.6) else { return XCTFail("Expected a personal pace") }
+        XCTAssertEqual(PaceText.kmh(blended), "4.9 km/h")
+        XCTAssertEqual(WalkingEstimate.pace(walks: [], healthKmh: nil), .average)
+        XCTAssertEqual(WalkingEstimate.pace(walks: [], healthKmh: 5.0), .personal(kmh: 5.0))
+    }
 }
 
 final class JourneyChecklistTests: XCTestCase {
@@ -137,16 +147,15 @@ final class JourneyStoreTests: XCTestCase {
         XCTAssertNil(store.suggestion)
     }
 
-    func testWalkingSpeedComesFromConnectedAccount() async {
+    func testAppleHealthRefinesAirportWalkEstimate() async {
         let store = makeStore(kmh: 5.6)
-        XCTAssertEqual(store.pace, .average)
+        XCTAssertEqual(store.pace, .personal(kmh: 4.2), "Airport walks come first")
         XCTAssertEqual(store.gateWalkMinutes, 12)
         await store.connectHealth()
-        XCTAssertEqual(store.pace, .personal(kmh: 5.6))
-        XCTAssertEqual(store.gateWalkMinutes, 9)
+        XCTAssertEqual(store.gateWalkMinutes, 11, "Apple Health refines the estimate")
         store.removeHealth()
         XCTAssertEqual(store.health, .removed)
-        XCTAssertEqual(store.pace, .average)
+        XCTAssertEqual(store.pace, .personal(kmh: 4.2))
     }
 
     func testStepFreePreferenceSelectsStepFreeRoute() {

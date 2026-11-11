@@ -68,7 +68,7 @@ struct AboutView: View {
                 Text("Where the details come from").outfitText(18, .bold)
                 Text("The trip in this version is a saved sample journey through Tokyo Haneda. Flight times, gates, venues, queues and previous trips are not live.")
                     .outfitText(15, .regular, AB.secondary)
-                Text("Walking times use your Apple Health walking speed when you connect it, and average walking times otherwise.")
+                Text("Walking times start from your walks on previous trips through Haneda. When you connect Apple Health, its walking speed refines them.")
                     .outfitText(15, .regular, AB.secondary)
             }
             .accessibilityIdentifier("dataSources")
@@ -85,7 +85,7 @@ struct PrivacyView: View {
             Text("Privacy").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
             InfoCard {
                 Text("Walking data").outfitText(18, .bold)
-                Text("With your permission, AirBorder reads your walking speed from Apple Health to time your walks. It stays on this iPhone. Remove it anytime in Connected accounts, or change access in the Health app.")
+                Text("With your permission, AirBorder reads your walking speed from Apple Health to refine your walking times. It stays on this iPhone. Remove it anytime in Connected accounts, or change access in the Health app.")
                     .outfitText(15, .regular, AB.secondary)
             }
             InfoCard {

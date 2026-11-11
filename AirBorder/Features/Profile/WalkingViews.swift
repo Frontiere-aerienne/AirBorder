@@ -32,11 +32,7 @@ struct ConnectedAccountsView: View {
                         .frame(width: 32, height: 32)
                         .background(AB.primary, in: RoundedRectangle(cornerRadius: 8))
                 } perform: {
-                    if store.health == .connected {
-                        open(.removeHealth)
-                    } else {
-                        Task { await store.connectHealth() }
-                    }
+                    open(store.health == .connected ? .removeHealth : .healthPermission)
                 }
                 .accessibilityIdentifier("appleHealthRow")
             }
@@ -118,7 +114,7 @@ struct RemoveHealthView: View {
             Text("Remove Apple Health?").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
             InfoCard {
                 Text("Stop sharing walking data").outfitText(18, .bold)
-                Text("Estimates will use average walking times.").outfitText(15, .regular, AB.secondary)
+                Text("Estimates will use your airport walks or average times.").outfitText(15, .regular, AB.secondary)
             }
             CTAButton(title: "Remove", style: .destructive) {
                 store.removeHealth()
@@ -151,7 +147,10 @@ struct AirportWalkingView: View {
                 InfoCard {
                     Text("Your average pace").outfitText(14, .semibold, AB.secondary)
                     Text(PaceText.kmh(kmh)).outfitText(32, .bold).accessibilityIdentifier("paceValue")
-                    Text("From Apple Health · walking speed").outfitText(15, .regular, AB.secondary)
+                    Text(source).outfitText(15, .regular, AB.secondary)
+                }
+                if !healthUsed {
+                    CTAButton(title: "Connect walking data") { open(.connectedAccounts) }
                 }
             } else {
                 InfoCard {
@@ -161,6 +160,47 @@ struct AirportWalkingView: View {
                 .accessibilityIdentifier("averagePace")
                 CTAButton(title: "Connect walking data") { open(.connectedAccounts) }
             }
+        }
+    }
+}
+
+extension AirportWalkingView {
+    private var healthUsed: Bool { store.health == .connected && store.walkingSpeedKmh != nil }
+
+    private var source: String {
+        let walks = SampleJourney.airportWalks.count
+        if walks == 0 { return "From Apple Health" }
+        return healthUsed ? "From \(walks) airport walks and Apple Health" : "From \(walks) airport walks · walking only"
+    }
+}
+
+/// Figma "Health permission" (997:31930).
+struct HealthPermissionView: View {
+    @EnvironmentObject private var store: JourneyStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        SubScreen(spacing: 20, top: 48) {
+            BackButton { dismiss() }
+            Text("Connect walking data").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
+            InfoCard {
+                Text("Walking speed and distance").outfitText(18, .bold)
+                Text("You can disconnect at any time.").outfitText(15, .regular, AB.secondary)
+            }
+            CTAButton(title: "Allow walking data") {
+                Task {
+                    await store.connectHealth()
+                    dismiss()
+                }
+            }
+            .accessibilityIdentifier("allowWalkingData")
+            Button { dismiss() } label: {
+                Text("Continue without connecting").outfitText(13, .regular)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(.white, in: Capsule())
+                    .overlay(Capsule().strokeBorder(AB.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
         }
     }
 }
@@ -189,6 +229,9 @@ struct PreviousTripsView: View {
         SubScreen(spacing: 20, top: 48) {
             BackButton { dismiss() }
             Text("Previous trips").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
+            InfoCard {
+                Text("These walks shape your estimates").outfitText(16, .regular)
+            }
             VStack(spacing: 12) {
                 ForEach(trips) { trip in
                     VStack(alignment: .leading, spacing: 8) {

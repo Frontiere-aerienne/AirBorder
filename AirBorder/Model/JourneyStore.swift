@@ -97,8 +97,7 @@ final class JourneyStore: ObservableObject {
     // MARK: Walking
 
     var pace: WalkingPace {
-        if health == .connected, let walkingSpeedKmh { return .personal(kmh: walkingSpeedKmh) }
-        return .average
+        WalkingEstimate.pace(walks: SampleJourney.airportWalks, healthKmh: health == .connected ? walkingSpeedKmh : nil)
     }
 
     var schedule: Schedule { PlanEngine.schedule(plan, pace: pace) }

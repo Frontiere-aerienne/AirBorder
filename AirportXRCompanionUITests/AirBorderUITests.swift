@@ -22,16 +22,17 @@ final class AirBorderUITests: XCTestCase {
 
     func testJourneyDetailsCheckpointOpensJourneySteps() {
         app.buttons["journeyDetailsLink"].tap()
-        let line = app.buttons["checkpointLine"]
-        XCTAssertTrue(line.waitForExistence(timeout: 2))
-        XCTAssertTrue(line.label.contains("Security"))
-        line.tap()
+        let progress = app.descendants(matching: .any)["journeyProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 2))
+        XCTAssertEqual(progress.label, "Step 3 of 5, Security")
+        app.buttons["checkpointLine"].tap()
         XCTAssertTrue(app.staticTexts["Journey steps"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Haneda connection · Step 3 of 5"].exists)
         app.buttons["confirm-security"].tap()
         XCTAssertTrue(app.buttons["undo-security"].exists)
         XCTAssertTrue(app.buttons["skip-passport"].exists)
         app.buttons["back"].tap()
-        XCTAssertTrue(app.buttons["checkpointLine"].label.contains("Passport control"))
+        XCTAssertEqual(app.descendants(matching: .any)["journeyProgress"].label, "Step 4 of 5, Passport control")
     }
 
     func testAddStopsApplySuggestionAndUndo() {
@@ -61,16 +62,20 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Your flight"].waitForExistence(timeout: 2))
     }
 
-    func testWalkingPaceComesFromAppleHealth() {
+    func testAppleHealthRefinesWalkingPace() {
         app.buttons["tab-profile"].tap()
         app.buttons["previousTripsRow"].tap()
         app.buttons["viewWalkingPace"].tap()
-        XCTAssertTrue(app.staticTexts["No personal walking data"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["4.2 km/h"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["From 3 airport walks · walking only"].exists)
         app.buttons["Connect walking data"].tap()
         app.buttons["Connect Apple Health"].tap()
+        XCTAssertTrue(app.staticTexts["Walking speed and distance"].waitForExistence(timeout: 2))
+        app.buttons["allowWalkingData"].tap()
         XCTAssertTrue(app.staticTexts["Speed and distance · Synced just now"].waitForExistence(timeout: 3))
         app.buttons["back"].tap()
-        XCTAssertTrue(app.staticTexts["5.6 km/h"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["4.9 km/h"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["From 3 airport walks and Apple Health"].exists)
         let paceWords = NSPredicate(format: "label CONTAINS[c] 'slow' OR label CONTAINS[c] 'fast'")
         XCTAssertFalse(app.staticTexts.containing(paceWords).firstMatch.exists)
     }

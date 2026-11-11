@@ -61,33 +61,24 @@ struct JourneyDetailsView: View {
     private var layover: some View {
         HStack(spacing: 12) {
             Rectangle().fill(AB.primary.opacity(0.3)).frame(width: 2)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(durationText(SampleJourney.layoverMinutes)).outfitText(14, .medium, AB.muted)
                     Text("layover at \(SampleJourney.haneda.city)").outfitText(14, .regular, AB.muted)
                 }
-                Button { open(.journeySteps) } label: { checkpointLine }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("checkpointLine")
+                JourneyProgressStrip(checklist: store.checklist)
+                    .padding(.top, 4)
+                Button { open(.journeySteps) } label: {
+                    Text("See all steps →").outfitText(14, .semibold, AB.primary)
+                        .frame(minHeight: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("checkpointLine")
             }
             Spacer(minLength: 0)
         }
         .padding(.leading, 24)
         .padding(.vertical, 11)
-    }
-
-    private var checkpointLine: Text {
-        let checklist = store.checklist
-        guard let current = checklist.current else {
-            return Text("All steps confirmed →").outfitText(14, .semibold)
-        }
-        var line = Text("Now ").outfitText(14, .semibold) + Text(current.title).outfitText(14, .semibold)
-        if let next = checklist.next {
-            line = line + Text(" · Next \(next.title) →").outfitText(14, .regular, AB.muted)
-        } else {
-            line = line + Text(" →").outfitText(14, .regular, AB.muted)
-        }
-        return line
     }
 }
 

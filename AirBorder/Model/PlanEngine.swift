@@ -17,7 +17,32 @@ enum WalkingTimes {
         guard case let .personal(kmh) = pace, kmh >= 1, kmh <= 9 else { return baseMinutes }
         let metres = Double(baseMinutes * averageMetresPerMinute)
         let metresPerMinute = kmh * 1000 / 60
-        return Int((metres / metresPerMinute - 1e-9).rounded(.up))
+        return Int((metres / metresPerMinute - 1e-6).rounded(.up))
+    }
+}
+
+/// A walk recorded at the airport on an earlier trip (Profile › Previous trips).
+struct AirportWalk: Equatable {
+    let metres: Int
+    let minutes: Int
+}
+
+/// Walking estimates start from the traveller's airport walks and are refined by the walking speed
+/// in their connected Apple Health account (equal weight). Without either, average walking times apply.
+enum WalkingEstimate {
+    static func kmh(walks: [AirportWalk]) -> Double? {
+        let minutes = walks.map(\.minutes).reduce(0, +)
+        guard minutes > 0 else { return nil }
+        return Double(walks.map(\.metres).reduce(0, +)) * 60 / Double(minutes) / 1000
+    }
+
+    static func pace(walks: [AirportWalk], healthKmh: Double?) -> WalkingPace {
+        switch (kmh(walks: walks), healthKmh) {
+        case let (airport?, health?): return .personal(kmh: (airport + health) / 2)
+        case let (airport?, nil): return .personal(kmh: airport)
+        case let (nil, health?): return .personal(kmh: health)
+        default: return .average
+        }
     }
 }
 

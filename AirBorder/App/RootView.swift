@@ -3,7 +3,7 @@ import SwiftUI
 /// Screens pushed on top of a tab.
 enum Destination: Hashable {
     case journeyDetails, journeySteps, myPlan, editStop(PlaceID), addFlight
-    case connectedAccounts, removeHealth, airportWalking, previousTrips, savedFlights
+    case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
     case language, about, privacy, help, editProfile, tutorial, routeOptions
 }
 
@@ -65,6 +65,7 @@ struct RootView: View {
         case let .editStop(id): EditStopView(stopID: id)
         case .addFlight: AddFlightView()
         case .connectedAccounts: ConnectedAccountsView()
+        case .healthPermission: HealthPermissionView()
         case .removeHealth: RemoveHealthView()
         case .airportWalking: AirportWalkingView()
         case .previousTrips: PreviousTripsView()

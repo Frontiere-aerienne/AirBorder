@@ -106,6 +106,13 @@ enum SampleJourney {
     /// When stops start if the traveller adds any.
     static let planStart = ClockTime(16, 0)
 
+    /// Walks recorded on the traveller's previous trips through Haneda (Figma "Previous trips").
+    static let airportWalks = [
+        AirportWalk(metres: 840, minutes: 12),
+        AirportWalk(metres: 630, minutes: 9),
+        AirportWalk(metres: 1050, minutes: 15),
+    ]
+
     /// Number behind "Call ANA" in the Figma Journey details screen (858:13289).
     static let anaPhone = "+81367411120"
 }

@@ -10,6 +10,9 @@ struct JourneyStep: Identifiable, Codable, Equatable {
     /// Steps that may not apply to every traveller offer "Not needed".
     let canSkip: Bool
     var state: StepState = .pending
+
+    /// Label under the dot in the progress strip.
+    var shortTitle: String { id == "gate" ? "Gate" : title }
 }
 
 /// Departure-to-arrival checkpoints for the Haneda connection.
