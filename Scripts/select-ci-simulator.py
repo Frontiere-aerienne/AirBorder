@@ -49,13 +49,21 @@ def select_simulator(runtimes, devices, device_types):
     raise ValueError(f"{TARGET} device type and available simulator are absent")
 
 
-def command(*args, timeout=60):
-    return subprocess.run(["xcrun", "simctl", *args], check=True, text=True,
-                          capture_output=True, timeout=timeout).stdout
+def command(*args, timeout=60, attempts=1):
+    for attempt in range(1, attempts + 1):
+        try:
+            return subprocess.run(["xcrun", "simctl", *args], check=True, text=True,
+                                  capture_output=True, timeout=timeout).stdout
+        except subprocess.TimeoutExpired:
+            if attempt == attempts:
+                raise
+            print(f"simctl {args[0]} timed out after {timeout}s; retrying ({attempt + 1}/{attempts})",
+                  file=sys.stderr, flush=True)
 
 
 def inventory(kind):
-    return json.loads(command("list", kind, "-j"))
+    # The first simctl call on a fresh runner waits for CoreSimulator to start, which can take over a minute.
+    return json.loads(command("list", kind, "-j", timeout=180, attempts=2))
 
 
 def main():
