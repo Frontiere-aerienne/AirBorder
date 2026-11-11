@@ -114,6 +114,7 @@ struct Venue: Identifiable {
 
 private struct VenueCard: View {
     @EnvironmentObject private var store: JourneyStore
+    @Environment(\.openDestination) private var open
     let venue: Venue
 
     var body: some View {
@@ -123,8 +124,12 @@ private struct VenueCard: View {
                 HStack(spacing: 10) {
                     if let airline = venue.airline { AirlineBadge(airline: airline) }
                     if let icon = venue.icon { Image(icon).resizable().frame(width: 20, height: 20) }
-                    Text(venue.name).outfitText(20, .bold, AB.ice).tracking(-0.2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button { if venue.id == .anaLounge { open(.anaLounge) } } label: {
+                        Text(venue.name).outfitText(20, .bold, AB.ice).tracking(-0.2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(venue.id != .anaLounge)
                     Button {
                         if added {
                             store.remove(venue.id)
@@ -177,7 +182,10 @@ private struct VenueCard: View {
                     ForEach(venue.amenities, id: \.self) { Image($0).resizable().frame(width: 24, height: 24) }
                 }
                 .frame(height: 24)
+                .contentShape(Rectangle())
+                .onTapGesture { open(.facilityGuide) }
                 .accessibilityElement(children: .ignore)
+                .accessibilityAddTraits(.isButton)
                 .accessibilityLabel(venue.amenities.contains("icWifi") ? "Wi-Fi and seating" : "Seating")
             }
             .padding(.horizontal, 20)
@@ -187,21 +195,15 @@ private struct VenueCard: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// Walking time from the gate area, as on the Figma cards (4, 6 and 8 min at average pace).
-    private var walkFromYou: Int {
-        let average: Int = switch venue.id {
-        case .anaLounge: 4
-        case .cafe: 6
-        default: 8
-        }
-        return WalkingTimes.minutes(average: average, pace: store.pace)
-    }
+    /// Walking time between the venue and the gate (Figma cards: 4, 6 and 8 min on average).
+    private var walkFromYou: Int { store.venueToGateMinutes(venue.id) }
 }
 
 // MARK: - Landside (Figma 858:12562)
 
 private struct LandsideList: View {
     @EnvironmentObject private var store: JourneyStore
+    @Environment(\.openDestination) private var open
     @Environment(\.openURL) private var openURL
     @State private var showsLeaving = false
 
@@ -238,7 +240,7 @@ private struct LandsideList: View {
                     Text("Call Air BicCamera, +81 3 5579 7790").outfitText(13, .bold, AB.sky).underline()
                 }
                 .buttonStyle(.plain)
-                CTAButton(title: "View access & return", height: 47) { store.tab = .route }
+                CTAButton(title: "View access & return", height: 47) { open(.landsideRoute(false)) }
             }
             LandsideCard {
                 heading("icObservation", "Observation Deck")
@@ -247,7 +249,7 @@ private struct LandsideList: View {
                     Chip(text: "Open 24 hours", tone: .open)
                 }
                 checked
-                CTAButton(title: "View visit details", height: 47) { store.tab = .route }
+                CTAButton(title: "View visit details", height: 47) { open(.landsideRoute(true)) }
             }
             LandsideCard(padding: 18) {
                 Text("T2 Observation Deck").outfitText(20, .bold, .white)
@@ -262,7 +264,7 @@ private struct LandsideList: View {
                     Text("30 min").outfitText(15, .semibold, .white)
                     Spacer()
                 }
-                CTAButton(title: "View route & return") { store.tab = .route }
+                CTAButton(title: "View route & return") { open(.t2Deck) }
             }
         }
         .sheet(isPresented: $showsLeaving) { Sheets.beforeLeavingAirside(walk: store.gateWalkMinutes) }

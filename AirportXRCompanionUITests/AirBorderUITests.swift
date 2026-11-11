@@ -106,4 +106,103 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(toast.waitForExistence(timeout: 2))
         XCTAssertTrue(toast.label.contains("Arrived, Gate 105, NH 106, boarding 17:00."))
     }
+
+    func testManualFlightEntryValidatesAndSaves() {
+        app.buttons["addFlight"].tap()
+        app.buttons["importTicket"].tap()
+        app.buttons["addManually"].tap()
+        let number = app.textFields["manualNumber"]
+        XCTAssertTrue(number.waitForExistence(timeout: 2))
+        number.tap()
+        number.typeText("JL")
+        app.buttons["reviewEntered"].tap()
+        XCTAssertTrue(app.staticTexts["Enter the airline code and number, like BA123."].exists)
+        number.typeText("43")
+        let date = app.textFields["manualDate"]
+        date.tap()
+        date.typeText("2026-10-15")
+        app.buttons["reviewEntered"].tap()
+        XCTAssertTrue(app.staticTexts["JL 43"].waitForExistence(timeout: 2))
+        app.buttons["saveEntered"].tap()
+        let saved = app.descendants(matching: .any)["manualFlights"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 2))
+        XCTAssertTrue(saved.label.contains("JL 43 · 15 Oct 2026"))
+    }
+
+    func testBaggageDeclarationAndReturnFlight() {
+        app.buttons["journeyDetailsLink"].tap()
+        app.buttons["Baggage for this flight"].tap()
+        XCTAssertTrue(app.staticTexts["1 × 32 kg"].waitForExistence(timeout: 2) || app.descendants(matching: .any).containing(NSPredicate(format: "label CONTAINS '1 × 32 kg'")).firstMatch.exists)
+        app.buttons["extraBaggage"].tap()
+        app.buttons["saveExtraBag"].tap()
+        XCTAssertTrue(app.staticTexts["Baggage updated"].waitForExistence(timeout: 2))
+        app.buttons["back"].firstMatch.tap()
+        app.buttons["viewReturnFlight"].tap()
+        XCTAssertTrue(app.staticTexts["RETURN FLIGHT, 21 OCT"].waitForExistence(timeout: 2))
+    }
+
+    func testEditFlightDateAndSave() {
+        app.buttons["tab-profile"].tap()
+        app.buttons["Saved flights"].tap()
+        app.buttons["Edit this flight"].tap()
+        app.buttons.containing(NSPredicate(format: "label CONTAINS '15 Oct 2026'")).firstMatch.tap()
+        app.buttons.containing(NSPredicate(format: "label CONTAINS '16 October 2026'")).firstMatch.tap()
+        app.buttons["reviewCorrected"].tap()
+        app.buttons["saveFlight"].tap()
+        XCTAssertTrue(app.staticTexts["Flight saved"].waitForExistence(timeout: 2))
+        app.buttons["View saved flights"].tap()
+        XCTAssertTrue(app.staticTexts["Your flights"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.descendants(matching: .any).containing(NSPredicate(format: "label CONTAINS '16 Oct'")).firstMatch.exists)
+    }
+
+    func testImportPathsAreHonestAboutWhatWorks() {
+        app.buttons["addFlight"].tap()
+        app.buttons["importTicket"].tap()
+        app.buttons["import-Camera"].tap()
+        XCTAssertTrue(app.staticTexts["Scan your ticket"].waitForExistence(timeout: 2))
+        app.buttons["Not now"].tap()
+        XCTAssertTrue(app.staticTexts["Camera unavailable"].waitForExistence(timeout: 2))
+        app.buttons["Other import options"].tap()
+        XCTAssertTrue(app.staticTexts["Where is your ticket?"].waitForExistence(timeout: 2))
+        app.buttons["import-Gmail"].tap()
+        XCTAssertTrue(app.staticTexts["Connect Gmail"].waitForExistence(timeout: 2))
+        app.buttons["Continue with Google"].tap()
+        XCTAssertTrue(app.alerts["Google sign-in isn't available yet"].waitForExistence(timeout: 2))
+    }
+
+    func testAddToMyPlanShowsAddedPlanOnFlight() {
+        app.buttons["myPlanLink"].tap()
+        XCTAssertTrue(app.staticTexts["No stops added yet"].waitForExistence(timeout: 2))
+        app.buttons["Add a stop"].tap()
+        XCTAssertTrue(app.staticTexts["Add to my plan"].waitForExistence(timeout: 2))
+        app.buttons["plan-cafe"].tap()
+        app.buttons["View my plan"].tap()
+        XCTAssertTrue(app.buttons["stop-cafe"].waitForExistence(timeout: 2))
+        app.buttons["View route through stops"].tap()
+        XCTAssertTrue(app.staticTexts["Route via Curacion Cafe"].waitForExistence(timeout: 2))
+        app.buttons["back"].tap()
+        app.buttons["back"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["addedPlanCard"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["addStop"].exists)
+        app.buttons["Remove plan"].tap()
+        XCTAssertTrue(app.buttons["addStop"].waitForExistence(timeout: 2))
+    }
+
+    func testTerminalTwoVisitAddsToPlanAndShowsRoute() {
+        app.buttons["tab-layover"].tap()
+        app.buttons["area-Landside"].tap()
+        let deck = app.buttons["View route & return"]
+        app.swipeUp()
+        XCTAssertTrue(deck.waitForExistence(timeout: 2))
+        deck.tap()
+        XCTAssertTrue(app.staticTexts["T2 Observation Deck"].waitForExistence(timeout: 2))
+        app.buttons["addT2Visit"].tap()
+        XCTAssertTrue(app.buttons["Remove the visit"].waitForExistence(timeout: 2))
+        app.buttons["View shuttle route"].tap()
+        XCTAssertTrue(app.staticTexts["To Terminal 2"].waitForExistence(timeout: 2))
+        app.buttons["Arrived at Terminal 2"].tap()
+        XCTAssertTrue(app.staticTexts["At T2 Observation Deck"].waitForExistence(timeout: 2))
+        app.buttons["View Journey"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["addedPlanCard"].waitForExistence(timeout: 2))
+    }
 }

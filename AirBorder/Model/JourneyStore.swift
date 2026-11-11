@@ -70,6 +70,16 @@ final class JourneyStore: ObservableObject {
     @Published var baggagePreference: BaggagePreference { didSet { persist() } }
     @Published var profilePhoto: UIImage? { didSet { ProfilePhotoStore.save(profilePhoto) } }
     @Published private(set) var toast: ToastMessage?
+    /// The traveller's saved trip flight as they last confirmed it (Edit flight details).
+    @Published private(set) var tripFlight: TripFlight { didSet { persist() } }
+    /// Edits in progress on Edit flight details, applied on Save flight.
+    @Published var flightDraft: TripFlight
+    /// Flights the traveller typed in on Add a flight › Add manually.
+    @Published private(set) var manualFlights: [ManualFlight] { didSet { persist() } }
+    /// "+1 checked bag" declared on Extra baggage.
+    @Published var extraBagDeclared: Bool { didSet { persist() } }
+    /// A 30-minute visit to the Terminal 2 Observation Deck (landside).
+    @Published var t2VisitPlanned: Bool { didSet { persist() } }
     private var toastAction: (() -> Void)?
     @Published private(set) var health: HealthConnection { didSet { persist() } }
     @Published private(set) var walkingSpeedKmh: Double?
@@ -95,6 +105,11 @@ final class JourneyStore: ObservableObject {
         firstName = saved?.firstName ?? ""
         lastName = saved?.lastName ?? ""
         baggagePreference = saved?.baggagePreference ?? .taggedThrough
+        tripFlight = saved?.tripFlight ?? .sample
+        flightDraft = saved?.tripFlight ?? .sample
+        manualFlights = saved?.manualFlights ?? []
+        extraBagDeclared = saved?.extraBagDeclared ?? false
+        t2VisitPlanned = saved?.t2VisitPlanned ?? false
         profilePhoto = reset ? nil : ProfilePhotoStore.load()
         health = saved?.health ?? .notConnected
         queueUpdateHandled = saved?.queueUpdateHandled ?? false
@@ -112,6 +127,16 @@ final class JourneyStore: ObservableObject {
     var schedule: Schedule { PlanEngine.schedule(plan, pace: pace) }
 
     func walkMinutes(_ from: PlaceID, _ to: PlaceID) -> Int { WalkMatrix.minutes(from, to, pace: pace) }
+
+    /// Walk from a venue back to the gate, as on the Layover cards and Return to gate screens (4, 6 and 8 min on average).
+    func venueToGateMinutes(_ place: PlaceID) -> Int {
+        let average: Int = switch place {
+        case .anaLounge: 4
+        case .cafe: 6
+        default: 8
+        }
+        return WalkingTimes.minutes(average: average, pace: pace)
+    }
 
     /// Walk from here to the gate on the chosen route.
     var gateWalkMinutes: Int { gateWalkMinutes(for: routeChoice) }
@@ -222,6 +247,12 @@ final class JourneyStore: ObservableObject {
         showToast(ToastMessage(text: "Trip preferences reset"))
     }
 
+    // MARK: Saved flights
+
+    func beginEditingFlight() { flightDraft = tripFlight }
+    func saveFlightDraft() { tripFlight = flightDraft }
+    func addManualFlight(_ flight: ManualFlight) { manualFlights.append(flight) }
+
     // MARK: Toasts (Figma section "Toasts")
 
     func showToast(_ message: ToastMessage, action: (() -> Void)? = nil) {
@@ -248,6 +279,10 @@ final class JourneyStore: ObservableObject {
         var firstName: String?
         var lastName: String?
         var baggagePreference: BaggagePreference?
+        var tripFlight: TripFlight?
+        var manualFlights: [ManualFlight]?
+        var extraBagDeclared: Bool?
+        var t2VisitPlanned: Bool?
         var health: HealthConnection
         var queueUpdateHandled: Bool
         var onboardingSeen: Bool?
@@ -261,6 +296,10 @@ final class JourneyStore: ObservableObject {
             firstName: firstName,
             lastName: lastName,
             baggagePreference: baggagePreference,
+            tripFlight: tripFlight,
+            manualFlights: manualFlights,
+            extraBagDeclared: extraBagDeclared,
+            t2VisitPlanned: t2VisitPlanned,
             health: health,
             queueUpdateHandled: queueUpdateHandled,
             onboardingSeen: onboardingSeen
@@ -289,5 +328,49 @@ enum ProfilePhotoStore {
         } else {
             try? FileManager.default.removeItem(at: url)
         }
+    }
+}
+
+/// Editable details of the saved trip flight (Figma "Edit flight details").
+struct TripFlight: Codable, Equatable {
+    var number: String
+    var date: String
+    var purpose: String
+
+    static let sample = TripFlight(number: "NH 106", date: SampleJourney.outbound.date, purpose: "Business meetings")
+    static let flights = [("NH 106", "HND → LAX"), ("NH 6", "NRT → LAX")]
+    static let dates = ["2026-10-15", "2026-10-16", "2026-10-17"]
+    static let purposes = ["Business meetings", "Tourism", "Transit"]
+
+    var route: String { Self.flights.first { $0.0 == number }?.1 ?? "" }
+}
+
+/// A flight typed in by the traveller. Only what they entered is stored; no live status is shown.
+struct ManualFlight: Codable, Hashable, Identifiable {
+    var id = UUID()
+    let number: String
+    let date: String
+}
+
+enum TripDate {
+    private static func parse(_ iso: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter.date(from: iso)
+    }
+
+    static func isValid(_ iso: String) -> Bool { parse(iso) != nil }
+
+    /// "15 Oct", "15 Oct 2026", "15 October 2026", "15 OCT".
+    static func format(_ iso: String, _ pattern: String) -> String {
+        guard let date = parse(iso) else { return iso }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_GB")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = pattern
+        return formatter.string(from: date)
     }
 }

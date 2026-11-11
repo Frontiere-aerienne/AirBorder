@@ -5,7 +5,6 @@ struct ConnectedAccountsView: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     @Environment(\.dismiss) private var dismiss
-    @State private var unavailable: String?
 
     var body: some View {
         SubScreen(spacing: 16, top: 52) {
@@ -14,11 +13,11 @@ struct ConnectedAccountsView: View {
             GroupedList {
                 AccountRow(title: "Gmail", detail: "Not connected, view only", action: "Connect") {
                     BrandTile(asset: "logoGmail", width: 20, height: 15.9)
-                } perform: { unavailable = "Gmail" }
+                } perform: { open(.connectGmail) }
                 RowDivider()
                 AccountRow(title: "Google Calendar", detail: "Not connected, view only", action: "Connect") {
                     Image("logoGoogleCalendar").resizable().scaledToFit().frame(width: 32, height: 32)
-                } perform: { unavailable = "Google Calendar" }
+                } perform: { open(.connectCalendar) }
             }
             SectionLabel(text: "Walking data")
             GroupedList {
@@ -36,14 +35,6 @@ struct ConnectedAccountsView: View {
                 }
                 .accessibilityIdentifier("appleHealthRow")
             }
-        }
-        .alert(
-            "\(unavailable ?? "") isn't available yet",
-            isPresented: Binding(get: { unavailable != nil }, set: { if !$0 { unavailable = nil } })
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Add your flight with Add manually on the Flight tab for now.")
         }
     }
 

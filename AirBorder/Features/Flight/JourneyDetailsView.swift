@@ -6,8 +6,6 @@ struct JourneyDetailsView: View {
     @Environment(\.openDestination) private var open
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @State private var showsBaggage = false
-    @State private var showsUsualBaggage = false
 
     var body: some View {
         ScrollView {
@@ -26,8 +24,11 @@ struct JourneyDetailsView: View {
                 legLabel("FLIGHT 2 OF 2")
                 TicketCard(flight: SampleJourney.outbound)
                 Color.clear.frame(height: 24)
-                CTAButton(title: "Baggage for this flight", height: 52, fullWidth: false) { showsBaggage = true }
+                CTAButton(title: "Baggage for this flight", height: 52, fullWidth: false) { open(.baggage) }
                     .frame(width: 216)
+                CTAButton(title: "View return flight", height: 52, fullWidth: false) { open(.returnFlight) }
+                    .frame(width: 206)
+                    .accessibilityIdentifier("viewReturnFlight")
                 Button {
                     if let url = URL(string: "tel:\(SampleJourney.anaPhone)") { openURL(url) }
                 } label: {
@@ -48,8 +49,6 @@ struct JourneyDetailsView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showsBaggage) { Sheets.baggage { showsUsualBaggage = true } }
-        .sheet(isPresented: $showsUsualBaggage) { UsualBaggageSheet() }
     }
 
     private func legLabel(_ text: String) -> some View {

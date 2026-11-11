@@ -251,7 +251,7 @@ private struct CameraPreview: UIViewRepresentable {
 struct RouteOptionsView: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
+    @Environment(\.openDestination) private var open
 
     var body: some View {
         SubScreen {
@@ -264,15 +264,17 @@ struct RouteOptionsView: View {
                     Text(choice.detail).outfitText(15, .regular, AB.secondary)
                 }
                 CTAButton(title: "Use \(choice.title.lowercased()) route", style: store.routeChoice == choice ? .filled : .outline) {
-                    store.routeChoice = choice
-                    store.routeStep = 1
-                    dismiss()
+                    if choice == .direct {
+                        store.routeChoice = choice
+                        store.routeStep = 1
+                        dismiss()
+                    } else {
+                        open(.routeDetail(choice))
+                    }
                 }
                 .accessibilityIdentifier("use-\(choice.rawValue)")
             }
-            CTAButton(title: "Other map apps", style: .outline) {
-                if let url = URL(string: "maps://?q=Haneda%20Airport%20Terminal%203") { openURL(url) }
-            }
+            CTAButton(title: "Other map apps", style: .outline) { open(.openAnotherMap) }
         }
     }
 }

@@ -67,7 +67,15 @@ struct FlightView: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(durationText(untilClose)) before Gate \(gate.departureGate) closes.")
-            Button { store.tab = .route } label: {
+            Button {
+                if let last = schedule.stops.last {
+                    open(.returnToGate(last.stop.id))
+                } else if store.t2VisitPlanned {
+                    open(.t2Deck)
+                } else {
+                    store.tab = .route
+                }
+            } label: {
                 HStack(spacing: 9) {
                     Image("icWalkWhite").resizable().frame(width: 21, height: 21)
                     Text("Route").outfitText(14, .semibold, .white)
@@ -79,8 +87,12 @@ struct FlightView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .accessibilityIdentifier("routeButton")
-            PlanCard(spare: firstLeave - SampleJourney.now, leave: firstLeave, arrive: schedule.arriveAtGate, closes: schedule.gateCloses) {
-                store.tab = .layover
+            if schedule.stops.isEmpty && !store.t2VisitPlanned {
+                PlanCard(spare: firstLeave - SampleJourney.now, leave: firstLeave, arrive: schedule.arriveAtGate, closes: schedule.gateCloses) {
+                    store.tab = .layover
+                }
+            } else {
+                AddedPlanCard()
             }
         }
     }

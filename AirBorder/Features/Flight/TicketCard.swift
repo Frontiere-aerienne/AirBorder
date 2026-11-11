@@ -99,8 +99,12 @@ struct TicketCard: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
-                    GateSign(gate: flight.departureGate, size: 26)
-                    Text("Terminal \(flight.departureTerminal)").outfitText(13, .medium, AB.ice.opacity(0.7))
+                    if flight.departureGate.isEmpty {
+                        TerminalSign(terminal: flight.departureTerminal, size: 26)
+                    } else {
+                        GateSign(gate: flight.departureGate, size: 26)
+                        Text("Terminal \(flight.departureTerminal)").outfitText(13, .medium, AB.ice.opacity(0.7))
+                    }
                 }
             }
             Rectangle().fill(AB.ice.opacity(0.12)).frame(height: 1)
@@ -111,7 +115,7 @@ struct TicketCard: View {
                 Spacer()
                 detail("GATE", flight.arrivalGate)
                 Spacer()
-                if let belt = flight.baggageBelt { detail("BAGS", belt) }
+                detail("BAGS", flight.baggageBelt ?? "–")
             }
         }
     }

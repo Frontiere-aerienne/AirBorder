@@ -47,6 +47,11 @@ struct FlightLeg: Hashable, Identifiable {
     let arrivalTerminal: String
     let arrivalGate: String
     let baggageBelt: String?
+    var cabin: String? = nil
+    /// Local departure date, e.g. "2026-10-15".
+    var date: String = ""
+    /// Gate-to-gate time across time zones.
+    var durationMinutes: Int? = nil
 }
 
 /// The traveller's trip: Bangkok → Tokyo Haneda → Los Angeles.
@@ -91,7 +96,31 @@ enum SampleJourney {
         gateCloses: ClockTime(17, 25),
         arrivalTerminal: "B",
         arrivalGate: "148",
-        baggageBelt: "7"
+        baggageBelt: "7",
+        cabin: "Business",
+        date: "2026-10-15",
+        durationMinutes: 9 * 60 + 45
+    )
+
+    /// Return flight shown from Journey details (Figma 858:13081).
+    static let returnFlight = FlightLeg(
+        id: "NH105",
+        airline: .ana,
+        number: "NH 105",
+        from: losAngeles,
+        to: haneda,
+        departs: ClockTime(0, 50),
+        arrives: ClockTime(5, 0),
+        arrivalDayOffset: 1,
+        status: "Nonstop",
+        departureTerminal: "B",
+        departureGate: "",
+        gateCloses: nil,
+        arrivalTerminal: "2",
+        arrivalGate: "–",
+        baggageBelt: nil,
+        date: "2026-10-21",
+        durationMinutes: 12 * 60 + 10
     )
 
     /// The moment the sample journey is shown at: 12:00 at Haneda, 45 minutes after landing.

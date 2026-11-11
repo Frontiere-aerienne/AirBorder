@@ -1,33 +1,5 @@
 import SwiftUI
 
-/// Saved flights: the flights in the traveller's trip.
-struct SavedFlightsView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        SubScreen(spacing: 20, top: 48) {
-            BackButton { dismiss() }
-            Text("Saved flights").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
-            ForEach([SampleJourney.inbound, SampleJourney.outbound]) { flight in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        AirlineBadge(airline: flight.airline)
-                        Text(flight.number).outfitText(15, .semibold)
-                        Spacer()
-                        Text(flight.status).outfitText(12, .semibold, AB.muted)
-                    }
-                    Text("\(flight.from.code) \(flight.departs) → \(flight.to.code) \(flight.arrives)").outfitText(18, .bold)
-                    Text("\(flight.from.city) → \(flight.to.city)").outfitText(15, .regular, AB.secondary)
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 18)
-                .background(AB.card, in: RoundedRectangle(cornerRadius: 20))
-                .accessibilityElement(children: .combine)
-            }
-        }
-    }
-}
-
 /// Figma "Language (English)" (858:12519).
 struct LanguageView: View {
     @Environment(\.dismiss) private var dismiss
@@ -200,13 +172,10 @@ struct ImagePicker: UIViewControllerRepresentable {
     }
 }
 
-/// Figma "Add a flight" (858:11655).
+/// Figma "Import your flight" (858:11655): where is your ticket?
 struct AddFlightView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var unavailable: String?
-    @State private var entersManually = false
-    @State private var flightNumber = ""
-    @State private var result: String?
+    @Environment(\.openDestination) private var open
 
     private struct Source: Identifiable {
         var id: String { title }
@@ -214,15 +183,16 @@ struct AddFlightView: View {
         let detail: String
         let icon: String?
         let symbol: String?
+        let destination: Destination
     }
 
     private let sources = [
-        Source(title: "Camera", detail: "Scan your ticket", icon: nil, symbol: "camera"),
-        Source(title: "PDF", detail: "PDF ticket or itinerary", icon: nil, symbol: "doc.text"),
-        Source(title: "Apple Wallet", detail: "Boarding pass", icon: nil, symbol: "wallet.pass"),
-        Source(title: "Google Wallet", detail: "Boarding pass", icon: nil, symbol: "creditcard"),
-        Source(title: "Gmail", detail: "Booking email", icon: "logoGmail", symbol: nil),
-        Source(title: "Google Calendar", detail: "Flight event", icon: "logoGoogleCalendar", symbol: nil),
+        Source(title: "Camera", detail: "Scan your ticket", icon: nil, symbol: "camera", destination: .cameraPermission),
+        Source(title: "PDF", detail: "PDF ticket or itinerary", icon: nil, symbol: "doc.text", destination: .choosePDF),
+        Source(title: "Apple Wallet", detail: "Boarding pass", icon: nil, symbol: "wallet.pass", destination: .importWallet),
+        Source(title: "Google Wallet", detail: "Boarding pass", icon: nil, symbol: "creditcard", destination: .importWallet),
+        Source(title: "Gmail", detail: "Booking email", icon: "logoGmail", symbol: nil, destination: .connectGmail),
+        Source(title: "Google Calendar", detail: "Flight event", icon: "logoGoogleCalendar", symbol: nil, destination: .connectCalendar),
     ]
 
     var body: some View {
@@ -238,40 +208,15 @@ struct AddFlightView: View {
                         } else if let symbol = source.symbol {
                             Image(systemName: symbol).font(.system(size: 18)).foregroundStyle(AB.navy)
                         }
-                    } perform: { unavailable = source.title }
+                    } perform: { open(source.destination) }
+                    .accessibilityIdentifier("import-\(source.title)")
                     RowDivider()
                 }
                 row("Add manually", "Enter flight number") {
                     Image("icPlusDark").resizable().frame(width: 18, height: 18)
-                } perform: { entersManually = true }
+                } perform: { open(.manualEntry) }
                 .accessibilityIdentifier("addManually")
             }
-            if entersManually {
-                TextField("Flight number, e.g. NH 106", text: $flightNumber)
-                    .font(Outfit.font(16, .regular))
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .onSubmit(find)
-                    .padding(.horizontal, 16)
-                    .frame(height: 52)
-                    .background(AB.card, in: RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(AB.border, lineWidth: 1))
-                    .accessibilityIdentifier("flightNumberField")
-                CTAButton(title: "Find flight", action: find)
-                if let result {
-                    Text(result).outfitText(15, .regular, result.hasPrefix("Enter") || result.hasPrefix("We") ? AB.removeRed : AB.secondary)
-                        .accessibilityIdentifier("addFlightResult")
-                }
-            }
-        }
-        .alert(
-            "\(unavailable ?? "") isn't available yet",
-            isPresented: Binding(get: { unavailable != nil }, set: { if !$0 { unavailable = nil } })
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Use Add manually to enter your flight number.")
         }
     }
 
@@ -294,19 +239,5 @@ struct AddFlightView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func find() {
-        let entered = flightNumber.uppercased().filter { !$0.isWhitespace }
-        guard !entered.isEmpty else {
-            result = "Enter a flight number, like NH 106."
-            return
-        }
-        let saved = [SampleJourney.inbound, SampleJourney.outbound]
-        if let match = saved.first(where: { $0.number.filter { !$0.isWhitespace } == entered }) {
-            result = "\(match.number) is already in your trip."
-        } else {
-            result = "We couldn't find \(flightNumber.uppercased()). Check the number on your ticket."
-        }
     }
 }

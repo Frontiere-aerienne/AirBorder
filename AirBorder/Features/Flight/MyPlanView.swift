@@ -35,8 +35,8 @@ struct MyPlanView: View {
                     NavyCard(title: PlanText.arrivalTitle(schedule), detail: PlanText.arrivalDetail(schedule))
                         .accessibilityIdentifier("arrivalCard")
                     if store.suggestion == nil {
-                        CTAButton(title: "View route through stops") { store.tab = .route }
-                        CTAButton(title: "Add a stop", style: .outline) { store.tab = .layover }
+                        CTAButton(title: "View route through stops") { open(.routeThroughStops) }
+                        CTAButton(title: "Add a stop", style: .outline) { open(.addToPlan) }
                         CTAButton(title: "Flight home", style: .plain) { popToRoot() }
                     }
                 }
@@ -62,7 +62,7 @@ struct MyPlanView: View {
             Text("Estimated walk \(schedule.walkToGate) min · Arrive by \(schedule.arriveAtGate)").outfitText(15, .regular, AB.card)
         }
         .accessibilityIdentifier("arrivalCard")
-        CTAButton(title: "Add a stop", style: .outline) { store.tab = .layover }
+        CTAButton(title: "Add a stop", style: .outline) { open(.addToPlan) }
         CTAButton(title: "View gate map") { store.tab = .route }
         CTAButton(title: "Flight home", style: .plain) { popToRoot() }
     }

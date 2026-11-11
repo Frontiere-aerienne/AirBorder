@@ -165,3 +165,33 @@ final class JourneyStoreTests: XCTestCase {
         XCTAssertEqual(store.gateWalkMinutes, 16)
     }
 }
+
+final class TicketReaderTests: XCTestCase {
+    func testReadsFlightDateAndRouteFromItineraryText() {
+        let text = """
+        ANA itinerary
+        Flight NH 106  HND → LAX
+        Departure 15 Oct 2026 18:00 Terminal 3
+        """
+        let ticket = TicketReader.parse(text, source: "ANA-itinerary.pdf")
+        XCTAssertEqual(ticket?.number, "NH 106")
+        XCTAssertEqual(ticket?.date, "2026-10-15")
+        XCTAssertEqual(ticket?.route, "HND → LAX")
+    }
+
+    func testReadsBoardingPassStyleText() {
+        let ticket = TicketReader.parse("BOARDING PASS JL043 21OCT LAX TO HND SEAT 3A", source: "Your ticket photo", defaultYear: 2026)
+        XCTAssertEqual(ticket?.number, "JL 43")
+        XCTAssertEqual(ticket?.date, "2026-10-21")
+        XCTAssertEqual(ticket?.from, "LAX")
+    }
+
+    func testNoFlightNumberMeansUnreadable() {
+        XCTAssertNil(TicketReader.parse("Thank you for shopping with us", source: "receipt.pdf"))
+    }
+
+    func testRejectsImpossibleDates() {
+        XCTAssertNil(TicketReader.date(in: "2026-02-31", defaultYear: 2026))
+        XCTAssertNil(TicketReader.date(in: "45 OCT 2026", defaultYear: 2026))
+    }
+}
