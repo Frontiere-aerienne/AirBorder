@@ -14,7 +14,7 @@ struct MyPlanView: View {
             SubScreen {
                 HeaderWithBack(title: "My plan") { dismiss() }
                 GateChip()
-                Text(schedule.stops.isEmpty ? "No stops added yet" : "Haneda · Terminal 3 · your gate")
+                Text(schedule.stops.isEmpty ? "No stops added yet" : "Haneda · Terminal 3 · Gate \(store.gate)")
                     .outfitText(15, .regular, AB.secondary)
                 if schedule.stops.isEmpty {
                     emptyPlan(schedule)
@@ -58,7 +58,7 @@ struct MyPlanView: View {
     private func emptyPlan(_ schedule: Schedule) -> some View {
         InfoCard(padding: 16, radius: 16, background: AB.ticket) {
             Text("Go straight to your gate").outfitText(18, .bold, AB.card)
-            Text("your gate · Terminal \(SampleJourney.outbound.departureTerminal)").outfitText(15, .regular, AB.card)
+            Text("Gate \(store.gate) · Terminal \(store.outbound.departureTerminal)").outfitText(15, .regular, AB.card)
             Text("Estimated walk \(schedule.walkToGate) min · Arrive by \(schedule.arriveAtGate)").outfitText(15, .regular, AB.card)
         }
         .accessibilityIdentifier("arrivalCard")

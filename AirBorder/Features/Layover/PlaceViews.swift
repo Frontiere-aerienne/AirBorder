@@ -493,7 +493,7 @@ struct T2DeckView: View {
             CenteredButton(title: "Airport transport guide", filled: false) {
                 if let url = URL(string: "https://tokyo-haneda.com/en/access/travel_between_terminals/index.html") { openURL(url) }
             }
-            Text("From airside, ask staff about exit before the shuttle route").outfitText(14, .regular, AB.secondary)
+            Text("From airside, ask staff for the landside exit first").outfitText(14, .regular, AB.secondary)
         }
     }
 }
@@ -520,7 +520,7 @@ struct ToTerminal2View: View {
             ])
             CenteredButton(title: "Arrived at Terminal 2") { open(.atTerminal2) }
             CenteredButton(title: "View return route", filled: false) { open(.returnFromT2) }
-            Text("From airside, ask staff about exit before the shuttle route").outfitText(14, .regular, AB.secondary)
+            Text("From airside, ask staff for the landside exit first").outfitText(14, .regular, AB.secondary)
             Button { open(.shuttleFull) } label: {
                 Text("Transfer updates").outfitText(13, .regular, AB.primary).frame(maxWidth: .infinity, minHeight: 44)
             }
@@ -578,7 +578,7 @@ struct ReturnFromT2View: View {
             StepList(steps: [
                 ("T2 bus stop 9", "Lift to 1F arrivals"),
                 ("Free shuttle to T3", "About 15 min"),
-                ("T3 departures, 3F", "Security and immigration, about 30 min"),
+                ("T3 departures, 3F", "Security and passport control, about 30 min"),
                 ("Follow Gates 105–109", "Continue to Gate 105"),
             ])
             CenteredButton(title: "Open gate directions") {

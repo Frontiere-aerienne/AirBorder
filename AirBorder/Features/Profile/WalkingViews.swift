@@ -11,11 +11,11 @@ struct ConnectedAccountsView: View {
             StackedHeader(title: "Connected accounts") { dismiss() }
             SectionLabel(text: "Flight import")
             GroupedList {
-                AccountRow(title: "Gmail", detail: "Not connected, view only", action: "Connect") {
+                AccountRow(title: "Gmail", detail: "Not connected", action: "Connect") {
                     BrandTile(asset: "logoGmail", width: 20, height: 15.9)
                 } perform: { open(.connectGmail) }
                 RowDivider()
-                AccountRow(title: "Google Calendar", detail: "Not connected, view only", action: "Connect") {
+                AccountRow(title: "Google Calendar", detail: "Not connected", action: "Connect") {
                     Image("logoGoogleCalendar").resizable().scaledToFit().frame(width: 32, height: 32)
                 } perform: { open(.connectCalendar) }
             }

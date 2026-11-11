@@ -46,7 +46,7 @@ struct TransferPlanSection: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("transferBag")
                 RowDivider()
-                row("tileShield", "Entry document, Japan", "Japanese ePassport, expires 12 Jun 2031")
+                row("tileShield", "Entry document, Japan", "Have your passport ready")
                 RowDivider()
                 row("tileMap", "Airport bus, \(NaritaTransfer.busDeparts)", "NRT T1 arrival \(NaritaTransfer.busArrives), fare \(NaritaTransfer.fare)")
             }
@@ -94,6 +94,7 @@ struct TransferStepsSheet: View {
 /// Figma "Baggage (Transfer)" sheet (858:10176), from Journey details › Baggage for this flight.
 struct TransferBaggageSheet: View {
     @EnvironmentObject private var store: JourneyStore
+    @Environment(\.openDestination) private var open
 
     var body: some View {
         InfoSheet(
@@ -103,7 +104,7 @@ struct TransferBaggageSheet: View {
                 SheetRow(icon: "tileTransfer", label: "Recheck at Narita", detail: "Terminal \(store.outbound.departureTerminal), by \(NaritaTransfer.recheckBy)"),
                 SheetRow(icon: "tileInfo", label: "Allowance", detail: "1 × 32 kg checked, 10 kg cabin"),
             ],
-            button: ("Update baggage preference", { store.tab = .profile })
+            button: ("Baggage for this flight", { open(.baggage) })
         )
     }
 }

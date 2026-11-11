@@ -310,7 +310,7 @@ struct FlightSavedView: View {
         SubScreen(spacing: 16, top: 52) {
             Color.clear.frame(height: 44)
             Text("Flight saved").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
-            Text("\(store.tripFlight.number) is now in Your flight. We will alert you if the gate or time changes.")
+            Text("\(store.tripFlight.number) is now in Your flight.")
                 .outfitText(15, .regular, AB.muted)
             draftTicket(store.tripFlight, saved: true)
             CenteredButton(title: "View saved flights") { popTo(.savedFlights) }

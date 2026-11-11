@@ -99,7 +99,7 @@ enum Sheets {
     static func beforeLeavingAirside(walk: Int) -> InfoSheet {
         InfoSheet(title: "Leaving airside", rows: [
             SheetRow(icon: "tileClock", label: "30 min to get back", detail: "Security plus a \(walk) min walk"),
-            SheetRow(icon: "tileShield", label: "Passport ready", detail: "Japan ePassport"),
+            SheetRow(icon: "tileShield", label: "Passport ready", detail: "For Japan arrival checks"),
             SheetRow(icon: "tileBag", label: "Your bag", detail: "Stays with the airline"),
         ], link: ("Japan entry information ↗", "https://www.mofa.go.jp/j_info/visit/visa/index.html"))
     }
