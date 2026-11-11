@@ -4,7 +4,7 @@ import SwiftUI
 enum Destination: Hashable {
     case journeyDetails, journeySteps, myPlan, editStop(PlaceID), addFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
-    case language, about, privacy, help, editProfile, tutorial, routeOptions
+    case language, about, help, editProfile, tutorial, routeOptions
 }
 
 struct RootView: View {
@@ -22,6 +22,12 @@ struct RootView: View {
                 .allowsHitTesting(store.tab == tab)
                 .accessibilityHidden(store.tab != tab)
             }
+            if let toast = store.toast {
+                ToastView(toast: toast, perform: toast.action == nil ? nil : { store.performToastAction() })
+                    .padding(.bottom, showsTabBar ? 104 : 24)
+                    .transition(.opacity)
+                    .zIndex(2)
+            }
             if showsTabBar {
                 TabBar(selection: $store.tab).offset(y: 10)
             }
@@ -32,7 +38,7 @@ struct RootView: View {
         })
         .environment(\.popToRoot, PopToRootAction { paths[store.tab] = [] })
         .fullScreenCover(isPresented: Binding(get: { !store.onboardingSeen }, set: { _ in })) {
-            TutorialView(onFinish: {}).environmentObject(store)
+            OnboardingFlow(startAt: 0) {}.environmentObject(store)
         }
     }
 
@@ -72,10 +78,9 @@ struct RootView: View {
         case .savedFlights: SavedFlightsView()
         case .language: LanguageView()
         case .about: AboutView()
-        case .privacy: PrivacyView()
         case .help: AboutView()
         case .editProfile: EditProfileView()
-        case .tutorial: TutorialView()
+        case .tutorial: TutorialReplay()
         case .routeOptions: RouteOptionsView()
         }
     }
@@ -162,3 +167,11 @@ struct TabBar: View {
 
 /// Bottom space so scroll content clears the floating tab bar.
 let tabBarClearance: CGFloat = 110
+
+/// Profile › Replay tutorial (Figma link to Onboarding 1).
+private struct TutorialReplay: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        OnboardingFlow(startAt: 1) { dismiss() }
+    }
+}

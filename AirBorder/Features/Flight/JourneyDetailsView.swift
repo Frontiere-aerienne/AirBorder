@@ -7,6 +7,7 @@ struct JourneyDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var showsBaggage = false
+    @State private var showsUsualBaggage = false
 
     var body: some View {
         ScrollView {
@@ -47,11 +48,8 @@ struct JourneyDetailsView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .alert("Baggage for NH 106", isPresented: $showsBaggage) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Baggage allowance · Check your ticket. In Los Angeles, bags arrive at belt 7.")
-        }
+        .sheet(isPresented: $showsBaggage) { Sheets.baggage { showsUsualBaggage = true } }
+        .sheet(isPresented: $showsUsualBaggage) { UsualBaggageSheet() }
     }
 
     private func legLabel(_ text: String) -> some View {

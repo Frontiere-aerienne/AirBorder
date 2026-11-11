@@ -28,11 +28,7 @@ struct LayoverView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .alert("Airside", isPresented: $showsAirsideInfo) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Past security, near your gate. No need to go through security again.")
-        }
+        .sheet(isPresented: $showsAirsideInfo) { Sheets.whyAirside() }
     }
 
     private var areaTabs: some View {
@@ -130,7 +126,12 @@ private struct VenueCard: View {
                     Text(venue.name).outfitText(20, .bold, AB.ice).tracking(-0.2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button {
-                        if added { store.remove(venue.id) } else { store.add(venue.stop) }
+                        if added {
+                            store.remove(venue.id)
+                        } else {
+                            store.add(venue.stop)
+                            store.showToast(ToastMessage(text: "Added to your plan", action: "View on Flight")) { store.tab = .flight }
+                        }
                     } label: {
                         HStack(spacing: 5) {
                             Image(added ? "icCheckSmall" : "icPlusNavy").resizable().frame(width: 21, height: 21)
@@ -202,6 +203,7 @@ private struct VenueCard: View {
 private struct LandsideList: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openURL) private var openURL
+    @State private var showsLeaving = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -210,7 +212,7 @@ private struct LandsideList: View {
                 Text("Return: 30 min security + \(store.gateWalkMinutes) min walk")
                     .outfitText(13, .regular, AB.muted)
                     .multilineTextAlignment(.center)
-                TextLink(title: "View return details") { store.tab = .route }
+                TextLink(title: "View return details") { showsLeaving = true }
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 20)
@@ -263,6 +265,7 @@ private struct LandsideList: View {
                 CTAButton(title: "View route & return") { store.tab = .route }
             }
         }
+        .sheet(isPresented: $showsLeaving) { Sheets.beforeLeavingAirside(walk: store.gateWalkMinutes) }
     }
 
     private var checked: some View {

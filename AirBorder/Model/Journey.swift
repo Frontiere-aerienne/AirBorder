@@ -103,6 +103,9 @@ enum SampleJourney {
     /// Layover length shown in Journey details.
     static var layoverMinutes: Int { outbound.departs - inbound.arrives }
 
+    /// NH 106 boarding time.
+    static let boarding = ClockTime(17, 0)
+
     /// When stops start if the traveller adds any.
     static let planStart = ClockTime(16, 0)
 

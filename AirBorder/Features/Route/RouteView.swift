@@ -6,6 +6,7 @@ struct RouteView: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     @State private var mode: Mode = .map
+    @State private var showsMapInfo = false
 
     enum Mode { case map, camera }
 
@@ -27,6 +28,8 @@ struct RouteView: View {
                     store.routeStep = 1
                     mode = .map
                     store.tab = .flight
+                    let flight = SampleJourney.outbound
+                    store.showToast(ToastMessage(text: "Arrived, Gate \(flight.departureGate), \(flight.number), boarding \(SampleJourney.boarding)."))
                 }
                 HStack {
                     Spacer()
@@ -107,6 +110,11 @@ struct RouteView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 106)
         .background(AB.card, in: RoundedRectangle(cornerRadius: 14))
+        .contentShape(Rectangle())
+        .onTapGesture { showsMapInfo = true }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("About this map")
+        .sheet(isPresented: $showsMapInfo) { Sheets.aboutMap(walk: store.gateWalkMinutes) }
     }
 
     private var markerOffset: CGSize {

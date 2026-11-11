@@ -79,4 +79,31 @@ final class AirBorderUITests: XCTestCase {
         let paceWords = NSPredicate(format: "label CONTAINS[c] 'slow' OR label CONTAINS[c] 'fast'")
         XCTAssertFalse(app.staticTexts.containing(paceWords).firstMatch.exists)
     }
+
+    func testOnboardingRunsOnceThenOpensFlight() {
+        app.terminate()
+        app.launchArguments = ["-resetState", "-walkingSpeed", "5.6"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Welcome to\nAirBorder"].waitForExistence(timeout: 5))
+        app.buttons["welcomeContinue"].tap()
+        for _ in 0 ..< 3 {
+            XCTAssertTrue(app.buttons["onboardingContinue"].waitForExistence(timeout: 2))
+            app.buttons["onboardingContinue"].tap()
+        }
+        XCTAssertTrue(app.staticTexts["Your flight"].waitForExistence(timeout: 3))
+        app.terminate()
+        app.launchArguments = ["-walkingSpeed", "5.6"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Your flight"].waitForExistence(timeout: 5), "Onboarding shows only once")
+    }
+
+    func testRouteEndShowsArrivalToast() {
+        app.buttons["tab-route"].tap()
+        app.buttons["nextStep"].tap()
+        app.buttons["nextStep"].tap()
+        app.buttons["endRoute"].tap()
+        let toast = app.buttons["toast"]
+        XCTAssertTrue(toast.waitForExistence(timeout: 2))
+        XCTAssertTrue(toast.label.contains("Arrived, Gate 105, NH 106, boarding 17:00."))
+    }
 }

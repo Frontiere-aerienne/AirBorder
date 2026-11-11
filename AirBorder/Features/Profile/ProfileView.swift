@@ -5,6 +5,9 @@ struct ProfileView: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     @State private var confirmsReset = false
+    @State private var sheet: ProfileSheet?
+
+    private enum ProfileSheet: String, Identifiable { case about, privacy; var id: String { rawValue } }
 
     var body: some View {
         ScrollView {
@@ -43,9 +46,9 @@ struct ProfileView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionLabel(text: "About")
                         GroupedList(radius: 16, bordered: true) {
-                            ProfileRow(icon: "icInfo", title: "About AirBorder") { open(.about) }
+                            ProfileRow(icon: "icInfo", title: "About AirBorder") { sheet = .about }
                             RowDivider()
-                            ProfileRow(icon: "icShield", title: "Privacy") { open(.privacy) }
+                            ProfileRow(icon: "icShield", title: "Privacy") { sheet = .privacy }
                             RowDivider()
                             ProfileRow(icon: "icGuide", title: "Replay tutorial") { open(.tutorial) }
                         }
@@ -65,6 +68,12 @@ struct ProfileView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $sheet) { item in
+            switch item {
+            case .about: Sheets.aboutAirBorder()
+            case .privacy: Sheets.privacy()
+            }
+        }
         .confirmationDialog("Reset preferences?", isPresented: $confirmsReset, titleVisibility: .visible) {
             Button("Reset", role: .destructive) { store.resetPreferences() }
         } message: {
@@ -75,7 +84,7 @@ struct ProfileView: View {
     private var identity: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(store.travellerName.isEmpty ? "Your profile" : store.travellerName)
+                Text("Your profile")
                     .outfitText(30, .bold).tracking(-1).accessibilityAddTraits(.isHeader)
                 Button { open(.editProfile) } label: {
                     Text("Edit profile").outfitText(14, .semibold, AB.primary)
@@ -83,11 +92,7 @@ struct ProfileView: View {
                 .buttonStyle(.plain)
             }
             Spacer()
-            Image("avatarProfile").resizable().frame(width: 62.5, height: 62.5).offset(y: 0.5)
-                .frame(width: 50, height: 50)
-                .frame(width: 68, height: 68)
-                .background(AB.chip, in: Circle())
-                .accessibilityHidden(true)
+            ProfileAvatar()
         }
     }
 }
@@ -114,5 +119,24 @@ struct ProfileRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Avatar: the traveller's photo, or the Figma profile icon on the chip circle.
+struct ProfileAvatar: View {
+    @EnvironmentObject private var store: JourneyStore
+
+    var body: some View {
+        Group {
+            if let photo = store.profilePhoto {
+                Image(uiImage: photo).resizable().scaledToFill().frame(width: 68, height: 68).clipShape(Circle())
+            } else {
+                Image("avatarProfile").resizable().frame(width: 62.5, height: 62.5).offset(y: 0.5)
+                    .frame(width: 50, height: 50)
+                    .frame(width: 68, height: 68)
+                    .background(AB.chip, in: Circle())
+            }
+        }
+        .accessibilityLabel(store.profilePhoto == nil ? "No profile photo" : "Profile photo")
     }
 }

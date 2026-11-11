@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 enum AppTab: String, CaseIterable, Identifiable {
     case flight, layover, route, profile
@@ -64,7 +65,12 @@ final class JourneyStore: ObservableObject {
     }
     @Published var routeChoice: RouteChoice = .direct
     @Published var onboardingSeen: Bool { didSet { persist() } }
-    @Published var travellerName: String { didSet { persist() } }
+    @Published var firstName: String { didSet { persist() } }
+    @Published var lastName: String { didSet { persist() } }
+    @Published var baggagePreference: BaggagePreference { didSet { persist() } }
+    @Published var profilePhoto: UIImage? { didSet { ProfilePhotoStore.save(profilePhoto) } }
+    @Published private(set) var toast: ToastMessage?
+    private var toastAction: (() -> Void)?
     @Published private(set) var health: HealthConnection { didSet { persist() } }
     @Published private(set) var walkingSpeedKmh: Double?
     @Published private(set) var lastHealthSync: Date?
@@ -86,7 +92,10 @@ final class JourneyStore: ObservableObject {
         plan = saved?.plan ?? Plan()
         checklist = saved?.checklist ?? .haneda
         stepFreeRoutes = saved?.stepFreeRoutes ?? false
-        travellerName = saved?.travellerName ?? ""
+        firstName = saved?.firstName ?? ""
+        lastName = saved?.lastName ?? ""
+        baggagePreference = saved?.baggagePreference ?? .taggedThrough
+        profilePhoto = reset ? nil : ProfilePhotoStore.load()
         health = saved?.health ?? .notConnected
         queueUpdateHandled = saved?.queueUpdateHandled ?? false
         onboardingSeen = saved?.onboardingSeen ?? false
@@ -203,13 +212,31 @@ final class JourneyStore: ObservableObject {
 
     func resetPreferences() {
         stepFreeRoutes = false
-        travellerName = ""
+        baggagePreference = .taggedThrough
         plan = Plan()
         undoPlan = nil
         checklist = .haneda
         queueUpdateHandled = false
         routeStep = 1
         refreshSuggestion()
+        showToast(ToastMessage(text: "Trip preferences reset"))
+    }
+
+    // MARK: Toasts (Figma section "Toasts")
+
+    func showToast(_ message: ToastMessage, action: (() -> Void)? = nil) {
+        toast = message
+        toastAction = action
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            if toast == message { toast = nil; toastAction = nil }
+        }
+    }
+
+    func performToastAction() {
+        toastAction?()
+        toast = nil
+        toastAction = nil
     }
 
     // MARK: Persistence
@@ -218,7 +245,9 @@ final class JourneyStore: ObservableObject {
         var plan: Plan
         var checklist: JourneyChecklist
         var stepFreeRoutes: Bool
-        var travellerName: String
+        var firstName: String?
+        var lastName: String?
+        var baggagePreference: BaggagePreference?
         var health: HealthConnection
         var queueUpdateHandled: Bool
         var onboardingSeen: Bool?
@@ -229,13 +258,36 @@ final class JourneyStore: ObservableObject {
             plan: plan,
             checklist: checklist,
             stepFreeRoutes: stepFreeRoutes,
-            travellerName: travellerName,
+            firstName: firstName,
+            lastName: lastName,
+            baggagePreference: baggagePreference,
             health: health,
             queueUpdateHandled: queueUpdateHandled,
             onboardingSeen: onboardingSeen
         )
         if let data = try? JSONEncoder().encode(state) {
             defaults.set(data, forKey: Self.stateKey)
+        }
+    }
+}
+
+/// The traveller's profile photo, kept in the app's Documents folder on this iPhone.
+enum ProfilePhotoStore {
+    private static var url: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("profile-photo.jpg")
+    }
+
+    static func load() -> UIImage? {
+        guard let url, let data = try? Data(contentsOf: url) else { return nil }
+        return UIImage(data: data)
+    }
+
+    static func save(_ image: UIImage?) {
+        guard let url else { return }
+        if let data = image?.jpegData(compressionQuality: 0.85) {
+            try? data.write(to: url, options: .completeFileProtection)
+        } else {
+            try? FileManager.default.removeItem(at: url)
         }
     }
 }

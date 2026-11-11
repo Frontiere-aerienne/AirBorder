@@ -43,7 +43,7 @@ targets:
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_CFBundleDisplayName: AirBorder
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.travel
-        INFOPLIST_KEY_NSCameraUsageDescription: Camera view shows directions over what is in front of you. Frames stay on this iPhone.
+        INFOPLIST_KEY_NSCameraUsageDescription: Camera view shows directions over what is in front of you, and you can take a profile photo. Frames stay on this iPhone.
         INFOPLIST_KEY_NSHealthShareUsageDescription: AirBorder reads your walking speed to time your walks to the gate and between stops. It stays on this iPhone.
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true
