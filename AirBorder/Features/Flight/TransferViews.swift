@@ -15,6 +15,7 @@ enum NaritaTransfer {
 struct TransferPlanSection: View {
     @EnvironmentObject private var store: JourneyStore
     @State private var showsSteps = false
+    @State private var showsBag = false
 
     var body: some View {
         let closes = store.outbound.gateCloses ?? store.outbound.departs
@@ -39,7 +40,11 @@ struct TransferPlanSection: View {
             Text("HND → NRT, ground transfer").outfitText(17, .semibold)
                 .padding(.top, 8)
             VStack(spacing: 0) {
-                row("tileBag", "Baggage, collect at HND", "Bag tag: HND, recheck at Narita T1")
+                Button { showsBag = true } label: {
+                    row("tileBag", "Baggage, collect at HND", "Bag tag: HND, recheck at Narita T1")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("transferBag")
                 RowDivider()
                 row("tileShield", "Entry document, Japan", "Japanese ePassport, expires 12 Jun 2031")
                 RowDivider()
@@ -50,6 +55,7 @@ struct TransferPlanSection: View {
             .accessibilityIdentifier("beforeYouTransfer")
         }
         .sheet(isPresented: $showsSteps) { TransferStepsSheet() }
+        .sheet(isPresented: $showsBag) { TransferBaggageSheet() }
     }
 
     private func row(_ icon: String, _ label: String, _ detail: String) -> some View {
@@ -106,7 +112,8 @@ struct TransferBaggageSheet: View {
 struct TransferRouteContent: View {
     @EnvironmentObject private var store: JourneyStore
 
-    static let steps = ["Follow Bus signs", "Ride to Narita Terminal 1", "Recheck your bag"]
+    /// Figma ground-transport steps (858:11315, 858:11335, 858:11375).
+    static let steps = ["Follow Bus signs", "Continue to the 1F buses", "Stop 5, Narita Airport"]
 
     var body: some View {
         let flight = store.outbound

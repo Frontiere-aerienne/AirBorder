@@ -267,7 +267,9 @@ private struct LandsideList: View {
                     Text("30 min").outfitText(15, .semibold, .white)
                     Spacer()
                 }
-                CTAButton(title: "View route & return") { open(.t2Deck) }
+                CTAButton(title: "View route & return") {
+                    open(TerminalTwo.hasTime(now: store.now, gateWalk: store.gateWalkMinutes) ? .t2Deck : .t2NotEnoughTime)
+                }
             }
         }
         .sheet(isPresented: $showsLeaving) { Sheets.beforeLeavingAirside(walk: store.gateWalkMinutes) }

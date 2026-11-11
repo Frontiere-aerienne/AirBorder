@@ -265,4 +265,58 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Route to Narita"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Follow Bus signs"].exists)
     }
+
+    func testCameraGuidanceKeepsTheStepAndFallsBackToTheMap() {
+        app.terminate()
+        app.resetAuthorizationStatus(for: .camera)
+        app.launch()
+        app.buttons["tab-route"].tap()
+        app.buttons["mode-camera"].tap()
+        XCTAssertTrue(app.staticTexts["Camera guidance"].waitForExistence(timeout: 2))
+        app.buttons["useMapInstead"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["routeSummary"].waitForExistence(timeout: 2))
+        app.buttons["nextStep"].tap()
+        app.buttons["mode-camera"].tap()
+        app.buttons["allowCamera"].tap()
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow"]
+        if allow.waitForExistence(timeout: 3) { allow.tap() }
+        XCTAssertTrue(app.buttons["readSignAgain"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Gate 105 ahead"].exists, "Camera keeps the current step")
+        app.buttons["readSignAgain"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["scanningSign"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Can't read the sign"].waitForExistence(timeout: 15))
+        app.buttons["useMap"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["routeSummary"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Gate 105 ahead"].exists)
+    }
+
+    func testFlightOneOpensInJourneyDetails() {
+        app.buttons["journeyDetailsLink"].tap()
+        app.buttons["flightOne"].tap()
+        XCTAssertTrue(app.staticTexts["05:15"].waitForExistence(timeout: 2), "Flight 1 shows as the full ticket")
+        XCTAssertTrue(app.buttons["flightTwo"].exists)
+        app.buttons["flightTwo"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["ticket-NH106"].waitForExistence(timeout: 2))
+    }
+
+    func testTerminalTwoTooLateSendsTravellerToTheGate() {
+        relaunch(["-gateUpdate", "off", "-now", "15:00"])
+        app.buttons["tab-layover"].tap()
+        app.buttons["area-Landside"].tap()
+        app.swipeUp()
+        let deck = app.buttons["View route & return"]
+        XCTAssertTrue(deck.waitForExistence(timeout: 2))
+        deck.tap()
+        XCTAssertTrue(app.staticTexts["Not enough time for Terminal 2"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["addT2Visit"].exists)
+    }
+
+    func testNH6BaggageShowsTheNaritaRecheck() {
+        relaunch(["-gateUpdate", "off", "-flight", "NH6"])
+        app.buttons["journeyDetailsLink"].tap()
+        app.buttons["Baggage for this flight"].tap()
+        XCTAssertTrue(app.staticTexts["Collect at Haneda T3 2F. Recheck at Narita T1 by 20:00."].waitForExistence(timeout: 2))
+        app.buttons["extraBaggage"].tap()
+        XCTAssertTrue(app.staticTexts["Up to 32 kg, NH 6"].waitForExistence(timeout: 2))
+    }
 }

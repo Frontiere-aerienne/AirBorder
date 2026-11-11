@@ -220,28 +220,51 @@ struct ANALoungeView: View {
 struct LoungeMapView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var camera = false
+    @State private var cameraCovers = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 BackButton { dismiss() }
-                Text("Route to ANA LOUNGE").outfitText(30, .bold).tracking(-1.1).accessibilityAddTraits(.isHeader)
-                HStack(spacing: 4) {
-                    segment("Map", !camera) { camera = false }
-                    segment("Camera", camera) { camera = true }
+                if !(camera && cameraCovers) {
+                    Text("Route to ANA LOUNGE").outfitText(30, .bold).tracking(-1.1).accessibilityAddTraits(.isHeader)
+                    HStack(spacing: 4) {
+                        segment("Map", !camera) { camera = false }
+                        segment("Camera", camera) { camera = true }
+                    }
+                    .padding(4)
+                    .background(.white.opacity(0.7), in: Capsule())
                 }
-                .padding(4)
-                .background(.white.opacity(0.7), in: Capsule())
                 if camera {
-                    CameraPanel().frame(height: 300).clipShape(RoundedRectangle(cornerRadius: 18))
+                    if !cameraCovers {
+                        HStack(spacing: 6) {
+                            FloorBadge(floor: "3F")
+                            Text("→").outfitText(15, .regular)
+                            FloorBadge(floor: "4F")
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("From 3F to 4F")
+                    }
+                    // Figma "Camera (airline lounge right turn)" (858:11417) and scan (858:11469).
+                    CameraGuide(sign: .lounges, arrow: "camArrowRight", readAgainTitle: "Read lounge sign again", readAgainFullWidth: true, exit: { camera = false }, covers: $cameraCovers) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Turn right for airline lounges").outfitText(17, .bold, AB.gateYellow)
+                            Text("航空会社ラウンジ / Airline lounges").outfitText(13, .regular, AB.ice.opacity(0.75))
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AB.ticket, in: RoundedRectangle(cornerRadius: 16))
+                        .accessibilityElement(children: .combine)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Turn right for airline lounges").outfitText(22, .bold, AB.gateYellow)
+                        Text("航空会社ラウンジ / Airline lounges").outfitText(13, .regular, AB.ice.opacity(0.75))
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AB.ticket, in: RoundedRectangle(cornerRadius: 18))
                 }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Turn right for airline lounges").outfitText(22, .bold, AB.gateYellow)
-                    Text("航空会社ラウンジ / Airline lounges").outfitText(13, .regular, AB.ice.opacity(0.75))
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AB.ticket, in: RoundedRectangle(cornerRadius: 18))
                 if !camera {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 8) {
@@ -355,6 +378,66 @@ enum TerminalTwo {
     /// Leave Terminal 2 by: gate arrival target minus the gate walk, security and the trip back.
     static func leaveBy(gateWalk: Int) -> ClockTime {
         SampleJourney.gateArrivalTarget - gateWalk - security - backToT3
+    }
+
+    static let visitMinutes = 30
+    static var oneWay: Int { walkToShuttle + shuttleWait + shuttle }
+
+    /// Enough time to get to Terminal 2, spend the 30-minute visit and still leave by the leave-by time.
+    static func hasTime(now: ClockTime, gateWalk: Int) -> Bool {
+        now + oneWay + visitMinutes <= leaveBy(gateWalk: gateWalk)
+    }
+}
+
+/// Figma "Return to your gate" (858:12494): not enough time left for the Terminal 2 visit.
+struct T2NotEnoughTimeView: View {
+    @EnvironmentObject private var store: JourneyStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.popToRoot) private var popToRoot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            BackButton { dismiss() }.offset(x: -9)
+            Text("Return to your gate").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Not enough time for Terminal 2").outfitText(12, .semibold, .white)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(AB.riskTag, in: Capsule())
+                Text("Head to your gate").outfitText(22, .bold, AB.ice)
+                HStack(spacing: 6) {
+                    IconChip(icon: "tileBus", text: "Shuttle", dark: true)
+                    IconChip(icon: "tileClock", text: "Security", dark: true)
+                    IconChip(icon: "tileWalk", text: "Gate walk", dark: true)
+                }
+                HStack(spacing: 8) {
+                    GateSign(gate: store.gate)
+                    Text("closes").outfitText(15, .regular, AB.ice.opacity(0.75))
+                    LightTimeChip(text: store.outbound.gateCloses?.description ?? "–")
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AB.ticket, in: RoundedRectangle(cornerRadius: 20))
+            .accessibilityIdentifier("notEnoughTime")
+            Button {
+                popToRoot()
+                store.tab = .route
+            } label: {
+                HStack(spacing: 9) {
+                    Image("icWalkWhite").resizable().frame(width: 21, height: 21)
+                    Text("Route").outfitText(15, .semibold, .white)
+                }
+                .frame(width: 200, height: 52)
+                .background(AB.primary, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 2)
+        .background(AB.screen.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 

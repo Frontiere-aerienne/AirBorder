@@ -302,3 +302,31 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(store.checklist, .haneda)
     }
 }
+
+final class SignMatcherTests: XCTestCase {
+    func testReadsHanedaGateSignsWhateverTheDash() {
+        XCTAssertTrue(SignMatcher.matches(["← 110", "↑ 105-109"], .gates105to109))
+        XCTAssertTrue(SignMatcher.matches(["搭乗口 Gates 105–109"], .gates105to109))
+        XCTAssertTrue(SignMatcher.matches(["105 - 109"], .gates105to109))
+        XCTAssertFalse(SignMatcher.matches(["← 110", "108-149"], .gates105to109))
+        XCTAssertTrue(SignMatcher.matches(["Gates 108–149"], .gates108to149))
+    }
+
+    func testReadsBusAndLoungeSignsInEnglishOrJapanese() {
+        XCTAssertTrue(SignMatcher.matches(["バス乗り場"], .bus))
+        XCTAssertTrue(SignMatcher.matches(["Bus"], .bus))
+        XCTAssertTrue(SignMatcher.matches(["航空会社ラウンジ"], .lounges))
+        XCTAssertTrue(SignMatcher.matches(["Airline Lounges"], .lounges))
+        XCTAssertFalse(SignMatcher.matches(["Restrooms"], .lounges))
+    }
+}
+
+final class TerminalTwoTimingTests: XCTestCase {
+    func testVisitFitsOnlyUntilTheLatestStart() {
+        // Leave T2 by 15:53 with a 12 min gate walk; 30 min to get there and a 30 min visit.
+        XCTAssertEqual(TerminalTwo.leaveBy(gateWalk: 12), ClockTime(15, 53))
+        XCTAssertTrue(TerminalTwo.hasTime(now: ClockTime(12, 0), gateWalk: 12))
+        XCTAssertTrue(TerminalTwo.hasTime(now: ClockTime(14, 53), gateWalk: 12))
+        XCTAssertFalse(TerminalTwo.hasTime(now: ClockTime(14, 54), gateWalk: 12))
+    }
+}

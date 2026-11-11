@@ -463,16 +463,18 @@ struct BaggageView: View {
         FlightStack {
             LargeTitleHeader(title: store.extraBagDeclared ? "Baggage updated" : "Baggage for this flight") { dismiss() }
             if !store.extraBagDeclared {
-                TicketSummary(number: "NH 106", pill: SampleJourney.outbound.cabin, from: "HND", to: "LAX")
+                TicketSummary(number: store.outbound.number, pill: store.outbound.cabin, from: store.outbound.from.code, to: store.outbound.to.code)
             }
             AllowanceCard(checked: store.extraBagDeclared ? "2 × 32 kg" : "1 × 32 kg", note: store.extraBagDeclared ? "Includes 1 extra bag" : nil)
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("BAG TAG").outfitText(12, .semibold, AB.muted)
-                    Text("LAX").outfitText(22, .bold)
+                    Text(store.isAirportTransfer ? "HND" : "LAX").outfitText(22, .bold)
                 }
                 Rectangle().fill(AB.navy.opacity(0.12)).frame(width: 1, height: 40)
-                Text("Stays with the airline at Haneda. Collect in Los Angeles.").outfitText(15, .regular, AB.muted)
+                Text(store.isAirportTransfer
+                    ? "Collect at Haneda T\(SampleJourney.inbound.arrivalTerminal) 2F. Recheck at Narita T\(store.outbound.departureTerminal) by \(NaritaTransfer.recheckBy)."
+                    : "Stays with the airline at Haneda. Collect in Los Angeles.").outfitText(15, .regular, AB.muted)
             }
             .padding(.horizontal, 16).padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -519,7 +521,7 @@ struct DeclareBaggageView: View {
             LargeTitleHeader(title: "Extra baggage") { dismiss() }
             VStack(alignment: .leading, spacing: 4) {
                 Text("+1 checked bag").outfitText(24, .bold)
-                Text("Up to 32 kg, NH 106").outfitText(15, .regular, AB.muted)
+                Text("Up to 32 kg, \(store.outbound.number)").outfitText(15, .regular, AB.muted)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)

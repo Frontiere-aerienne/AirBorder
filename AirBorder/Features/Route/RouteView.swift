@@ -10,43 +10,43 @@ struct RouteView: View {
 
     enum Mode { case map, camera }
 
-    static func steps(gate: String) -> [String] { ["Follow the Gates 105–109 sign", "Gate \(gate) ahead", "Check your flight"] }
+    /// Figma route steps: Gate 105 (862:16974) and, after a gate change, Gate 108A (858:11206–858:11293).
+    static func steps(gate: String) -> [String] {
+        if gate == SampleJourney.outbound.departureGate {
+            return ["Follow the Gates 105–109 sign", "Gate \(gate) ahead", "Check your flight"]
+        }
+        return ["Follow the Gates 105–109 sign", "Follow signs for 108–149", "Gate \(gate)"]
+    }
+
+    @State private var cameraCovers = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text(store.isAirportTransfer ? "Route to Narita" : "Route to Gate \(store.gate)").outfitText(30, .bold).tracking(-1.1)
-                    .accessibilityAddTraits(.isHeader)
-                modeSwitch
-                if let condition = store.primaryCondition, !store.isAirportTransfer {
-                    TravelUpdateBanner(condition: condition, place: .route)
-                }
-                if store.isAirportTransfer {
-                    if mode == .camera {
-                        CameraPanel().frame(height: 330).clipShape(RoundedRectangle(cornerRadius: 18))
+                if !(mode == .camera && cameraCovers) {
+                    Text(store.isAirportTransfer ? "Route to Narita" : "Route to Gate \(store.gate)").outfitText(30, .bold).tracking(-1.1)
+                        .accessibilityAddTraits(.isHeader)
+                    modeSwitch
+                    if let condition = store.primaryCondition, !store.isAirportTransfer {
+                        TravelUpdateBanner(condition: condition, place: .route)
                     }
-                } else if mode == .map {
-                    summary
-                    concourse
-                } else {
-                    CameraPanel().frame(height: 330).clipShape(RoundedRectangle(cornerRadius: 18))
                 }
-                RouteStepCard(step: $store.routeStep, texts: store.isAirportTransfer ? TransferRouteContent.steps : Self.steps(gate: store.gate)) {
-                    store.routeStep = 1
-                    mode = .map
-                    store.tab = .flight
-                    guard !store.isAirportTransfer else { return }
-                    let flight = store.outbound
-                    if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
-                    store.showToast(ToastMessage(text: "Arrived, Gate \(store.gate), \(flight.number), boarding \(SampleJourney.boarding)."))
-                }
-                if store.isAirportTransfer {
-                    TransferRouteContent().padding(.top, 14)
+                if mode == .camera {
+                    CameraGuide(sign: sign, exit: { mode = .map }, covers: $cameraCovers) { stepCard }
                 } else {
-                    HStack {
-                        Spacer()
-                        TextLink(title: "See route options") { open(.routeOptions) }
-                        Spacer()
+                    if !store.isAirportTransfer {
+                        summary
+                        concourse
+                    }
+                    stepCard
+                    if store.isAirportTransfer {
+                        TransferRouteContent().padding(.top, 14)
+                    } else {
+                        HStack {
+                            Spacer()
+                            TextLink(title: "See route options") { open(.routeOptions) }
+                            Spacer()
+                        }
                     }
                 }
             }
@@ -57,6 +57,25 @@ struct RouteView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// The sign the camera looks for at the current step.
+    private var sign: SignTarget {
+        if store.isAirportTransfer { return .bus }
+        if store.gate != SampleJourney.outbound.departureGate && store.routeStep >= 2 { return .gates108to149 }
+        return .gates105to109
+    }
+
+    private var stepCard: some View {
+        RouteStepCard(step: $store.routeStep, texts: store.isAirportTransfer ? TransferRouteContent.steps : Self.steps(gate: store.gate)) {
+            store.routeStep = 1
+            mode = .map
+            store.tab = .flight
+            guard !store.isAirportTransfer else { return }
+            let flight = store.outbound
+            if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
+            store.showToast(ToastMessage(text: "Arrived, Gate \(store.gate), \(flight.number), boarding \(SampleJourney.boarding)."))
+        }
     }
 
     private var modeSwitch: some View {
@@ -189,74 +208,6 @@ struct RouteStepCard: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 24)
         .background(AB.ticket, in: RoundedRectangle(cornerRadius: 18))
-    }
-}
-
-/// Live camera behind the route step. Frames stay on the device.
-struct CameraPanel: View {
-    @State private var status = AVCaptureDevice.authorizationStatus(for: .video)
-
-    var body: some View {
-        ZStack {
-            AB.ticket
-            switch status {
-            case .authorized where AVCaptureDevice.default(for: .video) != nil:
-                CameraPreview()
-            case .notDetermined:
-                message("Turn on the camera to see directions in front of you.", button: "Allow camera") {
-                    Task {
-                        _ = await AVCaptureDevice.requestAccess(for: .video)
-                        status = AVCaptureDevice.authorizationStatus(for: .video)
-                    }
-                }
-            case .authorized:
-                message("No camera on this device. Use Map for directions.")
-            default:
-                message("Camera access is off. You can turn it on in Settings.", button: "Open Settings") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                }
-            }
-        }
-        .accessibilityIdentifier("cameraPanel")
-    }
-
-    private func message(_ text: String, button: String? = nil, action: (() -> Void)? = nil) -> some View {
-        VStack(spacing: 16) {
-            Text(text).outfitText(15, .regular, AB.ice).multilineTextAlignment(.center)
-            if let button, let action {
-                CTAButton(title: button, style: .light, fullWidth: false, action: action)
-            }
-        }
-        .padding(24)
-    }
-}
-
-private struct CameraPreview: UIViewRepresentable {
-    final class PreviewView: UIView {
-        override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
-        var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
-        let session = AVCaptureSession()
-    }
-
-    func makeUIView(context: Context) -> PreviewView {
-        let view = PreviewView()
-        view.previewLayer.videoGravity = .resizeAspectFill
-        view.previewLayer.session = view.session
-        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-           let input = try? AVCaptureDeviceInput(device: device),
-           view.session.canAddInput(input) {
-            view.session.addInput(input)
-            let session = view.session
-            DispatchQueue.global(qos: .userInitiated).async { session.startRunning() }
-        }
-        return view
-    }
-
-    func updateUIView(_ uiView: PreviewView, context: Context) {}
-
-    static func dismantleUIView(_ uiView: PreviewView, coordinator: ()) {
-        let session = uiView.session
-        DispatchQueue.global(qos: .userInitiated).async { session.stopRunning() }
     }
 }
 

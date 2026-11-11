@@ -114,7 +114,9 @@ struct TicketCard: View {
                         TerminalSign(terminal: flight.departureTerminal, size: 26)
                     } else {
                         GateSign(gate: gate ?? flight.departureGate, size: 26, previous: gate.flatMap { $0 == flight.departureGate ? nil : flight.departureGate })
-                        Text("Terminal \(flight.departureTerminal)").outfitText(13, .medium, AB.ice.opacity(0.7))
+                        if !flight.departureTerminal.isEmpty {
+                            Text("Terminal \(flight.departureTerminal)").outfitText(13, .medium, AB.ice.opacity(0.7))
+                        }
                     }
                 }
             }

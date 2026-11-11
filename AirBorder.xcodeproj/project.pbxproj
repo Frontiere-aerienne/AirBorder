@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		02FF57DCA880696DD55C9484 /* RouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206D62B7EF2E4FA4AD8F81F5 /* RouteView.swift */; };
+		0484AAD4D1B13B2CF56A44B2 /* CameraGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15DFAAFE69F02373AE1996B6 /* CameraGuide.swift */; };
 		0B82B24464F71E474A45B491 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */; };
 		0E128501DE17973C18734F71 /* ScenarioViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B20A0264BDE33D0498E7DD /* ScenarioViews.swift */; };
 		15C14D83166459D45575B7BA /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D0E684FB8E26A6D99380E /* RootView.swift */; };
@@ -65,6 +66,7 @@
 		00425084C3399000BF3B7149 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		039240FB336A17A5B64CE0A1 /* JourneyStepsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyStepsView.swift; sourceTree = "<group>"; };
 		11BF6BFD48C8B1D6D05919BE /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		15DFAAFE69F02373AE1996B6 /* CameraGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraGuide.swift; sourceTree = "<group>"; };
 		176D00FDA71936FB2CFB2C7B /* FlightSetupViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightSetupViews.swift; sourceTree = "<group>"; };
 		206D62B7EF2E4FA4AD8F81F5 /* RouteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteView.swift; sourceTree = "<group>"; };
 		257AD23015436307CB73F8DD /* FlightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightView.swift; sourceTree = "<group>"; };
@@ -276,6 +278,7 @@
 		C0B79735A20251966B4EA776 /* Route */ = {
 			isa = PBXGroup;
 			children = (
+				15DFAAFE69F02373AE1996B6 /* CameraGuide.swift */,
 				206D62B7EF2E4FA4AD8F81F5 /* RouteView.swift */,
 			);
 			path = Route;
@@ -400,6 +403,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1779DB0CE93258609A1107DB /* AirBorderApp.swift in Sources */,
+				0484AAD4D1B13B2CF56A44B2 /* CameraGuide.swift in Sources */,
 				DD7983047A493A397AAF8437 /* Components.swift in Sources */,
 				1F968042E2EF93687BF7F29F /* FlightSetupViews.swift in Sources */,
 				777AE13CF1A8641BD2E328C1 /* FlightView.swift in Sources */,

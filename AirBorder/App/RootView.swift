@@ -7,7 +7,7 @@ enum Destination: Hashable {
     case checkFlight, flightSaved, baggage, declareBaggage, returnFlight
     case cameraPermission, ticketCamera, cameraUnavailable, unreadableTicket, capturedReview(ParsedTicket), ticketSaved
     case addToPlan, cafeAvailability, routeThroughStops, routeDetail(RouteChoice), openAnotherMap, returnToGate(PlaceID)
-    case anaLounge, loungeMap, landsideRoute(Bool), facilityGuide, t2Deck, toTerminal2, atTerminal2, returnFromT2, shuttleFull
+    case anaLounge, loungeMap, landsideRoute(Bool), facilityGuide, t2Deck, t2NotEnoughTime, toTerminal2, atTerminal2, returnFromT2, shuttleFull
     case choosePDF, importWallet, connectGmail, connectCalendar, reviewImported(ParsedTicket), flightUpdated, reviewFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
     case language, about, help, editProfile, tutorial, routeOptions
@@ -136,6 +136,7 @@ struct RootView: View {
         case let .landsideRoute(deck): LandsideRouteView(observationDeck: deck)
         case .facilityGuide: FacilityGuideView()
         case .t2Deck: T2DeckView()
+        case .t2NotEnoughTime: T2NotEnoughTimeView()
         case .toTerminal2: ToTerminal2View()
         case .atTerminal2: AtTerminal2View()
         case .returnFromT2: ReturnFromT2View()

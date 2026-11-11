@@ -6,7 +6,8 @@ struct JourneyDetailsView: View {
     @Environment(\.openDestination) private var open
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @State private var showsTransferBaggage = false
+    /// Figma "Journey details (Flight 1 open)" (858:13300): tapping a flight expands it.
+    @State private var flightOneOpen = false
 
     var body: some View {
         ScrollView {
@@ -23,13 +24,29 @@ struct JourneyDetailsView: View {
                     TravelUpdateBanner(condition: condition, place: .details)
                 }
                 legLabel("FLIGHT 1 OF 2")
-                InboundCard(flight: SampleJourney.inbound)
+                if flightOneOpen {
+                    Button { flightOneOpen = false } label: { TicketCard(flight: SampleJourney.inbound) }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("flightOne")
+                } else {
+                    Button { flightOneOpen = true } label: { InboundCard(flight: SampleJourney.inbound) }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("flightOne")
+                }
                 layover
                 legLabel("FLIGHT 2 OF 2")
-                TicketCard(flight: store.outbound, status: store.flightStatus, gate: store.gate)
+                if flightOneOpen {
+                    Button { flightOneOpen = false } label: {
+                        InboundCard(flight: store.outbound, status: store.flightStatus, gate: store.gate)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("flightTwo")
+                } else {
+                    TicketCard(flight: store.outbound, status: store.flightStatus, gate: store.gate)
+                }
                 Color.clear.frame(height: 24)
                 CTAButton(title: "Baggage for this flight", height: 52, fullWidth: false) {
-                    if store.isAirportTransfer { showsTransferBaggage = true } else { open(.baggage) }
+                    open(.baggage)
                 }
                     .frame(width: 216)
                 CTAButton(title: "View return flight", height: 52, fullWidth: false) { open(.returnFlight) }
@@ -55,7 +72,6 @@ struct JourneyDetailsView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showsTransferBaggage) { TransferBaggageSheet() }
     }
 
     private func legLabel(_ text: String) -> some View {
@@ -89,6 +105,8 @@ struct JourneyDetailsView: View {
 /// White card for the arrived inbound flight (Figma "Flight 1", 858:13233).
 private struct InboundCard: View {
     let flight: FlightLeg
+    var status: String?
+    var gate: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -99,8 +117,10 @@ private struct InboundCard: View {
                 }
                 Spacer()
                 HStack(spacing: 6) {
-                    Image("icCheckSmall").resizable().frame(width: 13, height: 13)
-                    Text(flight.status).outfitText(12, .semibold, AB.muted).tracking(0.2)
+                    if (status ?? flight.status) == "Arrived" {
+                        Image("icCheckSmall").resizable().frame(width: 13, height: 13)
+                    }
+                    Text(status ?? flight.status).outfitText(12, .semibold, AB.muted).tracking(0.2)
                 }
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
@@ -132,7 +152,11 @@ private struct InboundCard: View {
             .frame(height: 12)
             .accessibilityHidden(true)
             HStack {
-                GateSign(gate: flight.departureGate)
+                if (gate ?? flight.departureGate).isEmpty {
+                    TerminalSign(terminal: flight.departureTerminal)
+                } else {
+                    GateSign(gate: gate ?? flight.departureGate)
+                }
                 Spacer()
                 TerminalSign(terminal: flight.arrivalTerminal)
                 GateSign(gate: flight.arrivalGate, direction: .arrival)
