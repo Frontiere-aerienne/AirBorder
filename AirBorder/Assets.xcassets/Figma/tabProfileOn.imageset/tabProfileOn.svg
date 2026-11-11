@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="26.25" height="26.25" viewBox="0 0 26.25 26.25" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Profile">
+<g id="Circle">
+<ellipse cx="13.125" cy="13.125" rx="13.125" ry="13.125" fill="#225E79" fill-opacity="0.13"/>
+<mask id="stroke0_0_72" fill="white">
+<path d="M26.25 13.125C26.25 20.3737 20.3737 26.25 13.125 26.25C5.87626 26.25 0 20.3737 0 13.125C0 5.87626 5.87626 0 13.125 0C20.3737 0 26.25 5.87626 26.25 13.125Z"/>
+</mask>
+<ellipse cx="13.125" cy="13.125" rx="13.125" ry="13.125" stroke-width="3.4" stroke="#225E79" mask="url(#stroke0_0_72)"/>
+</g>
+<circle id="Vector" cx="13.125" cy="8.625" r="2.65" stroke-width="1.7" stroke="#225E79"/>
+<path id="Vector_2" d="M6.125 20C6.125 16.6172 9.25925 13.875 13.125 13.875C16.9908 13.875 20.125 16.6172 20.125 20" stroke-width="1.7" stroke-linecap="round" stroke="#225E79"/>
+</g>
+</svg>

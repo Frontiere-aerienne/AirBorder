@@ -1,0 +1,6 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Walk">
+<path id="Vector" d="M10 2.5C10 3.19036 9.44036 3.75 8.75 3.75C8.05964 3.75 7.5 3.19036 7.5 2.5C7.5 1.80964 8.05964 1.25 8.75 1.25C9.44036 1.25 10 1.80964 10 2.5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="#F6F9FC"/>
+<path id="Vector_2" d="M6.25 5L8.125 4.375L10 7.5L12.5 8.125M6.875 5L5.625 8.125H3.125M8.125 5L6.875 9.375M6.875 9.375L10 13.125M6.875 9.375L4.375 13.125" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="#F6F9FC"/>
+</g>
+</svg>
