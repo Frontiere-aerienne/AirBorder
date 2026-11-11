@@ -238,7 +238,6 @@ private struct LandsideList: View {
                     Chip(text: "07:00–22:00")
                     Chip(text: "Travel accessories & electronics")
                 }
-                checked
                 Button { openURL(URL(string: "tel:+81355797790")!) } label: {
                     Text("Call Air BicCamera, +81 3 5579 7790").outfitText(13, .bold, AB.sky).underline()
                 }
@@ -251,7 +250,6 @@ private struct LandsideList: View {
                 FlowRow {
                     Chip(text: "Open 24 hours", tone: .open)
                 }
-                checked
                 CTAButton(title: "View visit details", height: 47) { open(.landsideRoute(true)) }
             }
             LandsideCard(padding: 18) {
@@ -273,10 +271,6 @@ private struct LandsideList: View {
             }
         }
         .sheet(isPresented: $showsLeaving) { Sheets.beforeLeavingAirside(walk: store.gateWalkMinutes) }
-    }
-
-    private var checked: some View {
-        Text("Hours checked 11:55 JST").outfitText(12, .regular, AB.ice.opacity(0.6))
     }
 
     private func heading(_ icon: String, _ title: String) -> some View {

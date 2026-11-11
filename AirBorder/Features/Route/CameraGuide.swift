@@ -10,13 +10,15 @@ struct SignTarget: Equatable {
     let scanTitle: String
     /// What the sign says, as printed at Haneda: "搭乗口 / Gates 105–109".
     let label: String
+    /// How the sign is named in a sentence: "Gates 105–109", "Bus", "Airline lounges".
+    let name: String
     /// Text that identifies the sign once read.
     let tokens: [String]
 
-    static let gates105to109 = SignTarget(kind: "gate", scanTitle: "Scan the gate sign", label: "搭乗口 / Gates 105–109", tokens: ["105-109"])
-    static let gates108to149 = SignTarget(kind: "gate", scanTitle: "Scan the gate sign", label: "搭乗口 / Gates 108–149", tokens: ["108-149"])
-    static let bus = SignTarget(kind: "bus", scanTitle: "Reading the bus sign", label: "Bus, 2F access hall", tokens: ["BUS", "バス"])
-    static let lounges = SignTarget(kind: "lounge", scanTitle: "Scan the lounge sign", label: "航空会社ラウンジ / Airline lounges", tokens: ["LOUNGE", "ラウンジ"])
+    static let gates105to109 = SignTarget(kind: "gate", scanTitle: "Scan the gate sign", label: "搭乗口 / Gates 105–109", name: "Gates 105–109", tokens: ["105-109"])
+    static let gates108to149 = SignTarget(kind: "gate", scanTitle: "Scan the gate sign", label: "搭乗口 / Gates 108–149", name: "Gates 108–149", tokens: ["108-149"])
+    static let bus = SignTarget(kind: "bus", scanTitle: "Reading the bus sign", label: "Bus, 2F access hall", name: "Bus", tokens: ["BUS", "バス"])
+    static let lounges = SignTarget(kind: "lounge", scanTitle: "Scan the lounge sign", label: "航空会社ラウンジ / Airline lounges", name: "Airline lounges", tokens: ["LOUNGE", "ラウンジ"])
 }
 
 enum SignMatcher {
@@ -204,7 +206,7 @@ struct CameraGuide<StepCard: View>: View {
     private var access: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Camera guidance").outfitText(30, .bold).tracking(-1.1).accessibilityAddTraits(.isHeader)
-            navyCard(title: "Find the next sign", detail: "Point your camera at the overhead \(sign.label.components(separatedBy: " / ").last ?? sign.label) sign.", titleSize: 20)
+            navyCard(title: "Find the next sign", detail: "Point your camera at the overhead \(sign.name) sign.", titleSize: 20)
             centered("Allow camera", filled: true, id: "allowCamera") {
                 Task {
                     _ = await AVCaptureDevice.requestAccess(for: .video)

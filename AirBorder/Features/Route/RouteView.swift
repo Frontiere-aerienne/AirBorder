@@ -221,7 +221,7 @@ struct RouteOptionsView: View {
         SubScreen {
             HeaderWithBack(title: "Choose a route") { dismiss() }
             GateChip()
-            Text("your gate · Terminal \(SampleJourney.outbound.departureTerminal)").outfitText(15, .regular, AB.secondary)
+            Text("Gate \(store.gate) · Terminal \(store.outbound.departureTerminal)").outfitText(15, .regular, AB.secondary)
             ForEach(RouteChoice.allCases, id: \.self) { choice in
                 InfoCard(padding: 16, radius: 16) {
                     Text("\(choice.title) · \(store.gateWalkMinutes(for: choice)) min").outfitText(18, .bold)

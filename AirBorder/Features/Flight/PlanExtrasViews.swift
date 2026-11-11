@@ -77,11 +77,11 @@ struct RouteThroughStopsView: View {
     var body: some View {
         let schedule = store.schedule
         let title = schedule.stops.count == 1 ? "Route via \(schedule.stops[0].stop.name)" : "Route through your stops"
-        var lines = ["You are at T3, 3F"]
+        var lines = ["From T3, 3F"]
         for (index, item) in schedule.stops.enumerated() {
             lines.append("\(index + 1). \(item.stop.name) · \(item.walkFromPrevious) min walk")
         }
-        lines.append("\(schedule.stops.count + 1). your gate · \(schedule.walkToGate) min walk")
+        lines.append("\(schedule.stops.count + 1). Gate \(store.gate) · \(schedule.walkToGate) min walk")
         return SubScreen {
             HeaderWithBack(title: title) { dismiss() }
             GateChip()
@@ -118,7 +118,7 @@ struct RouteDetailView: View {
         SubScreen {
             HeaderWithBack(title: "\(choice.title) route") { dismiss() }
             GateChip()
-            Text("your gate · Estimated \(minutes) min").outfitText(15, .regular, AB.secondary)
+            Text("Gate \(store.gate) · Estimated \(minutes) min").outfitText(15, .regular, AB.secondary)
             InfoCard(padding: 16, radius: 16) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(choice == .stepFree ? "Follow the level route" : "Avoid the central corridor").outfitText(18, .bold)
