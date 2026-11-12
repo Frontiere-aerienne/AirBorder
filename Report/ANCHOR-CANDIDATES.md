@@ -1,13 +1,13 @@
 # Anchor source candidates
 
-**Chosen and approved on 2026-11-11 (6 anchors):** Fernandes et al. 2018 (`ref8`), Lim et al. 2009
-(`ref7`), Kim et al. 2024 (`ref218`, new), Kim et al. 2025 (`ref219`, new), Vasconcelos et al. 2023
-(`ref220`, new) and Zhang et al. 2024 (`ref221`, new). The authors raised the cap from 3 to 6, chose
-not to cite external data sources, and asked for at most two anchors from before the
-large-language-model era. An earlier pick that day (Kocielnik 2019, Amershi 2019, Möller 2014) was
-replaced. Each paper was checked against its DOI record (Crossref) and abstract (OpenAlex). Picks
-are marked ✅ and recorded in `.github/report-review/ANCHORS.json`; `Report/ANCHOR-MAP.md` maps
-each one to the claims in `main.tex` it supports.
+**Chosen and approved on 2026-11-11 (7 anchors):** Fernandes et al. 2018 (`ref8`), Lim et al. 2009
+(`ref7`), Amershi et al. 2019 (`ref144`), Kim et al. 2024 (`ref218`, new), Kim et al. 2025
+(`ref219`, new), Vasconcelos et al. 2023 (`ref220`, new) and Zhang et al. 2024 (`ref221`, new).
+The authors raised the cap from 3 to 7, chose not to cite external data sources, and kept the
+anchors mostly AI-era, with three earlier papers. Kocielnik 2019 and Möller 2014, picked earlier
+that day, were replaced. Each paper was checked against its DOI record (Crossref) and abstract
+(OpenAlex). Picks are marked ✅ and recorded in `.github/report-review/ANCHORS.json`;
+`Report/ANCHOR-MAP.md` maps each one to the claims in `main.tex` it supports.
 
 - **In bib** gives the key when the paper is already in `Report/main.tex`. Those entries and
   their DOIs are already there.
@@ -36,7 +36,7 @@ each one to the claims in `main.tex` it supports.
 
 | Paper | Venue | In bib | Grounds |
 |---|---|---|---|
-| Amershi et al. *Guidelines for Human-AI Interaction* | CHI 2019 | ref144 | Correction, scoped fallback, provenance labels, and withholding unsupported recommendations |
+| ✅ Amershi et al. *Guidelines for Human-AI Interaction* | CHI 2019 | ref144 | Correction, scoped fallback, provenance labels, and withholding unsupported recommendations |
 | Horvitz. *Principles of Mixed-Initiative User Interfaces* | CHI 1999 | ref157 | When the app should act, suggest or defer to the traveler |
 | Kocielnik, Amershi, Bennett. *Will You Accept an Imperfect AI? Exploring Designs for Adjusting End-user Expectations of AI Systems* | CHI 2019 | not yet | Communicating that probability estimates are imperfect; confidence ratings (S3) |
 | Bansal et al. *Does the Whole Exceed its Parts? The Effect of AI Explanations on Complementary Team Performance* | CHI 2021 | not yet | Whether explanations actually improve decisions, not only trust |
@@ -106,6 +106,7 @@ Final choice (2026-11-11): two earlier papers kept for the primary hypotheses, F
 uncertainty display) and Lim 2009 (H1, change explanation), and four papers from 2023 onward: three on
 reliance on AI and language models and one aviation study of AI decision support for pilots
 (Zhang et al. 2024). Möller 2014 was dropped because no recent AR indoor-navigation
-paper at a peer-reviewed HCI conference was found and the AR comparison is secondary; Amershi 2019 and Kocielnik
-2019 were replaced by the Kim papers. Kay 2016 overlaps with Fernandes 2018; Guerreiro 2019 studies
+paper at a peer-reviewed HCI conference was found and the AR comparison is secondary; Kocielnik 2019 was replaced by
+the Kim papers. Amershi 2019 was added back as a third earlier paper to ground correction and
+scoped fallback in published guidelines. Kay 2016 overlaps with Fernandes 2018; Guerreiro 2019 studies
 blind travelers rather than AirBorder's population.

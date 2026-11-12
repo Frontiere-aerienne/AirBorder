@@ -1,20 +1,21 @@
 # Anchor map for `Report/main.tex`
 
-The authors approved these six anchor papers on 2026-11-11 (`.github/report-review/ANCHORS.json`).
+The authors approved these seven anchor papers on 2026-11-11 (`.github/report-review/ANCHORS.json`).
 They also decided:
 
-- the limit is 6 anchors, up from 3;
+- the limit is 7 anchors, up from 3;
 - no external data sources are cited;
-- at most two anchors come from before the large-language-model period.
+- most anchors are from the AI era; three earlier papers are kept (Fernandes 2018, Lim 2009,
+  Amershi 2019).
 
 After the change, the bibliography holds only these keys:
 
-- **Anchors:** `ref8`, `ref7`, `ref218` (new), `ref219` (new), `ref220` (new), `ref221` (new)
+- **Anchors:** `ref8`, `ref7`, `ref218` (new), `ref219` (new), `ref220` (new), `ref221` (new), `ref144`
 - **Project materials:** `ref2`, `ref13`, `ref14`
 
-An earlier pick that day (`ref144` Amershi, plus Kocielnik and Möller, which were briefly
-assigned keys `ref216` and `ref217`) was **replaced**. Do not add `ref216` or `ref217`, and remove
-`ref144`.
+Kocielnik and Möller, briefly assigned keys `ref216` and `ref217` in an earlier pick that day, were
+**replaced**. Do not add `ref216` or `ref217`. Amershi (`ref144`) was dropped and then reinstated,
+so keep it.
 
 Line numbers refer to `main.tex` at commit `b73996b`. They will drift as the report is edited, so
 search for the quoted text instead. The wording below is a suggestion. Each claim must stay within
@@ -22,7 +23,7 @@ what the paper's abstract shows (the **Shows** line for each anchor).
 
 ## Bibliography entries
 
-Keep `ref7` and `ref8` and add their page ranges. Add `ref218`, `ref219`, `ref220` and `ref221`. Delete
+Keep `ref7`, `ref8` and `ref144`, and add their page ranges and full author lists. Add `ref218`, `ref219`, `ref220` and `ref221`. Delete
 every other `\bibitem` except `ref2`, `ref13` and `ref14`.
 
 ```latex
@@ -31,6 +32,9 @@ Brian Y. Lim, Anind K. Dey and Daniel Avrahami. 2009. Why and Why Not Explanatio
 
 \bibitem{ref8}
 Michael Fernandes, Logan Walls, Sean Munson, Jessica Hullman and Matthew Kay. 2018. Uncertainty Displays Using Quantile Dotplots or CDFs Improve Transit Decision-Making. In Proceedings of the 2018 CHI Conference on Human Factors in Computing Systems (CHI '18). ACM, 1--12. \url{https://doi.org/10.1145/3173574.3173718}
+
+\bibitem{ref144}
+Saleema Amershi, Dan Weld, Mihaela Vorvoreanu, Adam Fourney, Besmira Nushi, Penny Collisson, Jina Suh, Shamsi Iqbal, Paul N. Bennett, Kori Inkpen, Jaime Teevan, Ruth Kikin-Gil and Eric Horvitz. 2019. Guidelines for Human-AI Interaction. In Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems (CHI '19). ACM, 1--13. \url{https://doi.org/10.1145/3290605.3300233}
 
 \bibitem{ref218}
 Sunnie S. Y. Kim, Q. Vera Liao, Mihaela Vorvoreanu, Stephanie A. Ballard and Jennifer Wortman Vaughan. 2024. ``I'm Not Sure, But...'': Examining the Impact of Large Language Models' Uncertainty Expression on User Reliance and Trust. In Proceedings of the 2024 ACM Conference on Fairness, Accountability, and Transparency (FAccT '24). ACM, 822--835. \url{https://doi.org/10.1145/3630106.3658941}
@@ -47,7 +51,7 @@ Zelun Tony Zhang, Sebastian S. Feger, Lucas Dullenkopf, Rulu Liao, Lou S\"{u}ssl
 
 Every anchor must be cited at least once in the body, before `\appendix`.
 
-## The six anchors
+## The seven anchors
 
 ### `ref8`: Fernandes et al., CHI 2018
 
@@ -110,7 +114,7 @@ with 308 participants then found:
 
 | Where | Claim (current text) | Action |
 |---|---|---|
-| Operational limits (l. 303) | "Amershi et al.\ motivate correction and scoped fallback \cite{ref144}" | **Replace.** Remove the Amershi attribution and keep correction and scoped fallback as AirBorder's own policy. Ground the provenance part instead: "Showing sources reduced reliance on incorrect answers from a language model, while explanations alone increased reliance on correct and incorrect answers alike \cite{ref219}; each input therefore carries its observation time and source, and model advice is screened by deterministic checks." |
+| Operational limits (l. 303) | "Amershi et al.\ motivate correction and scoped fallback \cite{ref144}" | **Keep** the Amershi sentence (see `ref144`), then add the provenance grounding: "Showing sources reduced reliance on incorrect answers from a language model, while explanations alone increased reliance on correct and incorrect answers alike \cite{ref219}; each input therefore carries its observation time and source, and model advice is screened by deterministic checks." |
 | Initial Design (l. 171 onward) | Provenance labels ("From your ticket", "Added by you") | Can cite `ref219` for showing where information comes from. |
 | Evaluation Plan, Method/Metrics | H1 feasible next action | Optional: because explanations can raise reliance on wrong answers as well as right ones \cite{ref219}, include a task where the shown plan is infeasible and score whether participants reject it. Adding this task changes the method, so the authors must approve it first. |
 
@@ -149,6 +153,20 @@ design goal shifts from giving recommendations to supporting quick information g
 **Must not claim:** passenger results; the participants were professional pilots in a
 diversion scenario.
 
+### `ref144`: Amershi et al., CHI 2019
+
+**Shows:** 18 design guidelines for human-AI interaction, validated over several rounds,
+including a study in which 49 design practitioners tested them against 20 AI products. These are
+design guidelines checked by practitioners, not an end-user performance result.
+
+| Where | Claim (current text) | Action |
+|---|---|---|
+| Operational limits (l. 303) | "Amershi et al.\ motivate correction and scoped fallback \cite{ref144}" | **Keep.** Optionally name the guidelines: support efficient correction, scope services when in doubt, make clear why the system did what it did. |
+| System, Probability (l. 275) | "a separate safety policy decides whether the evidence supports a recommendation" | Can cite `ref144` for scoping services when in doubt. |
+| Initial Design (l. 171 onward) | Traveler edits and "Added by you" labels | Can cite `ref144` for supporting efficient correction. |
+
+**Must not claim:** that following the guidelines improves traveler performance.
+
 ## Other body citations (before `\appendix`)
 
 Remove each citation below. The default is to keep the sentence as the authors' own reasoning or
@@ -178,7 +196,6 @@ description; cut it only where the sentence depends on the source.
 | 279 | `ref77`, `ref79` | Timatic, One ID | Remove the cites, or cut the partner sentence. |
 | 289 | `ref105`, `ref106`, `ref108`, `ref116` | Procedure sources in the caption | Remove the cites. |
 | 296 | `ref143` | Ancker et al. medication instructions | Cut the sentence. |
-| 303 | `ref144` | Amershi et al. | Replace as described under `ref219`. |
 | 319 | `ref28`, `ref29`, `ref30` | EEA/UK assessments | Remove the cites. |
 | 323 | `ref146`, `ref148` | Trial/freemium research | Cut the claim. |
 | 329 | `ref26`, `ref27` | ChatGPT Apps SDK, Claude MCP connectors | Remove the cites; name the products in text if needed. |

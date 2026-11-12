@@ -35,7 +35,7 @@ def keys_in(text: str) -> list[str]:
 def check(tex_path: Path, anchors_path: Path) -> list[tuple[str, str, str, str]]:
     tex = re.sub(r"(?<!\\)%.*", "", tex_path.read_text(errors="ignore"))
     cfg = json.loads(anchors_path.read_text())
-    cap = int(cfg.get("max_anchor_papers", 6))
+    cap = int(cfg.get("max_anchor_papers", 7))
     anchors = [a["key"] for a in cfg.get("anchors", [])]
     materials = [m["key"] for m in cfg.get("project_materials", [])]
     allowed = set(anchors) | set(materials)
