@@ -13,7 +13,7 @@ must not present study results.
 
 ## Citations (project rule, set by the authors)
 
-- The bibliography holds at most **3 authoritative peer-reviewed conference papers** (the anchor
+- The bibliography holds at most **5 authoritative peer-reviewed conference papers** (the anchor
   sources), plus the project's own materials that cannot be reproduced in full in the report:
   interview and survey records, evaluation instruments and verification records.
 - Appendix-only material is not cited.

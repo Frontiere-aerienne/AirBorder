@@ -1,8 +1,34 @@
 {
-  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors. Anchors are chosen by the authors from Report/ANCHOR-CANDIDATES.md.",
-  "max_anchor_papers": 3,
-  "approved": false,
-  "anchors": [],
+  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors. Anchors are chosen by the authors from Report/ANCHOR-CANDIDATES.md; Report/ANCHOR-MAP.md maps each anchor to the claims it supports. On 2026-11-11 the authors raised the cap from 3 to 5 anchor papers and chose not to cite external data sources.",
+  "max_anchor_papers": 5,
+  "approved": true,
+  "anchors": [
+    {
+      "key": "ref8",
+      "reference": "Michael Fernandes, Logan Walls, Sean Munson, Jessica Hullman and Matthew Kay. 2018. Uncertainty Displays Using Quantile Dotplots or CDFs Improve Transit Decision-Making. In Proceedings of the 2018 CHI Conference on Human Factors in Computing Systems (CHI '18). ACM, 1-12.",
+      "doi": "10.1145/3173574.3173718"
+    },
+    {
+      "key": "ref7",
+      "reference": "Brian Y. Lim, Anind K. Dey and Daniel Avrahami. 2009. Why and Why Not Explanations Improve the Intelligibility of Context-Aware Intelligent Systems. In Proceedings of the SIGCHI Conference on Human Factors in Computing Systems (CHI '09). ACM, 2119-2128.",
+      "doi": "10.1145/1518701.1519023"
+    },
+    {
+      "key": "ref216",
+      "reference": "Rafal Kocielnik, Saleema Amershi and Paul N. Bennett. 2019. Will You Accept an Imperfect AI? Exploring Designs for Adjusting End-user Expectations of AI Systems. In Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems (CHI '19). ACM, 1-14.",
+      "doi": "10.1145/3290605.3300641"
+    },
+    {
+      "key": "ref144",
+      "reference": "Saleema Amershi, Dan Weld, Mihaela Vorvoreanu, Adam Fourney, Besmira Nushi, Penny Collisson, Jina Suh, Shamsi Iqbal, Paul N. Bennett, Kori Inkpen, Jaime Teevan, Ruth Kikin-Gil and Eric Horvitz. 2019. Guidelines for Human-AI Interaction. In Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems (CHI '19). ACM, 1-13.",
+      "doi": "10.1145/3290605.3300233"
+    },
+    {
+      "key": "ref217",
+      "reference": "Andreas Möller, Matthias Kranz, Stefan Diewald, Luis Roalter, Robert Huitl, Tobias Stockinger, Marion Koelle and Patrick A. Lindemann. 2014. Experimental Evaluation of User Interfaces for Visual Indoor Navigation. In Proceedings of the SIGCHI Conference on Human Factors in Computing Systems (CHI '14). ACM, 3607-3616.",
+      "doi": "10.1145/2556288.2557003"
+    }
+  ],
   "project_materials": [
     {
       "key": "ref2",
