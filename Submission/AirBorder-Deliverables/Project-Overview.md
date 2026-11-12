@@ -34,9 +34,9 @@ The current prototype deliberately keeps the terminal graph and ticket fixtures 
 
 ## Application Link
 
-GitHub repository: https://github.com/MayFairMI6/AirBorder
+GitHub repository: https://github.com/Frontiere-aerienne/AirBorder
 
-Build and device-test instructions: https://github.com/MayFairMI6/AirBorder/blob/main/Documentation/Build-and-Device-Test.md
+Build and device-test instructions: https://github.com/Frontiere-aerienne/AirBorder/blob/main/Documentation/Build-and-Device-Test.md
 
 Reviewers can use Xcode with their Apple Account Personal Team to install and test AirBorder on their own iPhone. TestFlight is not required for this submission.
 

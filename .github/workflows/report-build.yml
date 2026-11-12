@@ -1,0 +1,268 @@
+name: ACM report
+
+# Compiles the ACM (acmart) LaTeX report in Report/ and enforces the course rubric.
+#
+# Two REQUIRED pull-request checks on main (branch protection):
+#   "Compile ACM report": the report must compile.
+#   "Citation anchors":   the bibliography holds only the anchor papers and project materials in
+#                         .github/report-review/ANCHORS.json, and every anchor is cited in the body.
+#   "Rubric compliance":  no rubric item may FAIL, and no criterion may REGRESS against the PR's
+#                         base branch (pass→warn, warn→fail, more missing elements, more
+#                         undefined refs/cites/TODOs). Scripts/reporting/check_rubric.py --strict.
+# Both run on every PR so the required checks always report. A PR that does not touch the
+# report, the rubric or the checker passes immediately without compiling.
+# Pushes to main also refresh the rolling "report-latest" GitHub release.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Report/**'
+      - '.github/report-review/RUBRIC.md'
+      - '.github/report-review/ANCHORS.json'
+      - 'Scripts/reporting/check_rubric.py'
+      - 'Scripts/reporting/check_citations.py'
+      - '.github/workflows/report-build.yml'
+  pull_request:
+  workflow_dispatch:
+
+# The rubric and citation checks run silently: results appear only as check statuses and in
+# the job summary, never as PR comments.
+# Least privilege: jobs that run PR code (latexmk, check_rubric.py) are read-only and keep no
+# git credentials. Only the push-only release job gets a write scope.
+permissions:
+  contents: read
+
+concurrency:
+  group: report-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compile ACM report
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      relevant: ${{ steps.changes.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect report changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -qE '^(Report/|\.github/report-review/(RUBRIC\.md|ANCHORS\.json)$|Scripts/reporting/check_(rubric|citations)\.py$|\.github/workflows/report-build\.yml$)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "No report changes in this PR; report checks pass without compiling." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Compile with latexmk (TeX Live, acmart)
+        if: steps.changes.outputs.relevant == 'true'
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+          working_directory: Report
+          args: -pdf -file-line-error -halt-on-error -interaction=nonstopmode
+
+      - name: Report LaTeX warnings
+        if: always() && steps.changes.outputs.relevant == 'true'
+        working-directory: Report
+        run: |
+          [ -f main.log ] || exit 0
+          undef_refs=$(grep -c "Reference .* undefined" main.log || true)
+          undef_cites=$(grep -c "Citation .* undefined" main.log || true)
+          overfull=$(grep -c "^Overfull" main.log || true)
+          pages=$(grep -oE "Output written on main.pdf \(([0-9]+) pages" main.log | grep -oE "[0-9]+ pages" || echo "unknown")
+          {
+            echo "### ACM report build"
+            echo "| Check | Count |"
+            echo "|---|---|"
+            echo "| Pages | ${pages} |"
+            echo "| Undefined references | ${undef_refs} |"
+            echo "| Undefined citations | ${undef_cites} |"
+            echo "| Overfull boxes | ${overfull} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$undef_refs" = 0 ] || echo "::warning file=Report/main.tex::${undef_refs} undefined references"
+          [ "$undef_cites" = 0 ] || echo "::warning file=Report/main.tex::${undef_cites} undefined citations"
+
+      - name: Upload PDF
+        if: steps.changes.outputs.relevant == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirBorder-Report
+          path: Report/main.pdf
+          if-no-files-found: error
+
+      # Compile the PR's base report too, so the rubric job can detect regressions.
+      - name: Check out base report
+        id: base
+        if: github.event_name == 'pull_request' && steps.changes.outputs.relevant == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE_SHA:Report/main.tex" 2>/dev/null; then
+            git worktree add --detach base-src "$BASE_SHA"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Base branch has no Report/main.tex; nothing to regress from." >> "$GITHUB_STEP_SUMMARY"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compile base report
+        if: steps.base.outputs.exists == 'true'
+        continue-on-error: true
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+          working_directory: base-src/Report
+          args: -pdf -file-line-error -interaction=nonstopmode
+
+      - name: Upload base build metadata
+        if: always() && steps.base.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-base-metadata
+          path: |
+            base-src/Report/main.tex
+            base-src/Report/main.aux
+            base-src/Report/main.log
+          if-no-files-found: warn
+
+      # The rubric job needs the aux/log files to measure page counts.
+      - name: Upload build metadata
+        if: always() && steps.changes.outputs.relevant == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-build-metadata
+          path: |
+            Report/main.aux
+            Report/main.log
+          if-no-files-found: warn
+
+  release:
+    name: Publish report-latest release
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AirBorder-Report
+      - name: Publish rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mv main.pdf AirBorder-Report.pdf
+          notes="Automatically compiled from ${GITHUB_SHA::7} on $(date -u +%Y-%m-%dT%H:%MZ)."
+          if gh release view report-latest >/dev/null 2>&1; then
+            gh release upload report-latest AirBorder-Report.pdf --clobber
+            gh release edit report-latest --notes "$notes"
+          else
+            gh release create report-latest AirBorder-Report.pdf \
+              --title "AirBorder report (latest build)" --notes "$notes" \
+              --target "$GITHUB_SHA" --prerelease
+          fi
+
+  rubric:
+    name: Rubric compliance
+    needs: build
+    # Always report a result, so the required check never stays pending.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.rubric.outputs.code }}
+    steps:
+      - name: Skip when the report is unchanged
+        if: needs.build.outputs.relevant != 'true'
+        run: echo "No report changes in this PR; rubric check passes." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        if: needs.build.outputs.relevant == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        if: needs.build.outputs.relevant == 'true'
+        continue-on-error: true
+        with:
+          name: report-build-metadata
+          path: Report
+
+      - uses: actions/download-artifact@v4
+        if: needs.build.outputs.relevant == 'true' && github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          name: report-base-metadata
+          path: base
+
+      - name: Check rubric (fails on any rubric FAIL or regression vs base)
+        id: rubric
+        if: needs.build.outputs.relevant == 'true'
+        run: |
+          set +e
+          baseline=()
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then baseline=(--baseline-tex base/main.tex); fi
+          python3 -I Scripts/reporting/check_rubric.py --tex Report/main.tex "${baseline[@]}" \
+            --out "$RUNNER_TEMP/rubric.md" --strict
+          code=$?
+          cat "$RUNNER_TEMP/rubric.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Enforce rubric
+        if: needs.build.outputs.relevant == 'true' && steps.rubric.outputs.code != '0'
+        run: |
+          echo "::error file=Report/main.tex::Rubric check failed (a ❌ item or a regression vs base). See the check's job summary."
+          exit 1
+
+  citations:
+    name: Citation anchors
+    needs: build
+    # Always report a result, so the required check never stays pending.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.cite.outputs.code }}
+    steps:
+      - name: Skip when the report is unchanged
+        if: needs.build.outputs.relevant != 'true'
+        run: echo "No report changes in this PR; citation check passes." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        if: needs.build.outputs.relevant == 'true'
+        with:
+          persist-credentials: false
+
+      - name: Check citation anchors
+        id: cite
+        if: needs.build.outputs.relevant == 'true'
+        run: |
+          set +e
+          python3 -I Scripts/reporting/check_citations.py --out citations.md --strict
+          code=$?
+          cat citations.md >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Enforce citation anchors
+        if: needs.build.outputs.relevant == 'true' && steps.cite.outputs.code != '0'
+        run: |
+          echo "::error file=Report/main.tex::Citation-anchor check failed. Only the anchors and project materials in .github/report-review/ANCHORS.json may be cited."
+          exit 1
+

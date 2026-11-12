@@ -1,0 +1,20 @@
+{
+  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors. Anchors are chosen by the authors from Report/ANCHOR-CANDIDATES.md.",
+  "max_anchor_papers": 3,
+  "approved": false,
+  "anchors": [],
+  "project_materials": [
+    {
+      "key": "ref2",
+      "what": "Deployed AirBorder travel survey (instrument used for the interviews and evaluation plan)."
+    },
+    {
+      "key": "ref13",
+      "what": "Preliminary survey and interview response analysis (R1, R2)."
+    },
+    {
+      "key": "ref14",
+      "what": "Synthetic scenario audit and verification record (technical validation evidence)."
+    }
+  ]
+}

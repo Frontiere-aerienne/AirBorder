@@ -1,11 +1,11 @@
 # Verification snapshot — October 11, 2026
 
-This note records observed evidence for code commit [620a00e2d4baefcc04f0845a01ab1f46d25a92db](https://github.com/MayFairMI6/AirBorder/commit/620a00e2d4baefcc04f0845a01ab1f46d25a92db). The documentation addition does not change application or Worker behavior.
+This note records observed evidence for code commit [620a00e2d4baefcc04f0845a01ab1f46d25a92db](https://github.com/Frontiere-aerienne/AirBorder/commit/620a00e2d4baefcc04f0845a01ab1f46d25a92db). The documentation addition does not change application or Worker behavior.
 
 | Check | Evidence | Outcome |
 |---|---|---|
 | Fresh local Worker suite | Original package lock; Node 25.8.1 on macOS arm64 | 37 passed; zero failed/skipped |
-| Hosted build | [Run 36787086841](https://github.com/MayFairMI6/AirBorder/actions/runs/36787086841) | Passed |
+| Hosted build | [Run 36787086841](https://github.com/Frontiere-aerienne/AirBorder/actions/runs/36787086841) | Passed |
 | Hosted unit suite | Same run's original job log | 106 tests passed |
 | Hosted UI suite | Same run's original job log | 17 tests executed; 10 failures |
 | Overall hosted run | GitHub run/jobs API | Failed at UI-test step |

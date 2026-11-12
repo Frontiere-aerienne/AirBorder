@@ -1,16 +1,16 @@
 # Verification snapshot — November 8, 2026
 
-This record applies to [`01785e0a1beaaea03fd066adccddb6b2e3ea8a97`](https://github.com/MayFairMI6/AirBorder/commit/01785e0a1beaaea03fd066adccddb6b2e3ea8a97), the application revision verified before the documentation refresh. PR #1 remained open and unmerged when this snapshot was recorded. Later documentation or implementation commits require their own current-head results.
+This record applies to [`01785e0a1beaaea03fd066adccddb6b2e3ea8a97`](https://github.com/Frontiere-aerienne/AirBorder/commit/01785e0a1beaaea03fd066adccddb6b2e3ea8a97), the application revision verified before the documentation refresh. PR #1 remained open and unmerged when this snapshot was recorded. Later documentation or implementation commits require their own current-head results.
 
 | Check | Recorded result | Evidence |
 |---|---|---|
-| Native build, unit, and UI | Passed; 106 unit and 17 UI tests, zero failures | [iOS CI run](https://github.com/MayFairMI6/AirBorder/actions/runs/42453433595) |
-| HCI engine, backend, browser, and aggregate gate | All passed | [HCI quality run](https://github.com/MayFairMI6/AirBorder/actions/runs/42453433592) |
+| Native build, unit, and UI | Passed; 106 unit and 17 UI tests, zero failures | [iOS CI run](https://github.com/Frontiere-aerienne/AirBorder/actions/runs/42453433595) |
+| HCI engine, backend, browser, and aggregate gate | All passed | [HCI quality run](https://github.com/Frontiere-aerienne/AirBorder/actions/runs/42453433592) |
 | Browser interaction/design/accessibility suite | 50 passed | HCI browser job and `browser-results` artifact in the HCI run |
 | Journey engine and browser API/sync client | 39 passed in combined local execution | `Web/journey-engine.test.cjs` and `Web/backend/test/*.test.mjs`; corresponding suites run in HCI CI |
 | Canonical backend | 40 passed | HCI backend job, including authenticated identity and actual SQLite concurrency/restart tests |
 | CI simulator selection | 4 passed | HCI engine job |
-| Codex code review | Completed with no findings at the recorded revision | [Review summary](https://github.com/MayFairMI6/AirBorder/pull/1#issuecomment-6715919825); this summary is updated by later reviews |
+| Codex code review | Completed with no findings at the recorded revision | [Review summary](https://github.com/Frontiere-aerienne/AirBorder/pull/1#issuecomment-6715919825); this summary is updated by later reviews |
 
 Native CI selected iPhone 13 with iOS 26.5. Focused local verification also ran on iPhone 13 with iOS 27.0. Simulator testing does not establish physical-device AR behavior.
 

@@ -60,3 +60,39 @@ At the start of implementation or after a handoff/context compaction, read the c
 - Use natural, production-style passenger copy and retain the approved phone design. Do not label ordinary trip cards or workflows as examples or prototypes. Seeded data provenance must remain accurate and discoverable in Help/About or data details; never present simulated facts as live or connected data. Show health integration availability and consent truthfully, keep one automatically managed walking estimate with an average fallback, and do not invent demographic formulas or connection status.
 
 - For every passenger-facing UI change, assign the `ui_researcher` role a realism pass before acceptance. Reuse the dedicated reviewer when available; preserve this check across handoffs rather than requiring the user to repeat it. The pass checks natural copy, realistic states, design preservation, and truthful availability without prototype commentary in ordinary flows.
+
+## Report and rubric rules
+
+`Report/main.tex` is the course deliverable (ACM `acmart` `sigconf`). It is graded against
+`.github/report-review/RUBRIC.md` (CAP4104/CAP5178 Implementation and Evaluation Plan).
+Any task that edits `Report/` must keep the report rubric-compliant:
+
+- Keep the required sections: Introduction, Initial Design, System, Implementation Status,
+  and Evaluation Plan with Population, Hypotheses with nulls, Method and Metrics.
+- Keep the body at 5–10 pages, excluding references and the appendix, in the double-column template.
+- It is a **plan**: never present user-study results, and never invent participants,
+  hypotheses, numbers or citations.
+- Cite only the anchor papers and project materials in `.github/report-review/ANCHORS.json`
+  (at most 3 conference papers). Never add a citation; ground claims on the anchors.
+- Run `python3 Scripts/reporting/check_rubric.py` and `check_citations.py` after compiling (`latexmk -pdf` in `Report/`).
+- Route report edits to `docs_reporter`. A change to evaluation method or hypotheses goes
+  to a deep parent.
+
+Merge gates: `.github/workflows/report-build.yml` adds two required checks on `main`.
+**Compile ACM report** fails if the report doesn't compile. **Rubric compliance** fails on any
+rubric ❌ or any regression vs the base branch (`check_rubric.py --strict --baseline-tex`). Unresolved review threads also block merging.
+`.github/workflows/report-review-queue.yml` runs after merge and queues a report review for
+Claude in Claude Code. It is advisory and makes no AI calls in CI.
+
+## Review guidelines
+
+Report rubric and consistency review is **Claude's job, run in Claude Code** (no API keys in
+CI). Merged changes are queued on the `report-review-queue` issue by
+`.github/workflows/report-review-queue.yml`, and Claude handles them by following
+`.github/report-review/INSTRUCTIONS.md`.
+
+- In routine PR reviews, do **not** duplicate rubric or citation findings on `Report/`. The
+  deterministic **Rubric compliance** and **Citation anchors** checks and Claude cover them.
+  Review code changes as usual.
+- Do not respond to comments carrying the Claude Code attribution
+  (`[Claude Code](https://claude.com/claude-code)`). Those are automated status notes, not feedback.

@@ -6,7 +6,7 @@ The project is a programmed research prototype. Browser flight and route scenari
 
 ## Current status
 
-The verified implementation at [`01785e0`](https://github.com/MayFairMI6/AirBorder/commit/01785e0a1beaaea03fd066adccddb6b2e3ea8a97) passed all hosted checks and completed Codex review with no findings. Native verification ran **106 unit tests and 17 UI tests with no failures**. See the [November 8 verification record](Documentation/Verification-2026-11-08.md) for results, source revisions, and limitations. Results apply to that revision; consult the current PR checks for subsequent changes.
+The verified implementation at [`01785e0`](https://github.com/Frontiere-aerienne/AirBorder/commit/01785e0a1beaaea03fd066adccddb6b2e3ea8a97) passed all hosted checks and completed Codex review with no findings. Native verification ran **106 unit tests and 17 UI tests with no failures**. See the [November 8 verification record](Documentation/Verification-2026-11-08.md) for results, source revisions, and limitations. Results apply to that revision; consult the current PR checks for subsequent changes.
 
 | Component | Implemented scope | Availability boundary |
 |---|---|---|
