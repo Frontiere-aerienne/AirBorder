@@ -1,5 +1,5 @@
 {
-  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors. Anchors are chosen by the authors from Report/ANCHOR-CANDIDATES.md; Report/ANCHOR-MAP.md maps each anchor to the claims it supports. On 2026-11-11 the authors raised the cap from 3 to 5 anchor papers and chose not to cite external data sources.",
+  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors. Anchors are chosen by the authors from Report/ANCHOR-CANDIDATES.md; Report/ANCHOR-MAP.md maps each anchor to the claims it supports. On 2026-11-11 the authors raised the cap from 3 to 5 anchor papers, chose not to cite external data sources, and asked for at most two anchors from before the large-language-model era.",
   "max_anchor_papers": 5,
   "approved": true,
   "anchors": [
@@ -14,19 +14,19 @@
       "doi": "10.1145/1518701.1519023"
     },
     {
-      "key": "ref216",
-      "reference": "Rafal Kocielnik, Saleema Amershi and Paul N. Bennett. 2019. Will You Accept an Imperfect AI? Exploring Designs for Adjusting End-user Expectations of AI Systems. In Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems (CHI '19). ACM, 1-14.",
-      "doi": "10.1145/3290605.3300641"
+      "key": "ref218",
+      "reference": "Sunnie S. Y. Kim, Q. Vera Liao, Mihaela Vorvoreanu, Stephanie A. Ballard and Jennifer Wortman Vaughan. 2024. \"I'm Not Sure, But...\": Examining the Impact of Large Language Models' Uncertainty Expression on User Reliance and Trust. In Proceedings of the 2024 ACM Conference on Fairness, Accountability, and Transparency (FAccT '24). ACM, 822-835.",
+      "doi": "10.1145/3630106.3658941"
     },
     {
-      "key": "ref144",
-      "reference": "Saleema Amershi, Dan Weld, Mihaela Vorvoreanu, Adam Fourney, Besmira Nushi, Penny Collisson, Jina Suh, Shamsi Iqbal, Paul N. Bennett, Kori Inkpen, Jaime Teevan, Ruth Kikin-Gil and Eric Horvitz. 2019. Guidelines for Human-AI Interaction. In Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems (CHI '19). ACM, 1-13.",
-      "doi": "10.1145/3290605.3300233"
+      "key": "ref219",
+      "reference": "Sunnie S. Y. Kim, Jennifer Wortman Vaughan, Q. Vera Liao, Tania Lombrozo and Olga Russakovsky. 2025. Fostering Appropriate Reliance on Large Language Models: The Role of Explanations, Sources, and Inconsistencies. In Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems (CHI '25). ACM, 1-19.",
+      "doi": "10.1145/3706598.3714020"
     },
     {
-      "key": "ref217",
-      "reference": "Andreas Möller, Matthias Kranz, Stefan Diewald, Luis Roalter, Robert Huitl, Tobias Stockinger, Marion Koelle and Patrick A. Lindemann. 2014. Experimental Evaluation of User Interfaces for Visual Indoor Navigation. In Proceedings of the SIGCHI Conference on Human Factors in Computing Systems (CHI '14). ACM, 3607-3616.",
-      "doi": "10.1145/2556288.2557003"
+      "key": "ref220",
+      "reference": "Helena Vasconcelos, Matthew Jörke, Madeleine Grunde-McLaughlin, Tobias Gerstenberg, Michael S. Bernstein and Ranjay Krishna. 2023. Explanations Can Reduce Overreliance on AI Systems During Decision-Making. Proceedings of the ACM on Human-Computer Interaction 7, CSCW1 (CSCW '23), 1-38.",
+      "doi": "10.1145/3579605"
     }
   ],
   "project_materials": [

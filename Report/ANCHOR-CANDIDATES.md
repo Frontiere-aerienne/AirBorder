@@ -1,11 +1,13 @@
 # Anchor source candidates
 
 **Chosen and approved on 2026-11-11 (5 anchors):** Fernandes et al. 2018 (`ref8`), Lim et al. 2009
-(`ref7`), Kocielnik et al. 2019 (`ref216`, new), Amershi et al. 2019 (`ref144`) and Möller et al.
-2014 (`ref217`, new). The authors raised the cap from 3 to 5 and chose not to cite external data
-sources. Each was checked against its DOI record (Crossref) and abstract (OpenAlex/Semantic
-Scholar). They are marked ✅ below and recorded in `.github/report-review/ANCHORS.json`;
-`Report/ANCHOR-MAP.md` maps each one to the claims in `main.tex` it supports.
+(`ref7`), Kim et al. 2024 (`ref218`, new), Kim et al. 2025 (`ref219`, new) and Vasconcelos et al.
+2023 (`ref220`, new). The authors raised the cap from 3 to 5, chose not to cite external data
+sources, and asked for at most two anchors from before the large-language-model era. An earlier
+pick that day (Kocielnik 2019, Amershi 2019, Möller 2014) was replaced. Each paper was checked
+against its DOI record (Crossref) and abstract (OpenAlex). Picks are marked ✅ and recorded in
+`.github/report-review/ANCHORS.json`; `Report/ANCHOR-MAP.md` maps each one to the claims in
+`main.tex` it supports.
 
 - **In bib** gives the key when the paper is already in `Report/main.tex`. Those entries and
   their DOIs are already there.
@@ -34,10 +36,19 @@ Scholar). They are marked ✅ below and recorded in `.github/report-review/ANCHO
 
 | Paper | Venue | In bib | Grounds |
 |---|---|---|---|
-| ✅ Amershi et al. *Guidelines for Human-AI Interaction* | CHI 2019 | ref144 | Correction, scoped fallback, provenance labels, and withholding unsupported recommendations |
+| Amershi et al. *Guidelines for Human-AI Interaction* | CHI 2019 | ref144 | Correction, scoped fallback, provenance labels, and withholding unsupported recommendations |
 | Horvitz. *Principles of Mixed-Initiative User Interfaces* | CHI 1999 | ref157 | When the app should act, suggest or defer to the traveler |
-| ✅ Kocielnik, Amershi, Bennett. *Will You Accept an Imperfect AI? Exploring Designs for Adjusting End-user Expectations of AI Systems* | CHI 2019 | ref216 (chosen; add bibitem) | Communicating that probability estimates are imperfect; confidence ratings (S3) |
+| Kocielnik, Amershi, Bennett. *Will You Accept an Imperfect AI? Exploring Designs for Adjusting End-user Expectations of AI Systems* | CHI 2019 | not yet | Communicating that probability estimates are imperfect; confidence ratings (S3) |
 | Bansal et al. *Does the Whole Exceed its Parts? The Effect of AI Explanations on Complementary Team Performance* | CHI 2021 | not yet | Whether explanations actually improve decisions, not only trust |
+
+## Reliance on AI and language models (2023 onward)
+
+| Paper | Venue | In bib | Grounds |
+|---|---|---|---|
+| ✅ Kim, Liao, Vorvoreanu, Ballard, Wortman Vaughan. *"I'm Not Sure, But...": Examining the Impact of Large Language Models' Uncertainty Expression on User Reliance and Trust* | FAccT 2024 | ref218 (add bibitem) | Wording of provisional estimates and abstention; S3 confidence |
+| ✅ Kim, Wortman Vaughan, Liao, Lombrozo, Russakovsky. *Fostering Appropriate Reliance on Large Language Models: The Role of Explanations, Sources, and Inconsistencies* | CHI 2025 | ref219 (add bibitem) | Provenance labels and explanations; scoring reliance on correct and incorrect plans |
+| ✅ Vasconcelos, Jörke, Grunde-McLaughlin, Gerstenberg, Bernstein, Krishna. *Explanations Can Reduce Overreliance on AI Systems During Decision-Making* | CSCW 2023 (PACM HCI 7, CSCW1) | ref220 (add bibitem) | The calculation trace as a low-cost way to verify a recommendation |
+| Bo, Wan, Anderson. *To Rely or Not to Rely? Evaluating Interventions for Appropriate Reliance on Large Language Models* | CHI 2025 | not yet | Reliance interventions reduce over-reliance but rarely improve appropriate reliance |
 
 ## Airport and indoor navigation, accessibility (terminal routing, AR guide, accessibility settings)
 
@@ -46,7 +57,7 @@ Scholar). They are marked ✅ below and recorded in `.github/report-review/ANCHO
 | Guerreiro, Ahmetovic, Sato, Kitani, Asakawa. *Airport Accessibility and Navigation Assistance for People with Visual Impairments* | CHI 2019 | not yet | Airport-specific navigation; step-free and accessibility routing |
 | Ahmetovic, Gleason, Ruan, Kitani, Takagi, Asakawa. *NavCog: A Navigational Cognitive Assistant for the Blind* | MobileHCI 2016 | not yet | Turn-by-turn indoor guidance and the map/text fallback |
 | Sato, Oh, Naito, Takagi, Kitani, Asakawa. *NavCog3: An Evaluation of a Smartphone-Based Blind Indoor Navigation Assistant with Semantic Features in a Large-Scale Environment* | ASSETS 2017 | not yet | Large-venue indoor navigation evaluation; navigation-error metrics |
-| ✅ Möller, Kranz, Diewald, Roalter, Huitl, Stockinger, Koelle, Lindemann. *Experimental Evaluation of User Interfaces for Visual Indoor Navigation* | CHI 2014 | ref217 (chosen; add bibitem) | Compares VR and AR views for camera-based indoor navigation under unreliable localization; the Map and Camera views and the later AR comparison |
+| Möller, Kranz, Diewald, Roalter, Huitl, Stockinger, Koelle, Lindemann. *Experimental Evaluation of User Interfaces for Visual Indoor Navigation* | CHI 2014 | not yet | Compares VR and AR views for camera-based indoor navigation under unreliable localization; the Map and Camera views and the later AR comparison |
 
 ## Notifications and interruptions (reminders, proactive prompts)
 
@@ -81,8 +92,9 @@ Scholar). They are marked ✅ below and recorded in `.github/report-review/ANCHO
 
 ## Picking the anchors
 
-The authors chose five on 2026-11-11. Fernandes 2018 grounds the uncertainty display and H2;
-Lim 2009 the change explanation and H1; Kocielnik 2019 abstention and S3 confidence; Amershi 2019
-the design rationale for correction, fallback and provenance; Möller 2014 the Map and Camera
-route views. Kay 2016 was left out because it overlaps with Fernandes 2018, and Guerreiro 2019
-because its population (blind travelers) differs from AirBorder's.
+Final choice (2026-11-11): two earlier papers kept for the primary hypotheses, Fernandes 2018 (H2,
+uncertainty display) and Lim 2009 (H1, change explanation), and three papers from 2023 onward on
+reliance on AI and language models. Möller 2014 was dropped because no recent AR indoor-navigation
+paper at a peer-reviewed HCI conference was found and the AR comparison is secondary; Amershi 2019 and Kocielnik
+2019 were replaced by the Kim papers. Kay 2016 overlaps with Fernandes 2018; Guerreiro 2019 studies
+blind travelers rather than AirBorder's population.
