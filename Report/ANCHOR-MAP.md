@@ -1,5 +1,7 @@
 # Anchor map for `Report/main.tex`
 
+**Applied on 2026-11-12** in PR #9: every non-anchor citation and bibliography entry was removed from `main.tex`, the seven anchors were added and cited in the body, and source-attributed sentences in the body were reworded or cut. Appendix prose that names uncited sources remains for the from-scratch rewrite. The rest of this file records the mapping.
+
 The authors approved these seven anchor papers on 2026-11-11 (`.github/report-review/ANCHORS.json`).
 They also decided:
 
