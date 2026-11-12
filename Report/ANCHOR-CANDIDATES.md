@@ -1,10 +1,10 @@
 # Anchor source candidates
 
 **Chosen and approved on 2026-11-11 (7 anchors):** Fernandes et al. 2018 (`ref8`), Lim et al. 2009
-(`ref7`), Amershi et al. 2019 (`ref144`), Kim et al. 2024 (`ref218`, new), Kim et al. 2025
+(`ref7`), Amershi et al. 2019 (`ref144`), Villavicencio et al. 2026 (`ref222`, new), Kim et al. 2025
 (`ref219`, new), Vasconcelos et al. 2023 (`ref220`, new) and Zhang et al. 2024 (`ref221`, new).
 The authors raised the cap from 3 to 7, chose not to cite external data sources, and kept the
-anchors mostly AI-era, with three earlier papers. Kocielnik 2019 and Möller 2014, picked earlier
+anchors mostly AI-era, with three earlier papers. Kocielnik 2019, Möller 2014 and Kim 2024, picked earlier
 that day, were replaced. Each paper was checked against its DOI record (Crossref) and abstract
 (OpenAlex). Picks are marked ✅ and recorded in `.github/report-review/ANCHORS.json`;
 `Report/ANCHOR-MAP.md` maps each one to the claims in `main.tex` it supports.
@@ -43,9 +43,12 @@ that day, were replaced. Each paper was checked against its DOI record (Crossref
 
 ## Reliance on AI and language models (2023 onward)
 
+Kim 2024 was replaced by Villavicencio 2026 because both study how stated uncertainty changes reliance on medical answers; the 2026 paper's comparison of overall and per-step uncertainty matches AirBorder's per-segment estimates.
+
 | Paper | Venue | In bib | Grounds |
 |---|---|---|---|
-| ✅ Kim, Liao, Vorvoreanu, Ballard, Wortman Vaughan. *"I'm Not Sure, But...": Examining the Impact of Large Language Models' Uncertainty Expression on User Reliance and Trust* | FAccT 2024 | ref218 (add bibitem) | Wording of provisional estimates and abstention; S3 confidence |
+| ✅ Villavicencio, Pan, Wang. *Not All Uncertainty Is Equal: How Uncertainty Granularity Shapes Human Verification in LLM-Assisted Decision Making* | FAccT 2026 | ref222 (add bibitem) | Overall versus per-step uncertainty; keeping independent verification (departure board, airline) visible |
+| Kim, Liao, Vorvoreanu, Ballard, Wortman Vaughan. *"I'm Not Sure, But...": Examining the Impact of Large Language Models' Uncertainty Expression on User Reliance and Trust* | FAccT 2024 | replaced by ref222 | Wording of provisional estimates and abstention; S3 confidence |
 | ✅ Kim, Wortman Vaughan, Liao, Lombrozo, Russakovsky. *Fostering Appropriate Reliance on Large Language Models: The Role of Explanations, Sources, and Inconsistencies* | CHI 2025 | ref219 (add bibitem) | Provenance labels and explanations; scoring reliance on correct and incorrect plans |
 | ✅ Vasconcelos, Jörke, Grunde-McLaughlin, Gerstenberg, Bernstein, Krishna. *Explanations Can Reduce Overreliance on AI Systems During Decision-Making* | CSCW 2023 (PACM HCI 7, CSCW1) | ref220 (add bibitem) | The calculation trace as a low-cost way to verify a recommendation |
 | Bo, Wan, Anderson. *To Rely or Not to Rely? Evaluating Interventions for Appropriate Reliance on Large Language Models* | CHI 2025 | not yet | Reliance interventions reduce over-reliance but rarely improve appropriate reliance |

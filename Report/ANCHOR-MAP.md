@@ -10,11 +10,12 @@ They also decided:
 
 After the change, the bibliography holds only these keys:
 
-- **Anchors:** `ref8`, `ref7`, `ref218` (new), `ref219` (new), `ref220` (new), `ref221` (new), `ref144`
+- **Anchors:** `ref8`, `ref7`, `ref222` (new), `ref219` (new), `ref220` (new), `ref221` (new), `ref144`
 - **Project materials:** `ref2`, `ref13`, `ref14`
 
 Kocielnik and Möller, briefly assigned keys `ref216` and `ref217` in an earlier pick that day, were
-**replaced**. Do not add `ref216` or `ref217`. Amershi (`ref144`) was dropped and then reinstated,
+**replaced**. Do not add `ref216` or `ref217`. Kim et al. FAccT 2024 (`ref218`) was replaced by
+Villavicencio et al. FAccT 2026 (`ref222`); do not add `ref218`. Amershi (`ref144`) was dropped and then reinstated,
 so keep it.
 
 Line numbers refer to `main.tex` at commit `b73996b`. They will drift as the report is edited, so
@@ -23,7 +24,7 @@ what the paper's abstract shows (the **Shows** line for each anchor).
 
 ## Bibliography entries
 
-Keep `ref7`, `ref8` and `ref144`, and add their page ranges and full author lists. Add `ref218`, `ref219`, `ref220` and `ref221`. Delete
+Keep `ref7`, `ref8` and `ref144`, and add their page ranges and full author lists. Add `ref222`, `ref219`, `ref220` and `ref221`. Delete
 every other `\bibitem` except `ref2`, `ref13` and `ref14`.
 
 ```latex
@@ -36,8 +37,8 @@ Michael Fernandes, Logan Walls, Sean Munson, Jessica Hullman and Matthew Kay. 20
 \bibitem{ref144}
 Saleema Amershi, Dan Weld, Mihaela Vorvoreanu, Adam Fourney, Besmira Nushi, Penny Collisson, Jina Suh, Shamsi Iqbal, Paul N. Bennett, Kori Inkpen, Jaime Teevan, Ruth Kikin-Gil and Eric Horvitz. 2019. Guidelines for Human-AI Interaction. In Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems (CHI '19). ACM, 1--13. \url{https://doi.org/10.1145/3290605.3300233}
 
-\bibitem{ref218}
-Sunnie S. Y. Kim, Q. Vera Liao, Mihaela Vorvoreanu, Stephanie A. Ballard and Jennifer Wortman Vaughan. 2024. ``I'm Not Sure, But...'': Examining the Impact of Large Language Models' Uncertainty Expression on User Reliance and Trust. In Proceedings of the 2024 ACM Conference on Fairness, Accountability, and Transparency (FAccT '24). ACM, 822--835. \url{https://doi.org/10.1145/3630106.3658941}
+\bibitem{ref222}
+Mauricio Villavicencio, Sitong Pan and Qianwen Wang. 2026. Not All Uncertainty Is Equal: How Uncertainty Granularity Shapes Human Verification in LLM-Assisted Decision Making. In Proceedings of the 2026 ACM Conference on Fairness, Accountability, and Transparency (FAccT '26). ACM, 3804--3857. \url{https://doi.org/10.1145/3805689.3812329}
 
 \bibitem{ref219}
 Sunnie S. Y. Kim, Jennifer Wortman Vaughan, Q. Vera Liao, Tania Lombrozo and Olga Russakovsky. 2025. Fostering Appropriate Reliance on Large Language Models: The Role of Explanations, Sources, and Inconsistencies. In Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems (CHI '25). ACM, 1--19. \url{https://doi.org/10.1145/3706598.3714020}
@@ -83,24 +84,25 @@ performance was still adequate.
 
 **Must not claim:** speed effects, or travel results.
 
-### `ref218`: Kim et al., FAccT 2024 (new)
+### `ref222`: Villavicencio, Pan, Wang, FAccT 2026 (new)
 
-**Shows:** A pre-registered experiment with 404 participants answering medical questions with or
-without a fictional AI-assisted search engine. When the system's answers began with first-person
-uncertainty ("I'm not sure, but…"), participants were less confident in the system, agreed with
-it less, and answered more accurately. An exploratory analysis attributes this mostly to reduced,
-but not eliminated, overreliance on incorrect answers. Uncertainty stated impersonally ("It's not
-clear, but…") had weaker effects that were not statistically significant. The authors conclude
-that the exact wording matters and should be tested with users.
+**Shows:** A between-subjects study (N = 192) of participants answering hard medical questions
+with a language model that showed its uncertainty at one of three granularities: the whole
+response, each reasoning step, or individual words. Word-level uncertainty increased agreement
+with the AI. Whole-response and step-level uncertainty did not increase agreement but lowered
+participants' confidence in their own answers. Step-level uncertainty also reduced external
+verification (internet searches, checking the links provided), steering users toward the model
+and its uncertainty cues instead of independent checking. The authors conclude that the
+granularity of uncertainty shapes how users verify AI output.
 
 | Where | Claim (current text) | Action |
 |---|---|---|
-| System, Probability (l. 275): "a separate safety policy decides whether the evidence supports a recommendation" | How AirBorder says it is unsure | Add: "How a system expresses uncertainty changes reliance: first-person uncertainty reduced reliance on incorrect answers, and the exact wording mattered \cite{ref218}. AirBorder marks provisional estimates and withholds a leave-by time the evidence does not support; their wording is tested with travelers." |
-| Operational limits (l. 299–303) | Provisional estimates and stale data labelled | Can cite `ref218` for labelling provisional guidance in plain language. |
-| Evaluation Plan, Metrics (l. 373), S3 | Confidence measured separately from correctness | Optional: confidence can fall while accuracy rises \cite{ref218}, so S3 ratings are interpreted alongside H1/H2 accuracy. Do not change S3. |
+| System, Probability (l. 271–275), after the dotplot sentence | Where AirBorder shows uncertainty: the overall leave-by result or each segment | Add: "The level at which uncertainty is shown changes behavior: step-level uncertainty reduced users' independent verification of a language model's answer \cite{ref222}. AirBorder therefore states uncertainty for the leave-by result and keeps the airline or departure board visible as the place to confirm the gate and time." |
+| Operational limits (l. 299) | "offers the airline source or departure board as a verification route" | Cite `ref222` for keeping an independent verification route visible next to uncertain guidance. |
+| Evaluation Plan, Metrics (l. 373) | Deadline interpretation and the post-task interview | Optional: record whether participants check the stated source before acting, since uncertainty cues can reduce verification \cite{ref222}. This adds a measure, so the authors must approve it first. |
 
-**Must not claim:** travel or probability-display results, or that AirBorder uses first-person
-wording, unless it does.
+**Must not claim:** travel results, or that segment-level uncertainty is harmful in AirBorder.
+The study used medical questions and language-model answers.
 
 ### `ref219`: Kim et al., CHI 2025 (new)
 

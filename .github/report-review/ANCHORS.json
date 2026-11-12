@@ -14,9 +14,9 @@
       "doi": "10.1145/1518701.1519023"
     },
     {
-      "key": "ref218",
-      "reference": "Sunnie S. Y. Kim, Q. Vera Liao, Mihaela Vorvoreanu, Stephanie A. Ballard and Jennifer Wortman Vaughan. 2024. \"I'm Not Sure, But...\": Examining the Impact of Large Language Models' Uncertainty Expression on User Reliance and Trust. In Proceedings of the 2024 ACM Conference on Fairness, Accountability, and Transparency (FAccT '24). ACM, 822-835.",
-      "doi": "10.1145/3630106.3658941"
+      "key": "ref222",
+      "reference": "Mauricio Villavicencio, Sitong Pan and Qianwen Wang. 2026. Not All Uncertainty Is Equal: How Uncertainty Granularity Shapes Human Verification in LLM-Assisted Decision Making. In Proceedings of the 2026 ACM Conference on Fairness, Accountability, and Transparency (FAccT '26). ACM, 3804-3857.",
+      "doi": "10.1145/3805689.3812329"
     },
     {
       "key": "ref219",
