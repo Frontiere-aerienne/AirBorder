@@ -1,13 +1,13 @@
 # Anchor source candidates
 
-**Chosen and approved on 2026-11-11 (5 anchors):** Fernandes et al. 2018 (`ref8`), Lim et al. 2009
-(`ref7`), Kim et al. 2024 (`ref218`, new), Kim et al. 2025 (`ref219`, new) and Vasconcelos et al.
-2023 (`ref220`, new). The authors raised the cap from 3 to 5, chose not to cite external data
-sources, and asked for at most two anchors from before the large-language-model era. An earlier
-pick that day (Kocielnik 2019, Amershi 2019, Möller 2014) was replaced. Each paper was checked
-against its DOI record (Crossref) and abstract (OpenAlex). Picks are marked ✅ and recorded in
-`.github/report-review/ANCHORS.json`; `Report/ANCHOR-MAP.md` maps each one to the claims in
-`main.tex` it supports.
+**Chosen and approved on 2026-11-11 (6 anchors):** Fernandes et al. 2018 (`ref8`), Lim et al. 2009
+(`ref7`), Kim et al. 2024 (`ref218`, new), Kim et al. 2025 (`ref219`, new), Vasconcelos et al. 2023
+(`ref220`, new) and Zhang et al. 2024 (`ref221`, new). The authors raised the cap from 3 to 6, chose
+not to cite external data sources, and asked for at most two anchors from before the
+large-language-model era. An earlier pick that day (Kocielnik 2019, Amershi 2019, Möller 2014) was
+replaced. Each paper was checked against its DOI record (Crossref) and abstract (OpenAlex). Picks
+are marked ✅ and recorded in `.github/report-review/ANCHORS.json`; `Report/ANCHOR-MAP.md` maps
+each one to the claims in `main.tex` it supports.
 
 - **In bib** gives the key when the paper is already in `Report/main.tex`. Those entries and
   their DOIs are already there.
@@ -49,6 +49,16 @@ against its DOI record (Crossref) and abstract (OpenAlex). Picks are marked ✅ 
 | ✅ Kim, Wortman Vaughan, Liao, Lombrozo, Russakovsky. *Fostering Appropriate Reliance on Large Language Models: The Role of Explanations, Sources, and Inconsistencies* | CHI 2025 | ref219 (add bibitem) | Provenance labels and explanations; scoring reliance on correct and incorrect plans |
 | ✅ Vasconcelos, Jörke, Grunde-McLaughlin, Gerstenberg, Bernstein, Krishna. *Explanations Can Reduce Overreliance on AI Systems During Decision-Making* | CSCW 2023 (PACM HCI 7, CSCW1) | ref220 (add bibitem) | The calculation trace as a low-cost way to verify a recommendation |
 | Bo, Wan, Anderson. *To Rely or Not to Rely? Evaluating Interventions for Appropriate Reliance on Large Language Models* | CHI 2025 | not yet | Reliance interventions reduce over-reliance but rarely improve appropriate reliance |
+
+## Aviation and AI (2020 onward)
+
+| Paper | Venue | In bib | Grounds |
+|---|---|---|---|
+| ✅ Zhang, Feger, Dullenkopf, Liao, Süsslin, Liu, Butz. *Beyond Recommendations: From Backward to Forward AI Support of Pilots' Decision-Making Process* | CSCW 2024 (PACM HCI 8, CSCW2) | ref221 (add bibitem) | Supporting the traveler's own decision with the time budget and steps, not only a recommendation; H1 |
+| Guimarães, Soares, Ventura. *Decision Support Models for Predicting and Explaining Airport Passenger Connectivity From Data* | IEEE T-ITS 2022 (journal) | not eligible | Missed-connection prediction at a hub; journal, not a conference paper |
+| Schon, Bruder, Liebherr, Theis. *Cleared for Takeoff: Artificial Intelligence Acceptance in Air Traffic Control* | CHIWORK 2025 | not yet | Controller survey (N=83) on trust and transparency; attitudes only |
+| Brown, Pelikan, Broth. *Walking with Robots: Video Analysis of Human-Robot Interactions in Transit Spaces* | CHI 2026 | not yet | Airport cleaning robots and passenger movement; not information support |
+| Wen et al. *AdaptiveCoPilot: Design and Testing of a NeuroAdaptive LLM Cockpit Guidance System* | IEEE VR 2025 | not yet | LLM cockpit guidance, N=8 pilots |
 
 ## Airport and indoor navigation, accessibility (terminal routing, AR guide, accessibility settings)
 
@@ -93,8 +103,9 @@ against its DOI record (Crossref) and abstract (OpenAlex). Picks are marked ✅ 
 ## Picking the anchors
 
 Final choice (2026-11-11): two earlier papers kept for the primary hypotheses, Fernandes 2018 (H2,
-uncertainty display) and Lim 2009 (H1, change explanation), and three papers from 2023 onward on
-reliance on AI and language models. Möller 2014 was dropped because no recent AR indoor-navigation
+uncertainty display) and Lim 2009 (H1, change explanation), and four papers from 2023 onward: three on
+reliance on AI and language models and one aviation study of AI decision support for pilots
+(Zhang et al. 2024). Möller 2014 was dropped because no recent AR indoor-navigation
 paper at a peer-reviewed HCI conference was found and the AR comparison is secondary; Amershi 2019 and Kocielnik
 2019 were replaced by the Kim papers. Kay 2016 overlaps with Fernandes 2018; Guerreiro 2019 studies
 blind travelers rather than AirBorder's population.

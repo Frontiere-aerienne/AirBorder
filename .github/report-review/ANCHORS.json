@@ -1,6 +1,6 @@
 {
-  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors. Anchors are chosen by the authors from Report/ANCHOR-CANDIDATES.md; Report/ANCHOR-MAP.md maps each anchor to the claims it supports. On 2026-11-11 the authors raised the cap from 3 to 5 anchor papers, chose not to cite external data sources, and asked for at most two anchors from before the large-language-model era.",
-  "max_anchor_papers": 5,
+  "_about": "Anchor sources for the AirBorder report. The bibliography may hold only these keys: at most max_anchor_papers authoritative peer-reviewed conference papers, plus the project's own materials (interview/survey records, evaluation instruments, verification records) that cannot be reproduced in full in the report. Appendix-only sources are not cited. Checked by Scripts/reporting/check_citations.py. Set approved to true once the authors confirm the anchors. Anchors are chosen by the authors from Report/ANCHOR-CANDIDATES.md; Report/ANCHOR-MAP.md maps each anchor to the claims it supports. On 2026-11-11 the authors raised the cap from 3 to 6 anchor papers, chose not to cite external data sources, and asked for at most two anchors from before the large-language-model era.",
+  "max_anchor_papers": 6,
   "approved": true,
   "anchors": [
     {
@@ -27,6 +27,11 @@
       "key": "ref220",
       "reference": "Helena Vasconcelos, Matthew Jörke, Madeleine Grunde-McLaughlin, Tobias Gerstenberg, Michael S. Bernstein and Ranjay Krishna. 2023. Explanations Can Reduce Overreliance on AI Systems During Decision-Making. Proceedings of the ACM on Human-Computer Interaction 7, CSCW1 (CSCW '23), 1-38.",
       "doi": "10.1145/3579605"
+    },
+    {
+      "key": "ref221",
+      "reference": "Zelun Tony Zhang, Sebastian S. Feger, Lucas Dullenkopf, Rulu Liao, Lou Süsslin, Yuanting Liu and Andreas Butz. 2024. Beyond Recommendations: From Backward to Forward AI Support of Pilots' Decision-Making Process. Proceedings of the ACM on Human-Computer Interaction 8, CSCW2 (CSCW '24), 1-32.",
+      "doi": "10.1145/3687024"
     }
   ],
   "project_materials": [

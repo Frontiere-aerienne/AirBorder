@@ -1,15 +1,15 @@
 # Anchor map for `Report/main.tex`
 
-The authors approved these five anchor papers on 2026-11-11 (`.github/report-review/ANCHORS.json`).
+The authors approved these six anchor papers on 2026-11-11 (`.github/report-review/ANCHORS.json`).
 They also decided:
 
-- the limit is 5 anchors, up from 3;
+- the limit is 6 anchors, up from 3;
 - no external data sources are cited;
 - at most two anchors come from before the large-language-model period.
 
 After the change, the bibliography holds only these keys:
 
-- **Anchors:** `ref8`, `ref7`, `ref218` (new), `ref219` (new), `ref220` (new)
+- **Anchors:** `ref8`, `ref7`, `ref218` (new), `ref219` (new), `ref220` (new), `ref221` (new)
 - **Project materials:** `ref2`, `ref13`, `ref14`
 
 An earlier pick that day (`ref144` Amershi, plus Kocielnik and Möller, which were briefly
@@ -22,7 +22,7 @@ what the paper's abstract shows (the **Shows** line for each anchor).
 
 ## Bibliography entries
 
-Keep `ref7` and `ref8` and add their page ranges. Add `ref218`, `ref219` and `ref220`. Delete
+Keep `ref7` and `ref8` and add their page ranges. Add `ref218`, `ref219`, `ref220` and `ref221`. Delete
 every other `\bibitem` except `ref2`, `ref13` and `ref14`.
 
 ```latex
@@ -40,11 +40,14 @@ Sunnie S. Y. Kim, Jennifer Wortman Vaughan, Q. Vera Liao, Tania Lombrozo and Olg
 
 \bibitem{ref220}
 Helena Vasconcelos, Matthew J\"{o}rke, Madeleine Grunde-McLaughlin, Tobias Gerstenberg, Michael S. Bernstein and Ranjay Krishna. 2023. Explanations Can Reduce Overreliance on AI Systems During Decision-Making. Proceedings of the ACM on Human-Computer Interaction 7, CSCW1 (CSCW '23), 1--38. \url{https://doi.org/10.1145/3579605}
+
+\bibitem{ref221}
+Zelun Tony Zhang, Sebastian S. Feger, Lucas Dullenkopf, Rulu Liao, Lou S\"{u}sslin, Yuanting Liu and Andreas Butz. 2024. Beyond Recommendations: From Backward to Forward AI Support of Pilots' Decision-Making Process. Proceedings of the ACM on Human-Computer Interaction 8, CSCW2 (CSCW '24), 1--32. \url{https://doi.org/10.1145/3687024}
 ```
 
 Every anchor must be cited at least once in the body, before `\appendix`.
 
-## The five anchors
+## The six anchors
 
 ### `ref8`: Fernandes et al., CHI 2018
 
@@ -127,6 +130,24 @@ studies (N = 731) with a simulated AI:
 | Related research (l. 140), after the Lim sentence | Change view | Optional: pair with `ref7` and `ref219`. Explanations help when they reduce verification effort \cite{ref220}, not merely by being present \cite{ref219}. |
 
 **Must not claim:** travel or navigation results.
+
+### `ref221`: Zhang et al., CSCW 2024 (new)
+
+**Shows:** A mixed-methods study with 32 professional pilots in a realistic diversion scenario,
+preceded by a focus group with four pilots. It compared AI that gives an end-to-end recommendation
+with *continuous support* for the pilot's decision process. Continuous support helped pilots
+reason forward, beyond the system's limits, and made decisions faster when combined with a
+recommendation, though this forward support could be disrupted. Pilots' statements suggest the
+design goal shifts from giving recommendations to supporting quick information gathering.
+
+| Where | Claim (current text) | Action |
+|---|---|---|
+| Introduction (l. 32–50), problem and contribution | AirBorder turns scattered constraints into a feasible next action | Add after the contribution statement: "In aviation, AI support that helped pilots gather information throughout a diversion decision, rather than only recommending an outcome, supported forward reasoning and faster decisions when combined with a recommendation \cite{ref221}. AirBorder applies this to passengers: it shows the time budget, required steps and their consequences alongside the next action." |
+| Initial Design (l. 171 onward), "One journey, an inspectable next action" | The next action is shown with its time budget and steps | Can cite `ref221` for presenting decision information alongside, not instead of, the recommended action. |
+| Evaluation Plan, Hypotheses (H1) | Feasible next action after a gate change | Optional grounding for why H1 scores the traveler's chosen action rather than agreement with the app \cite{ref221}. Do not change H1. |
+
+**Must not claim:** passenger results; the participants were professional pilots in a
+diversion scenario.
 
 ## Other body citations (before `\appendix`)
 
