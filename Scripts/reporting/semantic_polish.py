@@ -103,18 +103,29 @@ def main(base, head, patch):
         raise ValueError("Proposed edits failed structural validation")
     changes = [{"original": old, "proposed": new} for old, new in zip(originals, revised)
                if old != new]
+    review = ask(
+        "Independently review the prose after the copyedit pass. Approve the patch only "
+        "if every revision preserves the exact substantive meaning, methodology, "
+        "uncertainty, evaluation status and claims, and the revised prose is clear. "
+        "If there were no edits, approve the unchanged wording for patch purposes. "
+        "Separately suggest any substantive improvements you can justify from these "
+        "paragraphs alone. Label these as suggestions and never rewrite the report "
+        "to make them. Return an empty list if you have no grounded suggestions.",
+        [{"original": old, "proposed": new} for old, new in zip(originals, revised)],
+        {"approved": {"type": "boolean"},
+         "suggestions": {"type": "array", "items": {"type": "string"}}},
+    )
+    Path(patch).with_suffix(".review.json").write_text(
+        json.dumps(review, indent=2) + "\n", encoding="utf-8"
+    )
+    if review["suggestions"]:
+        print("::warning::Semantic review raised substantive suggestions. See the review artifact.")
+    if not review["approved"]:
+        print("::warning::Semantic review withheld the patch because it could change meaning.")
+        return
     if not changes:
         print("No editorial changes proposed.")
         return
-    review = ask(
-        "Independently compare the original and proposed ACM HCI report prose. Approve only "
-        "if every revision retains the exact substantive meaning, methodology, uncertainty, "
-        "evaluation status and claims, and the revised prose is clear and grammatical. "
-        "If uncertain about any change, reject the patch.",
-        changes, {"approved": {"type": "boolean"}},
-    )
-    if not review["approved"]:
-        raise ValueError("Semantic review rejected the patch")
     updated = after
     for match, new in reversed(list(zip(matches, revised))):
         updated = updated[:match.start()] + new + updated[match.end():]
