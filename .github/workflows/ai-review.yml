@@ -1,0 +1,59 @@
+name: AI review evidence
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+
+permissions:
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: AI review completed
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Verify a Codex receipt for the current head
+        run: |
+          set -euo pipefail
+          short="${HEAD_SHA:0:9}"
+          for attempt in {1..45}; do
+            reviews=$(gh api --paginate "repos/$GH_REPO/pulls/$PR/reviews" --slurp)
+            comments=$(gh api --paginate "repos/$GH_REPO/issues/$PR/comments" --slurp)
+            if jq -e --arg head "$HEAD_SHA" '
+              any(.[][]; .user.id == 199175422 and .commit_id == $head and
+                .state != "DISMISSED" and
+                ((.body // "") | startswith("<!-- codex-review-receipt:v1 -->")))
+            ' <<< "$reviews" >/dev/null; then
+              if jq -e 'any(.pull_request.labels[]; .name == "ai-review-follow-up-overridden")' "$GITHUB_EVENT_PATH" >/dev/null; then
+                echo "A maintainer waived the AI findings reminder for this pull request." >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "::warning::Codex left findings on this revision. Review the PR feedback before merging."
+                echo "Codex left findings. Review the pull request feedback. A maintainer can waive this reminder with the ai-review-follow-up-overridden label." >> "$GITHUB_STEP_SUMMARY"
+              fi
+              exit 0
+            fi
+            if jq -e --arg sha "$short" '
+              any(.[][]; .user.id == 199175422 and
+                ((.body // "") | startswith("<!-- codex-review-receipt:v1 -->")) and
+                ((.body // "") | contains("**Reviewed commit:** `" + $sha)) and
+                ((.body // "") | contains("Didn\u0027t find any major issues")))
+            ' <<< "$comments" >/dev/null; then
+              echo "Codex completed a review of this revision." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::No Codex review receipt for this revision. Request @codex review and rerun this job."
+          exit 1
