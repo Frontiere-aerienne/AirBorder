@@ -71,6 +71,7 @@ struct FlightView: View {
         let gate = store.outbound
         let untilClose = (gate.gateCloses ?? SampleJourney.gateArrivalTarget) - store.now
         let firstLeave = schedule.stops.first.map { $0.start - $0.walkFromPrevious } ?? schedule.leave
+        let gateAlert = store.alertPresentation(for: .gateChange)
         return VStack(alignment: .leading, spacing: 16) {
             Text("Your plan").outfitText(30, .bold).tracking(-1).accessibilityAddTraits(.isHeader)
             HStack(spacing: 6) {
@@ -82,7 +83,7 @@ struct FlightView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(durationText(untilClose)) before Gate \(store.gate) closes.")
             Button {
-                if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
+                if let gateAlert, !store.acknowledge(gateAlert) { return }
                 if let last = schedule.stops.last {
                     open(.returnToGate(last.stop.id))
                 } else if store.t2VisitPlanned {

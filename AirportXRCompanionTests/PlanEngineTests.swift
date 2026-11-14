@@ -1,6 +1,21 @@
 @testable import AirBorder
 import XCTest
 
+// PROCEDURAL: SplitMix64 keeps the test sequence stable across toolchain runs.
+private struct GateTestRandom: RandomNumberGenerator {
+    var state: UInt64
+
+    init(seed: UInt64) { state = seed }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+        value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+        return value ^ (value >> 31)
+    }
+}
+
 final class PlanEngineTests: XCTestCase {
     private let both = Plan(stops: [.cafe, .anaLounge])
 
@@ -427,6 +442,7 @@ final class JourneySituationStoreTests: XCTestCase {
         store.setNow(ClockTime(17, 17))
         XCTAssertEqual(store.primaryCondition, .arrivesAfterClosure(arrival: ClockTime(17, 29), minutesLate: 4))
         XCTAssertNil(store.alertToPresent)
+        XCTAssertFalse(store.acknowledge(alert), "A tap during dismissal cannot open the superseded route")
         XCTAssertEqual(Destination.showingArrivalAfterClosure(on: openPath), [])
         XCTAssertEqual(Destination.showingArrivalAfterClosure(on: [.journeyDetails]), [.journeyDetails])
     }
@@ -456,6 +472,52 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertNil(store.primaryCondition)
         store.add(.cafe)
         XCTAssertEqual(store.conditionInputs.leaveBy, store.schedule.leave)
+    }
+
+    // PROCEDURAL: vary the gate feed sequence with a seed that can be passed to a new test run.
+    func testRandomizedGateFeedPreservesChecklistAndRejectsStaleActions() throws {
+        let seed = try ProcessInfo.processInfo.environment["AIRBORDER_GATE_TEST_SEED"]
+            .map { try XCTUnwrap(UInt64($0), "AIRBORDER_GATE_TEST_SEED must be an unsigned integer") }
+            ?? UInt64.random(in: UInt64.min...UInt64.max)
+        print("AIRBORDER_GATE_TEST_SEED=\(seed)")
+        var random = GateTestRandom(seed: seed)
+        let suite = "JourneySituationStoreTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = makeStore(defaults: defaults)
+        store.confirmStep("security")
+        store.skipStep("passport")
+        let earlierSteps = store.checklist.steps.dropLast()
+        var expectedGate = "105"
+        let candidates: [String?] = [nil, "", "105", "108A", "108B", "110"]
+
+        for step in 0..<72 {
+            let report = candidates[Int(random.next() % UInt64(candidates.count))]
+            let now = ClockTime(17, 2 + Int(random.next() % 20))
+            store.setNow(now)
+            let previous = store.gateAssignment
+            store.confirmStep("gate", displayedGate: previous)
+            store.receive(FlightFeed(gate: report, receivedAt: now))
+            let context = "seed=\(seed), step=\(step), prior=\(expectedGate), report=\(String(describing: report)), time=\(now)"
+            if let report, !report.isEmpty, report != expectedGate {
+                XCTAssertTrue(store.conditions.contains(.gateChanged(from: expectedGate, to: report)), context)
+                expectedGate = report
+                store.confirmStep("gate", displayedGate: previous)
+                XCTAssertFalse(store.conditionInputs.atGate, context)
+                XCTAssertEqual(store.checklist.current?.id, "gate", context)
+                let spare = (17 * 60 + 25) - (now.minutes + 12)
+                if spare < 0 {
+                    XCTAssertEqual(store.primaryCondition, .arrivesAfterClosure(arrival: now + 12, minutesLate: -spare), context)
+                } else if spare < 10 {
+                    XCTAssertEqual(store.primaryCondition, .boardingAtRisk(closesIn: spare + 12, walk: 12), context)
+                }
+            } else {
+                XCTAssertEqual(store.gateAssignment, previous, context)
+                XCTAssertTrue(store.conditionInputs.atGate, context)
+            }
+            XCTAssertEqual(store.gate, expectedGate, context)
+            XCTAssertEqual(store.checklist.steps.dropLast(), earlierSteps, context)
+        }
     }
 
     func testChoosingNH6StartsTheNaritaTransfer() {

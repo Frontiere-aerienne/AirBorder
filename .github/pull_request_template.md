@@ -5,6 +5,8 @@ Explain the user-visible result and link the relevant Figma frame and acceptance
 ## Validation evidence
 
 - Required iOS build/unit/UI and HCI engine/backend/browser checks:
+- New or changed behavior and deterministic checks. For a defect, include the regression's before/after result:
+- Randomized test seed and replay command, when applicable:
 - Preview (approved): <!-- link to the preview image (imagegen or another current image tool) the user approved before implementation; required when iOS screens, components, assets or styles change -->
 - Screenshots: <!-- links or images of the affected screens and states after the change, including narrow layouts -->
 - Recordings, if any:

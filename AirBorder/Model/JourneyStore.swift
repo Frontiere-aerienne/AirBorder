@@ -242,7 +242,7 @@ final class JourneyStore: ObservableObject {
             let issued = kind == .gateChange ? (feed?.receivedAt ?? now) : now
             let record = AlertRecord(issuedAt: issued)
             alerts[kind] = record
-            newest = AlertPresentation(kind: kind, recordID: record.id)
+            newest = alertPresentation(for: kind)
         }
         if case .arrivesAfterClosure = active.first {
             // Leave the after-closure warning and assistance visible on Flight.
@@ -253,12 +253,25 @@ final class JourneyStore: ObservableObject {
     }
 
     func alertPresentation(for kind: AlertKind) -> AlertPresentation? {
-        alerts[kind].map { AlertPresentation(kind: kind, recordID: $0.id) }
+        alerts[kind].map {
+            AlertPresentation(kind: kind, recordID: $0.id, gate: gate, previousGate: previousGate, issuedAt: $0.issuedAt)
+        }
+    }
+
+    private func isCurrent(_ presentation: AlertPresentation) -> Bool {
+        alertPresentation(for: presentation.kind) == presentation &&
+            conditions.contains { $0.alertKind == presentation.kind } &&
+            (presentation.kind != .gateChange || !isAfterClosure)
+    }
+
+    private var isAfterClosure: Bool {
+        if case .arrivesAfterClosure = primaryCondition { return true }
+        return false
     }
 
     func alertSeen(_ presentation: AlertPresentation) {
         let kind = presentation.kind
-        guard var record = alerts[kind], record.id == presentation.recordID, record.firstSeen == nil else { return }
+        guard isCurrent(presentation), var record = alerts[kind], record.firstSeen == nil else { return }
         record.firstSeen = Date()
         alerts[kind] = record
     }
@@ -270,7 +283,7 @@ final class JourneyStore: ObservableObject {
 
     @discardableResult
     func acknowledge(_ presentation: AlertPresentation) -> Bool {
-        guard alertPresentation(for: presentation.kind) == presentation else { return false }
+        guard isCurrent(presentation) else { return false }
         acknowledge(presentation.kind)
         return true
     }

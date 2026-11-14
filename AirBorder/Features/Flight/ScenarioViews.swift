@@ -153,11 +153,10 @@ struct AlertsView: View {
     private var kind: AlertKind { presentation.kind }
 
     var body: some View {
-        let record = store.alerts[kind]
         VStack(alignment: .leading, spacing: 16) {
             BackButton { dismiss() }.offset(x: -9)
             Text("Alerts").outfitText(30, .bold).accessibilityAddTraits(.isHeader)
-            Text(stamp(record)).outfitText(13, .regular, AB.muted)
+            Text(stamp).outfitText(13, .regular, AB.muted)
             card
             HStack {
                 Spacer()
@@ -185,7 +184,9 @@ struct AlertsView: View {
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
-            reminder = record?.isReminder(at: Date()) ?? false
+            if store.alertPresentation(for: kind) == presentation {
+                reminder = store.alerts[kind]?.isReminder(at: Date()) ?? false
+            }
             store.alertSeen(presentation)
         }
     }
@@ -198,7 +199,7 @@ struct AlertsView: View {
             }
             Text(headline).outfitText(22, .bold, AB.ice)
             HStack(spacing: 8) {
-                GateSign(gate: store.gate)
+                GateSign(gate: presentation.gate)
                 Text("closes").outfitText(15, .regular, AB.ice.opacity(0.75))
                 Text(store.outbound.gateCloses?.description ?? "–").outfitText(20, .semibold, AB.ice)
                     .padding(.horizontal, 10)
@@ -237,8 +238,8 @@ struct AlertsView: View {
 
     private var headline: String {
         switch kind {
-        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.previousGate) → \(store.gate)"
-        case .returnNow: "Time to return to Gate \(store.gate)"
+        case .gateChange: reminder ? "Gate changed to \(presentation.gate)" : "Gate \(presentation.previousGate) → \(presentation.gate)"
+        case .returnNow: "Time to return to Gate \(presentation.gate)"
         case .boardingAtRisk: "Boarding time is tight"
         }
     }
@@ -250,8 +251,8 @@ struct AlertsView: View {
     }
 
     /// "15 Oct, 12:00": the flight date and when the situation began.
-    private func stamp(_ record: AlertRecord?) -> String {
-        "\(TripDate.format(store.outbound.date, "d MMM")), \((record?.issuedAt ?? store.now).description)"
+    private var stamp: String {
+        "\(TripDate.format(store.outbound.date, "d MMM")), \(presentation.issuedAt.description)"
     }
 }
 
@@ -319,8 +320,9 @@ struct ScenarioPlanSection: View {
     }
 
     private func routeButton(color: Color) -> some View {
-        Button {
-            if let kind = condition.alertKind { store.acknowledge(kind) }
+        let alert = condition.alertKind.flatMap { store.alertPresentation(for: $0) }
+        return Button {
+            if let alert, !store.acknowledge(alert) { return }
             store.tab = .route
         } label: {
             HStack(spacing: 8) {

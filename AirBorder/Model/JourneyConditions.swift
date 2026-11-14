@@ -55,6 +55,9 @@ enum AlertKind: String, Codable, Hashable, CaseIterable {
 struct AlertPresentation: Hashable {
     let kind: AlertKind
     let recordID: UUID?
+    let gate: String
+    let previousGate: String
+    let issuedAt: ClockTime
 }
 
 struct ConditionInputs {
