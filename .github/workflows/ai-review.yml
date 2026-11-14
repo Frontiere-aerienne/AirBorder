@@ -27,13 +27,12 @@ jobs:
       - name: Verify a Codex receipt for the current head
         run: |
           set -euo pipefail
-          short="${HEAD_SHA:0:9}"
           for attempt in {1..45}; do
             reviews=$(gh api --paginate "repos/$GH_REPO/pulls/$PR/reviews" --slurp)
             comments=$(gh api --paginate "repos/$GH_REPO/issues/$PR/comments" --slurp)
             if jq -e --arg head "$HEAD_SHA" '
               any(.[][]; .user.id == 199175422 and .commit_id == $head and
-                .state != "DISMISSED" and
+                .state == "COMMENTED" and
                 ((.body // "") | startswith("<!-- codex-review-receipt:v1 -->")))
             ' <<< "$reviews" >/dev/null; then
               if jq -e 'any(.pull_request.labels[]; .name == "ai-review-follow-up-overridden")' "$GITHUB_EVENT_PATH" >/dev/null; then
@@ -44,10 +43,11 @@ jobs:
               fi
               exit 0
             fi
-            if jq -e --arg sha "$short" '
+            if jq -e --arg head "$HEAD_SHA" '
               any(.[][]; .user.id == 199175422 and
                 ((.body // "") | startswith("<!-- codex-review-receipt:v1 -->")) and
-                ((.body // "") | contains("**Reviewed commit:** `" + $sha)) and
+                ((.body // "") | test("\\*\\*Reviewed commit:\\*\\* `[0-9a-f]{9,40}`")) and
+                (.body | capture("\\*\\*Reviewed commit:\\*\\* `(?<sha>[0-9a-f]{9,40})`").sha as $sha | $head | startswith($sha)) and
                 ((.body // "") | contains("Didn\u0027t find any major issues")))
             ' <<< "$comments" >/dev/null; then
               echo "Codex completed a review of this revision." >> "$GITHUB_STEP_SUMMARY"
