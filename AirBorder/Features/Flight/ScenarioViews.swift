@@ -118,7 +118,9 @@ struct TravelUpdateBanner: View {
         let route = ("Route", { store.tab = .route })
         let call = ("Call ANA", { if let url = ANAHelp.url { openURL(url) } })
         switch (condition, place) {
-        case (.gateChanged, .flight): return ("Alerts", { open(.alerts(.gateChange)) })
+        case (.gateChanged, .flight):
+            guard let alert = store.alertPresentation(for: .gateChange) else { return nil }
+            return ("Alerts", { open(.alerts(alert)) })
         case (.gateChanged, .details), (.gateChanged, .layover): return route
         case (.returnNow, .details), (.returnNow, .layover): return route
         case (.boardingAtRisk, .flight), (.boardingAtRisk, .route): return call
@@ -130,7 +132,9 @@ struct TravelUpdateBanner: View {
 
     private var tapAction: (() -> Void)? {
         guard place == .flight else { return nil }
-        if let kind = condition.alertKind { return { open(.alerts(kind)) } }
+        if let kind = condition.alertKind, let alert = store.alertPresentation(for: kind) {
+            return { open(.alerts(alert)) }
+        }
         if case .arrivesAfterClosure = condition { return { showsAssistance = true } }
         return nil
     }
@@ -143,20 +147,21 @@ struct AlertsView: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    let kind: AlertKind
+    let presentation: AlertPresentation
     @State private var reminder = false
 
+    private var kind: AlertKind { presentation.kind }
+
     var body: some View {
-        let record = store.alerts[kind]
         VStack(alignment: .leading, spacing: 16) {
             BackButton { dismiss() }.offset(x: -9)
             Text("Alerts").outfitText(30, .bold).accessibilityAddTraits(.isHeader)
-            Text(stamp(record)).outfitText(13, .regular, AB.muted)
+            Text(stamp).outfitText(13, .regular, AB.muted)
             card
             HStack {
                 Spacer()
                 Button {
-                    store.acknowledge(kind)
+                    guard store.acknowledge(presentation) else { return }
                     dismiss()
                     store.tab = .route
                 } label: {
@@ -179,8 +184,10 @@ struct AlertsView: View {
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
-            reminder = record?.isReminder(at: Date()) ?? false
-            store.alertSeen(kind)
+            if store.alertPresentation(for: kind) == presentation {
+                reminder = store.alerts[kind]?.isReminder(at: Date()) ?? false
+            }
+            store.alertSeen(presentation)
         }
     }
 
@@ -192,9 +199,9 @@ struct AlertsView: View {
             }
             Text(headline).outfitText(22, .bold, AB.ice)
             HStack(spacing: 8) {
-                GateSign(gate: store.gate)
+                GateSign(gate: presentation.gate)
                 Text("closes").outfitText(15, .regular, AB.ice.opacity(0.75))
-                Text(store.outbound.gateCloses?.description ?? "–").outfitText(20, .semibold, AB.ice)
+                Text(presentation.closes?.description ?? "–").outfitText(20, .semibold, AB.ice)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 2)
                     .background(AB.ice.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
@@ -231,21 +238,23 @@ struct AlertsView: View {
 
     private var headline: String {
         switch kind {
-        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.outbound.departureGate) → \(store.gate)"
-        case .returnNow: "Time to return to Gate \(store.gate)"
+        case .gateChange: reminder ? "Gate changed to \(presentation.gate)" : "Gate \(presentation.previousGate) → \(presentation.gate)"
+        case .returnNow: "Time to return to Gate \(presentation.gate)"
         case .boardingAtRisk: "Boarding time is tight"
         }
     }
 
     private var walkText: String {
         let walk = store.gateWalkMinutes
-        guard kind == .boardingAtRisk, let closes = store.outbound.gateCloses else { return "\(walk) min walk" }
-        return "\(walk) min walk, \(closes - (store.now + walk)) min spare"
+        guard kind == .boardingAtRisk, let closes = presentation.closes else { return "\(walk) min walk" }
+        let spare = closes - (store.now + walk)
+        guard spare >= 0 else { return "\(walk) min walk" }
+        return "\(walk) min walk, \(spare) min spare"
     }
 
     /// "15 Oct, 12:00": the flight date and when the situation began.
-    private func stamp(_ record: AlertRecord?) -> String {
-        "\(TripDate.format(store.outbound.date, "d MMM")), \((record?.issuedAt ?? store.now).description)"
+    private var stamp: String {
+        "\(TripDate.format(presentation.flightDate, "d MMM")), \(presentation.issuedAt.description)"
     }
 }
 
@@ -313,8 +322,9 @@ struct ScenarioPlanSection: View {
     }
 
     private func routeButton(color: Color) -> some View {
-        Button {
-            if let kind = condition.alertKind { store.acknowledge(kind) }
+        let alert = condition.alertKind.flatMap { store.alertPresentation(for: $0) }
+        return Button {
+            if let alert, !store.acknowledge(alert) { return }
             store.tab = .route
         } label: {
             HStack(spacing: 8) {

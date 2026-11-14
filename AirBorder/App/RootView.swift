@@ -11,7 +11,23 @@ enum Destination: Hashable {
     case choosePDF, importWallet, connectGmail, connectCalendar, reviewImported(ParsedTicket), flightUpdated, reviewFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
     case language, about, help, editProfile, tutorial, routeOptions
-    case alerts(AlertKind)
+    case alerts(AlertPresentation)
+
+    // Replace the active alert in place so Back returns to the original screen.
+    static func presentingAlert(_ alert: AlertPresentation, on path: [Self]) -> [Self] {
+        withoutActiveAlert(in: path) + [.alerts(alert)]
+    }
+
+    static func withoutActiveAlert(in path: [Self]) -> [Self] {
+        if case .alerts = path.last { return Array(path.dropLast()) }
+        return path
+    }
+
+    static func showingArrivalAfterClosure(on path: [Self]) -> [Self] {
+        // The Flight root exposes the after-closure warning and boarding assistance together.
+        if case .alerts = path.last { return [] }
+        return path
+    }
 }
 
 struct RootView: View {
@@ -54,6 +70,7 @@ struct RootView: View {
             paths[store.tab] = path
         })
         .onChange(of: store.alertToPresent) { presentAlert() }
+        .onChange(of: store.primaryCondition) { dismissSupersededAlert() }
         .onAppear { presentAlert() }
         .onChange(of: store.onboardingSeen) { presentAlert() }
         .fullScreenCover(isPresented: Binding(get: { !store.onboardingSeen }, set: { _ in })) {
@@ -63,12 +80,15 @@ struct RootView: View {
 
     /// A new alert opens the Alerts screen on the Flight tab, as the Figma gate update does.
     private func presentAlert() {
-        guard let kind = store.alertToPresent, store.onboardingSeen else { return }
+        guard let alert = store.alertToPresent, store.onboardingSeen else { return }
         store.alertToPresent = nil
         store.tab = .flight
-        if paths[.flight]?.last != .alerts(kind) {
-            paths[.flight, default: []].append(.alerts(kind))
-        }
+        paths[.flight] = Destination.presentingAlert(alert, on: paths[.flight, default: []])
+    }
+
+    private func dismissSupersededAlert() {
+        guard case .arrivesAfterClosure = store.primaryCondition else { return }
+        paths[.flight] = Destination.showingArrivalAfterClosure(on: paths[.flight, default: []])
     }
 
     /// The tab bar shows on the four tab roots and on Journey details, as in Figma.
@@ -153,7 +173,7 @@ struct RootView: View {
         case .editProfile: EditProfileView()
         case .tutorial: TutorialReplay()
         case .routeOptions: RouteOptionsView()
-        case let .alerts(kind): AlertsView(kind: kind)
+        case let .alerts(alert): AlertsView(presentation: alert).id(alert)
         }
     }
 }

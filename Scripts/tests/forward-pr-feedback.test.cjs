@@ -15,3 +15,11 @@ test('ordinary issues and unrelated URLs cannot trigger forwarding',async()=>{
  const f=fixture();delete f.context.payload.issue.pull_request;await forward(f);assert.equal(f.posted.length,0);
  const g=fixture();g.context.payload.comment.html_url='https://other.example/pull/1';await assert.rejects(()=>forward(g),/Unexpected feedback URL/);assert.equal(g.posted.length,0);
 });
+test('the authorized feedback relay asks for reproducible regression drafts without repository edits', async () => {
+  const bug = fixture({body: 'At 17:10, changing Gate 105 to 108A leaves the gate step completed.'});
+  await forward(bug);
+  assert.match(bug.posted[0].body, /draft a deterministic regression in your reply/);
+  assert.match(bug.posted[0].body, /fail before the repair and pass after it/);
+  assert.match(bug.posted[0].body, /leave the case pending/);
+  assert.match(bug.posted[0].body, /do not modify files, push changes, approve, or merge/);
+});

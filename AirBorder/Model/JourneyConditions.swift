@@ -9,6 +9,8 @@ struct FlightFeed: Codable, Equatable {
     var gate: String?
     /// When the update was received, in airport local time.
     var receivedAt: ClockTime
+    /// Previous displayed assignment for the latest actual gate change.
+    var previousGate: String? = nil
 }
 
 /// A situation the traveller needs to know about. Each one appears only while its condition holds.
@@ -17,20 +19,20 @@ enum JourneyCondition: Hashable {
     case boardingAtRisk(closesIn: Int, walk: Int)
     /// Past the time to leave for the gate, with 10 minutes or more to spare.
     case returnNow(closesIn: Int, walk: Int)
-    /// The feed reports a different gate from the one on the ticket.
+    /// The departure gate differs from the previous assignment.
     case gateChanged(from: String, to: String)
     /// The walk would end after the gate closes.
     case arrivesAfterClosure(arrival: ClockTime, minutesLate: Int)
     /// The next flight leaves from another airport (Haneda → Narita).
     case airportTransfer
 
-    /// Most urgent first: at risk, return now, gate change, arrival after closure, airport transfer.
+    /// Timing constraints take priority over gate information.
     var priority: Int {
         switch self {
-        case .boardingAtRisk: 0
-        case .returnNow: 1
-        case .gateChanged: 2
-        case .arrivesAfterClosure: 3
+        case .arrivesAfterClosure: 0
+        case .boardingAtRisk: 1
+        case .returnNow: 2
+        case .gateChanged: 3
         case .airportTransfer: 4
         }
     }
@@ -48,6 +50,16 @@ enum JourneyCondition: Hashable {
 /// Alerts that open the Figma "Alerts" screen.
 enum AlertKind: String, Codable, Hashable, CaseIterable {
     case gateChange, returnNow, boardingAtRisk
+}
+
+struct AlertPresentation: Hashable {
+    let kind: AlertKind
+    let recordID: UUID?
+    let gate: String
+    let previousGate: String
+    let issuedAt: ClockTime
+    let closes: ClockTime?
+    let flightDate: String
 }
 
 struct ConditionInputs {
@@ -72,8 +84,9 @@ enum JourneyConditions {
     static func evaluate(_ input: ConditionInputs) -> [JourneyCondition] {
         if input.departsFromAnotherAirport { return [.airportTransfer] }
         var found: [JourneyCondition] = []
-        if let gate = input.feed?.gate, !gate.isEmpty, gate != input.ticketGate {
-            found.append(.gateChanged(from: input.ticketGate, to: gate))
+        let previousGate = input.feed?.previousGate ?? input.ticketGate
+        if let gate = input.feed?.gate, !gate.isEmpty, gate != previousGate {
+            found.append(.gateChanged(from: previousGate, to: gate))
         }
         if !input.atGate, let closes = input.gateCloses {
             let arrival = input.now + input.walkToGate
@@ -93,6 +106,8 @@ enum JourneyConditions {
 
 /// Whether the traveller has seen and acted on an alert.
 struct AlertRecord: Codable, Equatable {
+    /// Optional so alerts saved before this field was introduced can still be restored.
+    var id: UUID? = UUID()
     /// Airport time the situation began, shown as "15 Oct, 12:00".
     var issuedAt: ClockTime
     /// When the Alerts screen first showed it.

@@ -93,7 +93,8 @@ final class JourneyStore: ObservableObject {
     /// Alerts the traveller has been shown, keyed by kind.
     @Published private(set) var alerts: [AlertKind: AlertRecord] { didSet { persist() } }
     /// Set when a new alert should open the Alerts screen.
-    @Published var alertToPresent: AlertKind?
+    @Published var alertToPresent: AlertPresentation?
+    private var gateAssignmentRevision = UUID()
 
     /// Seeded queue report for Curacion Cafe in the sample journey: the wait is now about 18 min.
     let cafeQueueUpdate = QueueUpdate(stopID: .cafe, waitMinutes: 18)
@@ -126,6 +127,13 @@ final class JourneyStore: ObservableObject {
         feed = saved?.feed
         alerts = saved?.alerts ?? [:]
         routeChoice = (saved?.stepFreeRoutes ?? false) ? .stepFree : .direct
+        var restoredChecklist = checklist
+        restoredChecklist.reconcileGate(gate)
+        if restoredChecklist != checklist {
+            // Previous saves may contain a gate checkmark with no gate identifier.
+            checklist = restoredChecklist
+            clearGateTimingAlerts()
+        }
         refreshSuggestion()
     }
 
@@ -146,6 +154,17 @@ final class JourneyStore: ObservableObject {
         return outbound.departureGate
     }
 
+    var previousGate: String { feed?.previousGate ?? outbound.departureGate }
+
+    struct GateAssignment: Equatable {
+        let code: String
+        let revision: UUID
+    }
+
+    var gateAssignment: GateAssignment {
+        GateAssignment(code: gate, revision: gateAssignmentRevision)
+    }
+
     var conditionInputs: ConditionInputs {
         let schedule = schedule
         let leave = schedule.stops.isEmpty ? SampleJourney.gateArrivalTarget - gateWalkMinutes : schedule.leave
@@ -156,7 +175,7 @@ final class JourneyStore: ObservableObject {
             gateCloses: outbound.gateCloses,
             walkToGate: gateWalkMinutes,
             leaveBy: leave,
-            atGate: checklist.steps.first { $0.id == "gate" }?.state == .confirmed,
+            atGate: checklist.confirmedGate == gate,
             departsFromAnotherAirport: isAirportTransfer
         )
     }
@@ -173,6 +192,14 @@ final class JourneyStore: ObservableObject {
         }
     }
 
+    func canOpenPlanRoute(for assignment: GateAssignment) -> Bool {
+        assignment == gateAssignment && !isAirportTransfer && !hasTimingSituation && !gateHasClosed
+    }
+
+    private var gateHasClosed: Bool {
+        outbound.gateCloses.map { now >= $0 } ?? false
+    }
+
     /// "Boarding soon" from 30 minutes before boarding.
     var flightStatus: String { now >= SampleJourney.boarding - 30 ? "Boarding soon" : outbound.status }
 
@@ -184,8 +211,24 @@ final class JourneyStore: ObservableObject {
 
     /// A departure-flight report arrived from the feed.
     func receive(_ report: FlightFeed) {
-        feed = report
+        // A report without a gate leaves the last known gate and its observation time intact.
+        guard let reportedGate = report.gate, !reportedGate.isEmpty else { return }
+        let oldGate = gate
+        guard reportedGate != oldGate else {
+            if feed == nil { feed = report }
+            return
+        }
+        checklist.reconcileGate(reportedGate)
+        gateAssignmentRevision = UUID()
+        clearGateTimingAlerts()
+        alerts.removeValue(forKey: .gateChange)
+        feed = FlightFeed(gate: reportedGate, receivedAt: report.receivedAt, previousGate: oldGate)
         refreshAlerts()
+    }
+
+    private func clearGateTimingAlerts() {
+        alerts.removeValue(forKey: .returnNow)
+        alerts.removeValue(forKey: .boardingAtRisk)
     }
 
     /// The sample journey's gate update: Gate 108A, reported a short while after the app opens.
@@ -200,18 +243,44 @@ final class JourneyStore: ObservableObject {
 
     /// Records alerts for situations that just began and asks to show the most urgent new one.
     func refreshAlerts() {
-        var newest: AlertKind?
-        for condition in conditions.reversed() {
+        let active = conditions
+        var newest: AlertPresentation?
+        for condition in active.reversed() {
             guard let kind = condition.alertKind, alerts[kind] == nil else { continue }
             let issued = kind == .gateChange ? (feed?.receivedAt ?? now) : now
-            alerts[kind] = AlertRecord(issuedAt: issued)
-            newest = kind
+            let record = AlertRecord(issuedAt: issued)
+            alerts[kind] = record
+            newest = alertPresentation(for: kind)
         }
-        if let newest { alertToPresent = newest }
+        if case .arrivesAfterClosure = active.first {
+            // Leave the after-closure warning and assistance visible on Flight.
+            alertToPresent = nil
+        } else if let newest {
+            alertToPresent = newest
+        }
     }
 
-    func alertSeen(_ kind: AlertKind) {
-        guard var record = alerts[kind], record.firstSeen == nil else { return }
+    func alertPresentation(for kind: AlertKind) -> AlertPresentation? {
+        alerts[kind].map {
+            AlertPresentation(kind: kind, recordID: $0.id, gate: gate, previousGate: previousGate,
+                              issuedAt: $0.issuedAt, closes: outbound.gateCloses, flightDate: outbound.date)
+        }
+    }
+
+    private func isCurrent(_ presentation: AlertPresentation) -> Bool {
+        alertPresentation(for: presentation.kind) == presentation &&
+            conditions.contains { $0.alertKind == presentation.kind } &&
+            !gateHasClosed && !isAfterClosure
+    }
+
+    private var isAfterClosure: Bool {
+        if case .arrivesAfterClosure = primaryCondition { return true }
+        return false
+    }
+
+    func alertSeen(_ presentation: AlertPresentation) {
+        let kind = presentation.kind
+        guard isCurrent(presentation), var record = alerts[kind], record.firstSeen == nil else { return }
         record.firstSeen = Date()
         alerts[kind] = record
     }
@@ -219,6 +288,13 @@ final class JourneyStore: ObservableObject {
     /// "Heading to the gate": the traveller acted on the alert.
     func acknowledge(_ kind: AlertKind) {
         alerts[kind]?.acknowledged = true
+    }
+
+    @discardableResult
+    func acknowledge(_ presentation: AlertPresentation) -> Bool {
+        guard isCurrent(presentation) else { return false }
+        acknowledge(presentation.kind)
+        return true
     }
 
     // MARK: Walking
@@ -334,13 +410,18 @@ final class JourneyStore: ObservableObject {
 
     // MARK: Journey steps
 
-    func confirmStep(_ id: String) { checklist.confirm(id); refreshAlerts() }
+    func confirmStep(_ id: String, displayedGate: GateAssignment? = nil) {
+        guard id != "gate" || displayedGate == gateAssignment else { return }
+        checklist.confirm(id, departureGate: displayedGate?.code)
+        refreshAlerts()
+    }
     func skipStep(_ id: String) { checklist.skip(id) }
     func undoStep() { checklist.undo() }
 
     // MARK: Preferences
 
     func resetPreferences() {
+        gateAssignmentRevision = UUID()
         stepFreeRoutes = false
         baggagePreference = .taggedThrough
         plan = Plan()
@@ -360,6 +441,7 @@ final class JourneyStore: ObservableObject {
         let changedAirport = (flightDraft.number == "NH 6") != isAirportTransfer
         tripFlight = flightDraft
         if changedAirport {
+            gateAssignmentRevision = UUID()
             checklist = isAirportTransfer ? .narita : .haneda
             routeStep = 1
         }

@@ -53,6 +53,7 @@ At the start of implementation or after a handoff/context compaction, read the c
 
 - UI review checks (`.github/workflows/ui-review.yml`): **UI copy and frozen web** blocks new iOS copy tagged “Optional”, “if needed” or “if required” and changes to the frozen `Web/` app without the owner's `web-change-approved` label. **UI review gate** requires `Preview (approved):` and `Screenshots:` links in the PR description when iOS screens, components, assets or styles change, unless labeled `no-visual-change`. Failed iOS CI or UI review runs on PRs are queued on the **UI review queue** issue; handle them with `.github/ui-review/INSTRUCTIONS.md` (image-first preview and user approval before any visual fix).
 - Preserve native iOS build/unit/UI tests, backend contract/authentication tests, and browser integration/design checks. Never skip, delete, loosen assertions, blindly regenerate screenshots, or remove required checks to turn a failed PR green. Changes to workflows, tests, baselines, or these rules need explicit rationale and independent reviewer scrutiny.
+- Add deterministic checks for new or changed behavior at the lowest layer that can verify the outcome. For a reproducible bug report, capture the triggering state and expected outcome in a regression that fails before the repair and passes afterward. Use fixed inputs, clocks and controlled events where relevant. Add a UI or integration case when the defect depends on wiring or a screen transition. Document a reproducible fixture or the evidence still needed for reports that cannot yet be reproduced. Keep the resulting case in the existing CI suite.
 - Review the affected completed flows as well as the diff. Report uncovered requirements and residual risks honestly. Do not claim a clean review guarantees a bug-free app. Provider secrets remain server-side, protected endpoints retain authentication, and public endpoints accept only bounded non-sensitive inputs.
 
 ### Passenger-facing realism
@@ -85,6 +86,13 @@ rubric ❌ or any regression vs the base branch (`check_rubric.py --strict --bas
 Claude in Claude Code. It is advisory and makes no AI calls in CI.
 
 ## Review guidelines
+
+- For PRs that change a passenger-facing flow, Codex also applies
+  [the advisory design review](.github/ui-review/DESIGN-REVIEW.md) even when
+  CI passes. Flag a tested design that could still mislead a traveler. Name
+  the observed screen or source, plausible consequence, concrete revision,
+  and verification. Label missing evidence and distinguish a predicted
+  misunderstanding from an observed user outcome.
 
 Report rubric and consistency review is **Claude's job, run in Claude Code** (no API keys in
 CI). Merged changes are queued on the `report-review-queue` issue by

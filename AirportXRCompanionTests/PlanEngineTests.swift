@@ -1,6 +1,21 @@
 @testable import AirBorder
 import XCTest
 
+// PROCEDURAL: SplitMix64 keeps the test sequence stable across toolchain runs.
+private struct GateTestRandom: RandomNumberGenerator {
+    var state: UInt64
+
+    init(seed: UInt64) { state = seed }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+        value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+        return value ^ (value >> 31)
+    }
+}
+
 final class PlanEngineTests: XCTestCase {
     private let both = Plan(stops: [.cafe, .anaLounge])
 
@@ -79,30 +94,34 @@ final class JourneyChecklistTests: XCTestCase {
         let checklist = JourneyChecklist.haneda
         XCTAssertEqual(checklist.current?.title, "Security")
         XCTAssertEqual(checklist.next?.title, "Passport control")
-        XCTAssertEqual(checklist.status(of: checklist.steps[2]), "Now")
-        XCTAssertEqual(checklist.status(of: checklist.steps[3]), "Next")
+        XCTAssertEqual(checklist.status(of: checklist.steps[2]), "Current step")
+        XCTAssertEqual(checklist.status(of: checklist.steps[3]), "Upcoming")
     }
 
+    // PROCEDURAL: verify that reaching a checkpoint gates its skip action and that Undo restores it.
     func testConfirmSkipAndUndo() {
         var checklist = JourneyChecklist.haneda
         XCTAssertFalse(checklist.canConfirm("passport"), "Only the current step can be confirmed")
+        XCTAssertFalse(checklist.canSkip("passport"), "An upcoming step cannot be skipped")
         checklist.skip("passport")
-        XCTAssertEqual(checklist.next?.title, "Gate and boarding")
-        checklist.undo()
         XCTAssertEqual(checklist.next?.title, "Passport control")
         checklist.confirm("security")
         XCTAssertEqual(checklist.current?.title, "Passport control")
         XCTAssertTrue(checklist.canUndo("security"))
+        XCTAssertTrue(checklist.canSkip("passport"))
+        checklist.skip("passport")
+        XCTAssertEqual(checklist.current?.title, "Gate and boarding")
+        XCTAssertEqual(checklist.status(of: checklist.steps[3]), "Skipped")
         checklist.undo()
-        XCTAssertEqual(checklist.current?.title, "Security")
-        XCTAssertFalse(checklist.canSkip("security"))
+        XCTAssertEqual(checklist.current?.title, "Passport control")
+        XCTAssertFalse(JourneyChecklist.narita.canSkip("passport"), "Passport control remains required for the airport transfer")
     }
 
     func testCompletes() {
         var checklist = JourneyChecklist.haneda
         checklist.confirm("security")
         checklist.skip("passport")
-        checklist.confirm("gate")
+        checklist.confirm("gate", departureGate: "105")
         XCTAssertTrue(checklist.isComplete)
         XCTAssertNil(checklist.current)
     }
@@ -260,8 +279,7 @@ final class JourneyConditionTests: XCTestCase {
 
 @MainActor
 final class JourneySituationStoreTests: XCTestCase {
-    private func makeStore() -> JourneyStore {
-        let defaults = UserDefaults(suiteName: "JourneySituationStoreTests-\(UUID().uuidString)")!
+    private func makeStore(defaults: UserDefaults = UserDefaults(suiteName: "JourneySituationStoreTests-\(UUID().uuidString)")!) -> JourneyStore {
         return JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
     }
 
@@ -270,7 +288,7 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(store.gate, "105")
         store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0)))
         XCTAssertEqual(store.gate, "108A")
-        XCTAssertEqual(store.alertToPresent, .gateChange)
+        XCTAssertEqual(store.alertToPresent?.kind, .gateChange)
         XCTAssertEqual(store.alerts[.gateChange]?.issuedAt, ClockTime(12, 0))
         store.alertToPresent = nil
         store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 5)))
@@ -279,12 +297,259 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(store.alerts[.gateChange]?.acknowledged, true)
     }
 
+    // PROCEDURAL: reproduce the stale gate confirmation with a controlled feed update.
+    func testDifferentGateReopensGateStepAndRestoresBoardingRisk() {
+        let store = makeStore()
+        let updateTime = ClockTime(17, 10)
+        store.confirmStep("security")
+        store.confirmStep("passport")
+        let gate105 = store.gateAssignment
+        XCTAssertEqual(gate105.code, "105")
+        store.confirmStep("gate", displayedGate: gate105)
+        store.setNow(updateTime)
+
+        XCTAssertEqual(store.gate, "105")
+        XCTAssertTrue(store.checklist.isComplete)
+        XCTAssertTrue(store.conditionInputs.atGate)
+        XCTAssertFalse(store.hasTimingSituation)
+        let previousSteps = store.checklist.steps.dropLast()
+
+        store.receive(FlightFeed(gate: "108A", receivedAt: updateTime))
+
+        XCTAssertEqual(store.gate, "108A")
+        XCTAssertTrue(store.conditions.contains(.gateChanged(from: "105", to: "108A")))
+        XCTAssertEqual(store.checklist.steps.dropLast(), previousSteps)
+        XCTAssertEqual(store.checklist.current?.id, "gate", "The new gate needs its own confirmation")
+        XCTAssertFalse(store.conditionInputs.atGate, "Confirmation at 105 cannot confirm arrival at 108A")
+        XCTAssertEqual(store.primaryCondition, .boardingAtRisk(closesIn: 15, walk: 12))
+        XCTAssertEqual(store.alertToPresent?.kind, .boardingAtRisk)
+        XCTAssertFalse(store.checklist.canUndo("gate"))
+
+        store.confirmStep("gate", displayedGate: gate105)
+        XCTAssertEqual(store.checklist.current?.id, "gate", "A tap from the old gate row cannot confirm the new gate")
+        XCTAssertEqual(store.primaryCondition, .boardingAtRisk(closesIn: 15, walk: 12))
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
+        XCTAssertTrue(store.checklist.isComplete)
+        XCTAssertTrue(store.conditionInputs.atGate)
+        XCTAssertFalse(store.hasTimingSituation)
+    }
+
+    func testSameGateAndMissingGatePreservePersistedConfirmation() {
+        let defaults = UserDefaults(suiteName: "JourneySituationStoreTests-\(UUID().uuidString)")!
+        let store = makeStore(defaults: defaults)
+        store.confirmStep("security")
+        store.skipStep("passport")
+        let update = FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0))
+        store.receive(update)
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
+        store.acknowledge(.gateChange)
+
+        let restored = makeStore(defaults: defaults)
+        XCTAssertTrue(restored.conditionInputs.atGate)
+        restored.receive(update)
+        restored.receive(FlightFeed(gate: nil, receivedAt: ClockTime(12, 10)))
+        XCTAssertEqual(restored.feed, FlightFeed(gate: "108A", receivedAt: update.receivedAt, previousGate: "105"))
+        XCTAssertTrue(restored.checklist.isComplete)
+        XCTAssertTrue(restored.conditionInputs.atGate)
+
+        // An identifier with the same number and a different suffix is a different gate.
+        restored.receive(FlightFeed(gate: "108B", receivedAt: ClockTime(12, 15)))
+        XCTAssertEqual(restored.checklist.current?.id, "gate")
+        XCTAssertFalse(restored.conditionInputs.atGate)
+        XCTAssertEqual(restored.checklist.steps.first { $0.id == "passport" }?.state, .skipped)
+        XCTAssertEqual(restored.primaryCondition, .gateChanged(from: "108A", to: "108B"))
+        XCTAssertEqual(restored.alertToPresent?.kind, .gateChange)
+        XCTAssertEqual(restored.alerts[.gateChange]?.acknowledged, false)
+        XCTAssertEqual(makeStore(defaults: defaults).checklist.current?.id, "gate")
+        XCTAssertEqual(makeStore(defaults: defaults).primaryCondition, .gateChanged(from: "108A", to: "108B"))
+
+        restored.acknowledge(.gateChange)
+        restored.receive(FlightFeed(gate: "105", receivedAt: ClockTime(12, 20)))
+        XCTAssertEqual(restored.primaryCondition, .gateChanged(from: "108B", to: "105"))
+        XCTAssertEqual(restored.alerts[.gateChange]?.issuedAt, ClockTime(12, 20))
+        XCTAssertEqual(restored.alerts[.gateChange]?.acknowledged, false)
+    }
+
+    // PROCEDURAL: verify that an estimated missed boarding window takes priority over a gate-only alert.
+    func testLateReassignmentKeepsArrivalAfterClosureVisible() {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.confirmStep("passport")
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
+        let updateTime = ClockTime(17, 17)
+        store.setNow(updateTime)
+        store.receive(FlightFeed(gate: "108A", receivedAt: updateTime))
+
+        XCTAssertEqual(store.checklist.current?.id, "gate")
+        XCTAssertEqual(store.conditions, [
+            .arrivesAfterClosure(arrival: ClockTime(17, 29), minutesLate: 4),
+            .gateChanged(from: "105", to: "108A"),
+        ])
+        XCTAssertTrue(store.hasTimingSituation)
+        XCTAssertNil(store.alertToPresent)
+    }
+
+    func testLegacyGateConfirmationReopensWhenRestored() throws {
+        let defaults = UserDefaults(suiteName: "JourneySituationStoreTests-\(UUID().uuidString)")!
+        let store = makeStore(defaults: defaults)
+        store.confirmStep("security")
+        store.skipStep("passport")
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
+
+        // Simulate a save from the previous version by removing the new gate field.
+        let key = "journeyState.v1"
+        let saved = try XCTUnwrap(defaults.data(forKey: key))
+        var state = try XCTUnwrap(JSONSerialization.jsonObject(with: saved) as? [String: Any])
+        var checklist = try XCTUnwrap(state["checklist"] as? [String: Any])
+        XCTAssertEqual(checklist.removeValue(forKey: "confirmedGate") as? String, "105")
+        state["checklist"] = checklist
+        defaults.set(try JSONSerialization.data(withJSONObject: state), forKey: key)
+
+        let restored = makeStore(defaults: defaults)
+        XCTAssertEqual(restored.checklist.current?.id, "gate")
+        XCTAssertEqual(restored.checklist.steps.dropLast(), store.checklist.steps.dropLast())
+        XCTAssertFalse(restored.conditionInputs.atGate)
+        XCTAssertFalse(restored.checklist.canUndo("gate"))
+    }
+
+    // PROCEDURAL: hold the first alert open while the next assignment arrives.
+    func testRepeatGateUpdateReplacesOpenAlertAndRejectsStaleAcknowledgment() throws {
+        let store = makeStore()
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0)))
+        let first = try XCTUnwrap(store.alertToPresent)
+        let openPath: [Destination] = [.journeyDetails, .alerts(first)]
+        store.alertToPresent = nil
+        store.alertSeen(first)
+
+        store.receive(FlightFeed(gate: "108B", receivedAt: ClockTime(12, 0)))
+        let second = try XCTUnwrap(store.alertToPresent)
+        XCTAssertNotEqual(first, second, "Updates in the same minute still need distinct identities")
+        XCTAssertEqual(Destination.presentingAlert(second, on: openPath), [.journeyDetails, .alerts(second)])
+        XCTAssertFalse(store.acknowledge(first))
+        store.alertSeen(first)
+        XCTAssertNil(store.alerts[.gateChange]?.firstSeen)
+        XCTAssertEqual(store.alerts[.gateChange]?.acknowledged, false)
+        XCTAssertTrue(store.acknowledge(second))
+    }
+
+    func testAfterClosureClearsAnAlreadyOpenTimingAlert() throws {
+        let store = makeStore()
+        store.setNow(ClockTime(17, 10))
+        let alert = try XCTUnwrap(store.alertToPresent)
+        XCTAssertEqual(alert.kind, .boardingAtRisk)
+        let openPath: [Destination] = [.journeyDetails, .alerts(alert)]
+
+        store.setNow(ClockTime(17, 17))
+        XCTAssertEqual(store.primaryCondition, .arrivesAfterClosure(arrival: ClockTime(17, 29), minutesLate: 4))
+        XCTAssertNil(store.alertToPresent)
+        XCTAssertFalse(store.acknowledge(alert), "A tap during dismissal cannot open the superseded route")
+        XCTAssertEqual(Destination.showingArrivalAfterClosure(on: openPath), [])
+        XCTAssertEqual(Destination.showingArrivalAfterClosure(on: [.journeyDetails]), [.journeyDetails])
+    }
+
+    func testGateChangingAwayAndBackInvalidatesOldArrivalAction() {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.skipStep("passport")
+        let original = store.gateAssignment
+        store.setNow(ClockTime(17, 10))
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(17, 10)))
+        store.receive(FlightFeed(gate: original.code, receivedAt: ClockTime(17, 10)))
+        let current = store.gateAssignment
+
+        XCTAssertEqual(current.code, original.code)
+        XCTAssertNotEqual(current, original)
+        store.confirmStep("gate", displayedGate: original)
+        XCTAssertEqual(store.checklist.current?.id, "gate")
+        XCTAssertEqual(store.primaryCondition, .boardingAtRisk(closesIn: 15, walk: 12))
+        store.confirmStep("gate", displayedGate: current)
+        XCTAssertTrue(store.conditionInputs.atGate)
+    }
+
+    func testPlanRouteFromOldGateCannotOverrideBoardingAssistance() {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.skipStep("passport")
+        let original = store.gateAssignment
+        store.confirmStep("gate", displayedGate: original)
+        store.setNow(ClockTime(17, 17))
+        XCTAssertTrue(store.canOpenPlanRoute(for: original))
+        XCTAssertNil(store.alertPresentation(for: .gateChange))
+
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(17, 17)))
+        XCTAssertFalse(store.canOpenPlanRoute(for: original))
+        XCTAssertFalse(store.canOpenPlanRoute(for: store.gateAssignment))
+    }
+
+    func testGateAlertCannotOpenRouteAfterClosureEvenAfterArrival() throws {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.skipStep("passport")
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0)))
+        let alert = try XCTUnwrap(store.alertToPresent)
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
+        store.setNow(ClockTime(17, 26))
+        XCTAssertTrue(store.conditionInputs.atGate)
+        XCTAssertFalse(store.acknowledge(alert))
+        XCTAssertEqual(store.alerts[.gateChange]?.acknowledged, false)
+        XCTAssertEqual(alert.gate, "108A")
+        XCTAssertEqual(alert.closes, ClockTime(17, 25))
+    }
+
     func testStopsMoveTheLeaveTimeForReturnNow() {
         let store = makeStore()
         store.setNow(ClockTime(16, 40))
         XCTAssertNil(store.primaryCondition)
         store.add(.cafe)
         XCTAssertEqual(store.conditionInputs.leaveBy, store.schedule.leave)
+    }
+
+    // PROCEDURAL: vary the gate feed sequence with a seed that can be passed to a new test run.
+    func testRandomizedGateFeedPreservesChecklistAndRejectsStaleActions() throws {
+        let seed = try ProcessInfo.processInfo.environment["AIRBORDER_GATE_TEST_SEED"]
+            .map { try XCTUnwrap(UInt64($0), "AIRBORDER_GATE_TEST_SEED must be an unsigned integer") }
+            ?? UInt64.random(in: UInt64.min...UInt64.max)
+        print("AIRBORDER_GATE_TEST_SEED=\(seed)")
+        var random = GateTestRandom(seed: seed)
+        let suite = "JourneySituationStoreTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = makeStore(defaults: defaults)
+        store.confirmStep("security")
+        store.skipStep("passport")
+        let earlierSteps = store.checklist.steps.dropLast()
+        var expectedGate = "105"
+        let candidates: [String?] = [nil, "", "105", "108A", "108B", "110"]
+
+        for step in 0..<72 {
+            let report = candidates[Int(random.next() % UInt64(candidates.count))]
+            let now = ClockTime(17, 2 + Int(random.next() % 20))
+            store.setNow(now)
+            let previous = store.gateAssignment
+            let previousAlert = store.alertPresentation(for: .gateChange)
+            store.confirmStep("gate", displayedGate: previous)
+            store.receive(FlightFeed(gate: report, receivedAt: now))
+            let context = "seed=\(seed), step=\(step), prior=\(expectedGate), report=\(String(describing: report)), time=\(now)"
+            if let report, !report.isEmpty, report != expectedGate {
+                if let previousAlert { XCTAssertFalse(store.acknowledge(previousAlert), context) }
+                XCTAssertTrue(store.conditions.contains(.gateChanged(from: expectedGate, to: report)), context)
+                expectedGate = report
+                store.confirmStep("gate", displayedGate: previous)
+                XCTAssertFalse(store.conditionInputs.atGate, context)
+                XCTAssertEqual(store.checklist.current?.id, "gate", context)
+                let spare = (17 * 60 + 25) - (now.minutes + 12)
+                if spare < 0 {
+                    XCTAssertEqual(store.primaryCondition, .arrivesAfterClosure(arrival: now + 12, minutesLate: -spare), context)
+                } else if spare < 10 {
+                    XCTAssertEqual(store.primaryCondition, .boardingAtRisk(closesIn: spare + 12, walk: 12), context)
+                }
+            } else {
+                XCTAssertEqual(store.gateAssignment, previous, context)
+                XCTAssertTrue(store.conditionInputs.atGate, context)
+            }
+            XCTAssertEqual(store.gate, expectedGate, context)
+            XCTAssertEqual(store.checklist.steps.dropLast(), earlierSteps, context)
+        }
     }
 
     func testChoosingNH6StartsTheNaritaTransfer() {

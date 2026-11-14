@@ -67,14 +67,17 @@ struct RouteView: View {
     }
 
     private var stepCard: some View {
-        RouteStepCard(step: $store.routeStep, texts: store.isAirportTransfer ? TransferRouteContent.steps : Self.steps(gate: store.gate)) {
+        let assignment = store.gateAssignment
+        let gateAlert = store.alertPresentation(for: .gateChange)
+        return RouteStepCard(step: $store.routeStep, texts: store.isAirportTransfer ? TransferRouteContent.steps : Self.steps(gate: assignment.code)) {
+            guard assignment == store.gateAssignment else { return }
             store.routeStep = 1
             mode = .map
             store.tab = .flight
             guard !store.isAirportTransfer else { return }
             let flight = store.outbound
-            if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
-            store.showToast(ToastMessage(text: "Arrived, Gate \(store.gate), \(flight.number), boarding \(SampleJourney.boarding)."))
+            if let gateAlert { store.acknowledge(gateAlert) }
+            store.showToast(ToastMessage(text: "Arrived, Gate \(assignment.code), \(flight.number), boarding \(SampleJourney.boarding)."))
         }
     }
 
