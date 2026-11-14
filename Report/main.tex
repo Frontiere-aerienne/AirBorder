@@ -299,23 +299,6 @@ R1 and R2 & q764, map expansion & Both selected camera rather than the dedicated
 
 \subsection{From interview evidence to implementation decisions}
 
-\begin{table*}[t]\footnotesize
-\begin{tabular}{@{}p{.27\linewidth}p{.31\linewidth}p{.34\linewidth}@{}}
-\toprule
-Reported evidence & Design / implementation response & Evaluation question\\\midrule
-Both: leave-by, route and change priorities & Persistent next action; shared deadline and change trace & Can travelers identify what changed and when to leave?\\[4pt]
-R1: lost activity time; R2: rest/work and commitments & Editable stops; preparation, packing and return allowances & Can they revise an activity without violating the target?\\[4pt]
-R1 map-first; R2 camera-first; expansion-action mismatch & Remembered view; explicit map and updated-route controls & Can they find controls independently of preferred view?\\[4pt]
-R2: outdated advice, missed constraints; document-check priority & Source age; correctable fields; deterministic access/time checks & Can they distinguish confirmed, stale and unresolved advice?\\[4pt]
-R2: effort moving chatbot advice into itineraries & Reviewed context intake; versioned cross-device journey state & Can an activity continue across views without re-entry?\\[4pt]
-Both: free/included facilities; R1: downloaded maps; R2: battery concern & Explicit costs/benefits; offline packs; bounded background work & Are access costs clear and essential controls usable offline?\\[4pt]
-R1: stress/lost rest; R2: costs and missed commitments & Separate financial/non-financial effects and recovery actions & Can they identify relevant support and recovery steps?\\[4pt]
-R1: per-visit movement choice; R2: probable refusal & Separate feedback/tracking controls; usable non-tracking path & Can either preference be honored without losing guidance?\\
-\bottomrule
-\end{tabular}
-\caption{Extended evidence-to-design trace. These mappings define hypotheses for evaluation from the two human accounts.}\label{tab:extended-trace}
-\end{table*}
-
 The interviews inform implementation requirements through reported behavior and difficulty, rather than through model or product popularity. The following links make that reasoning explicit. Each remains a design hypothesis for evaluation; two accounts do not establish general demand or validate a technology choice.
 
 \paragraph{Source reliability and constraint checking.} R2 reports wrong, outdated or inconsistent chatbot information and overlooked documents, route, budget or other constraints. We therefore attach source and retrieval time to advice, retain correctable traveler and itinerary fields, and validate access and timing before committing a recommendation. The relevant test is whether a traveler notices an unresolved condition and chooses a suitable verification action. This evidence motivates correctable document checks and a deterministic validation layer. Selection of Timatic or any particular model additionally requires independent coverage and technical evaluation.
