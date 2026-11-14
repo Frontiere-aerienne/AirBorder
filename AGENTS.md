@@ -73,7 +73,7 @@ Any task that edits `Report/` must keep the report rubric-compliant:
 - It is a **plan**: never present user-study results, and never invent participants,
   hypotheses, numbers or citations.
 - Cite only the anchor papers and project materials in `.github/report-review/ANCHORS.json`
-  (at most 3 conference papers). Never add a citation; ground claims on the anchors.
+  (at most 7 conference papers). Never add a citation; ground claims on the anchors.
 - Run `python3 Scripts/reporting/check_rubric.py` and `check_citations.py` after compiling (`latexmk -pdf` in `Report/`).
 - Route report edits to `docs_reporter`. A change to evaluation method or hypotheses goes
   to a deep parent.
