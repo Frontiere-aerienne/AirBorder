@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# PROCEDURAL: Supplies synthetic position readings for simulator QA.
 """Independent localhost indoor-position signal emulator for simulator QA."""
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from socketserver import TCPServer
 
 
 ROUTE_NODES = (
@@ -230,6 +232,14 @@ def run_clock(state: SignalState, stop: threading.Event) -> None:
         state.tick()
 
 
+class LoopbackReplayServer(ThreadingHTTPServer):
+    def server_bind(self) -> None:
+        # HTTPServer normally resolves a host name during bind. The numeric
+        # loopback endpoint needs no DNS, including on hosted simulator runners.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Serve independent indoor QA signals through HTTP or Apple Simulator Core Location."
@@ -265,8 +275,8 @@ def main() -> None:
     stop = threading.Event()
     clock = threading.Thread(target=run_clock, args=(state, stop), daemon=True)
     clock.start()
-    server = ThreadingHTTPServer((args.host, args.port), handler_type(state))
-    print(f"Indoor signal emulator: http://{args.host}:{args.port}/reading", flush=True)
+    server = LoopbackReplayServer((args.host, args.port), handler_type(state))
+    print(f"Indoor signal emulator: http://{args.host}:{server.server_port}/reading", flush=True)
     print(f"App signal transport: {args.transport}", flush=True)
     print("Controls: POST /control/pause|resume|next|previous|reset", flush=True)
     try:
