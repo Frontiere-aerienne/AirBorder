@@ -1,40 +1,21 @@
 # PROCEDURAL: Black-box checks of the standalone QA input source, without the app.
 import json
 import pathlib
-import re
-import subprocess
 import sys
 import unittest
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
-DRIVER = pathlib.Path(__file__).resolve().parents[1] / "indoor-signal-emulator.py"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from indoor_replay_process import running_driver
 
 
 class DriverTests(unittest.TestCase):
     def setUp(self):
-        self.process = subprocess.Popen(
-            [sys.executable, str(DRIVER), "--port", "0", "--paused", "--no-loop"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        )
-        self.addCleanup(self.stop_driver)
-        # Bound startup too: an emulator that never publishes a URL must fail CI.
-        import select
-        self.assertTrue(select.select([self.process.stdout], [], [], 5)[0], "Driver did not become ready")
-        line = self.process.stdout.readline()
-        match = re.fullmatch(r"Indoor signal emulator: (http://127\.0\.0\.1:\d+)/reading\n", line)
-        self.assertIsNotNone(match, line)
-        self.base = match.group(1)
-
-    def stop_driver(self):
-        if self.process.poll() is None:
-            self.process.terminate()
-        try:
-            self.process.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.process.kill()
-            self.process.communicate()
+        driver = running_driver()
+        self.base = driver.__enter__()
+        self.addCleanup(driver.__exit__, None, None, None)
 
     def request(self, path, method="GET"):
         with urlopen(Request(self.base + path, method=method), timeout=3) as response:
