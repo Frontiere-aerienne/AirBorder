@@ -1,0 +1,31 @@
+name: Semantic report polish
+
+on:
+  push:
+    branches: [main]
+    paths: ['Report/main.tex']
+
+permissions:
+  contents: read
+
+jobs:
+  polish:
+    name: Propose and review report prose edits
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Generate and review a prose patch
+        env:
+          BEFORE: ${{ github.event.before }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REPORT_POLISH_MODEL: ${{ vars.REPORT_POLISH_MODEL }}
+        run: python3 -I Scripts/reporting/semantic_polish.py "$BEFORE" "$GITHUB_SHA" "$RUNNER_TEMP/report-polish.patch"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: report-polish-patch
+          path: ${{ runner.temp }}/report-polish.patch
+          if-no-files-found: ignore
