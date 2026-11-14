@@ -120,6 +120,7 @@ Classmates also praised the colors, the introductory guidance, the facility card
 \end{figure*}
 
 \section{System}
+Functionally, AirBorder lets the traveler see their connecting flight and the time left before the gate closes; add caf\'es, lounges and a landside visit to an ordered plan with leave and gate-arrival times; receive alerts when the gate changes or time runs short; accept or decline a proposed change after a queue update; follow step-by-step directions to the gate on a map or with the camera; track required steps such as security and passport control; add a ticket by camera, PDF or manual entry; and refine walking estimates with Apple Health. This section gives the technical details needed to rebuild these features.
 \subsection{Platform and architecture}
 AirBorder is a native iPhone app written in Swift and SwiftUI for iOS 18 or later. A single observable journey store holds the selected plan, the journey checkpoints, the latest flight report, alert records, the chosen route and walking data; every tab reads it, so a change appears everywhere at once. The store is saved on the device as JSON in user defaults. Vision recognizes text in ticket photos and in signs seen by the camera, PDFKit reads ticket PDFs, AVFoundation provides the camera, and HealthKit supplies walking speed. All recognition runs on the device.
 
@@ -298,7 +299,7 @@ R1 and R2 & q764, map expansion & Both selected camera rather than the dedicated
 
 \subsection{From interview evidence to implementation decisions}
 
-\begin{table*}[t]\small
+\begin{table*}[t]\footnotesize
 \begin{tabular}{@{}p{.27\linewidth}p{.31\linewidth}p{.34\linewidth}@{}}
 \toprule
 Reported evidence & Design / implementation response & Evaluation question\\\midrule
