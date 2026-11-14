@@ -107,6 +107,8 @@ The instructor and classmates reviewed the prototype; we received 14 substantive
 \end{itemize}
 Classmates also praised the colors, the introductory guidance, the facility cards and the airside/landside grouping, so we kept them unchanged. Figure~\ref{fig:screens} shows the revised screens as implemented.
 
+Several suggestions were changed rather than adopted literally. The critique asked us to weigh a dedicated plan tab against prominent entry points; we kept the four original tabs and made the plan reachable from the Flight tab (``My plan'') and from each venue card, because the plan is meaningful only next to the gate and its closing time. Our earlier design asked travelers to set a walking pace; in response to the walking-estimate critique, it became an automatic estimate that uses the traveler's own airport walks and Health data when available and never asks travelers to judge their own pace. Queue updates do not reorder or remove stops; they propose the smallest change to one selected stop, and the traveler decides. Each of these keeps the traveler in control of the plan while still answering the critique.
+
 \begin{figure*}[t]
 \centering
 \includegraphics[width=.2\textwidth]{App-AddToPlan.png}\hfill
@@ -122,26 +124,67 @@ Functionally, AirBorder lets the traveler see their connecting flight and the ti
 \subsection{Platform and architecture}
 AirBorder is a native iPhone app written in Swift and SwiftUI for iOS 18 or later. A single observable journey store holds the selected plan, the journey checkpoints, the latest flight report, alert records, the chosen route and walking data; every tab reads it, so a change appears everywhere at once. The store is saved on the device as JSON in user defaults. Vision recognizes text in ticket photos and in signs seen by the camera, PDFKit reads ticket PDFs, AVFoundation provides the camera, and HealthKit supplies walking speed. All recognition runs on the device.
 
-A separate Cloudflare Worker written in JavaScript holds provider credentials and exposes authenticated endpoints for flight status and search, departure and arrival boards, an airport facility registry, entry requirements, reminders, optional model explanations and revisioned journey storage. The app does not call the Worker yet: it ships one saved sample journey, and Help states that its flight times, gates, venues and queues are not live.
+The code is organized in three layers. \texttt{Model/} holds plain value types and pure functions: the journey and flight legs, the plan engine, the situation rules, the checklist, walking estimates and ticket parsing. They have no user-interface code, so the unit tests call them directly. \texttt{App/} holds the store, the root view and tab navigation. \texttt{Features/} holds one folder per tab (Flight, Layover, Route, Profile) and the onboarding flow; \texttt{Design/} holds the shared colors, the Outfit typeface, cards, buttons and information sheets taken from the Figma components. Each tab has its own navigation stack, and alerts, journey details and import screens are pushed onto the Flight stack, so a single back icon always returns to the screen that opened them.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\scriptsize,box/.style={draw=ink!50,rounded corners,align=center,text width=1.75cm,minimum height=.62cm}]
+\node[box] (in1) at (0,1.5) {Ticket and flight report};
+\node[box] (in2) at (0,.5) {Queue report};
+\node[box] (in3) at (0,-.5) {Apple Health speed};
+\node[box] (in4) at (0,-1.5) {Traveler edits};
+\node[box,fill=ink!8,text width=1.6cm,minimum height=3.4cm] (st) at (2.55,0) {Journey store\\[2pt]plan, checklist,\\feed, alerts,\\route choice,\\health state};
+\node[box] (d1) at (5.1,1.5) {Schedule: leave and gate times};
+\node[box] (d2) at (5.1,.5) {Situations and alerts};
+\node[box] (d3) at (5.1,-.5) {Proposed change};
+\node[box] (d4) at (5.1,-1.5) {Route steps and sign target};
+\foreach \i in {1,2,3,4}{\draw[->,ink] (in\i.east)--(st.west|-in\i.east);\draw[->,ink] (st.east|-d\i.west)--(d\i.west);}
+\end{tikzpicture}
+\caption{Data flow in the app. Inputs change the journey store; the schedule, situations, proposals and route steps are recomputed from it, and every tab reads the results.}\label{fig:dataflow}
+\Description{Four inputs (ticket and flight report, queue report, Apple Health speed, traveler edits) feed a central journey store, which produces four derived outputs: the schedule, situations and alerts, a proposed change, and route steps with the sign target.}
+\end{figure}
+
+Figure~\ref{fig:dataflow} shows how state moves through the app. Only inputs are stored: the plan, the checklist, the latest flight report, the alert records, the route preference, the Health connection state, the saved flights and the profile. Everything the traveler sees about timing is derived on demand from those inputs, so there is no second copy that could go stale. The store writes a versioned JSON record (\texttt{journeyState.v1}) to user defaults after every change and reads it at launch; a UI-test launch argument resets it. The walking speed from Health is not stored: it is read again from Health each time.
+
+A separate Cloudflare Worker written in JavaScript holds provider credentials and exposes authenticated endpoints for flight status and search, departure and arrival boards, an airport facility registry, entry requirements, reminders, optional model explanations and revisioned journey storage. The app does not call the Worker yet: it ships one saved sample journey, and Help states that its flight times, gates, venues and queues are not live. The flight report is modeled on the Worker's flight-status response (a gate and a receipt time), so connecting the two replaces the sample report without changing the situation rules.
 
 \subsection{Plan timing}
 All times are airport-local minutes. Let $s_0$ be when stops begin (16:00 in the sample), and let each selected stop $i$ have a queue wait $q_i$ and visit length $v_i$. With $w(a,b)$ the walking time between places, the start of stop $i$ is $t_i = e_{i-1} + w(p_{i-1},p_i)$, where $e_{i-1}$ is when the previous stop ends ($e_0=s_0$, $p_0$ the start point), and the stop ends at $e_i = t_i+q_i+v_i$. The traveler leaves the last stop at $e_n$ and reaches the gate at
 \[A = e_n + w(p_n,\mathrm{gate}).\]
 The airline's gate-arrival target $D$ is 20 minutes before the gate closes (17:05 for a 17:25 close). With no stops, the leave-by time is $D$ minus the walk to the gate.
 
+Table~\ref{tab:worked} works through the sample plan. With a café (8-minute wait, 20-minute visit) and the ANA LOUNGE (28 minutes), the traveler reaches the gate exactly at 17:05. When the café wait rises to 18 minutes, the same computation gives 17:15, ten minutes past the target. Shortening the lounge to 18 minutes restores 17:05; keeping both stops as they are still reaches the gate before it closes, but after the target. The Flight tab shows these times on a timeline from now to the gate closing (Figure~\ref{fig:screens}).
+
+\begin{table}[t]\small\centering
+\begin{tabular}{@{}lccc@{}}\toprule
+ & Planned & Longer queue & Apply \\\midrule
+Café (wait + visit) & 16:00--16:28 & 16:00--16:38 & 16:00--16:38\\
+ANA LOUNGE & 16:33--17:01 & 16:43--17:11 & 16:43--17:01\\
+At the gate & 17:05 & 17:15 & 17:05\\\bottomrule
+\end{tabular}
+\caption{Worked timing for the sample plan at average walking pace (5-minute walk from café to lounge, 4 minutes from lounge to gate; target 17:05, gate closes 17:25).}\label{tab:worked}
+\end{table}
+
 Walking times come from a table of average minutes between Terminal 3 places at 4.2~km/h. If the traveler connects Apple Health, the app reads walking speed and, together with the speed from recorded airport walks on previous trips (equal weight), rescales each walk: $w' = \lceil 70\,w / (1000\,k/60)\rceil$ for pace $k$ in km/h. Without either source, the average times apply.
 
+The walking estimate follows a consent path. Profile $\rightarrow$ Connected accounts explains what is read before the system permission sheet appears, and the app asks only to read one Health type, walking speed, which iPhone and Apple Watch record. It takes the average of the last 28 days of samples and converts it from metres per second to km/h. Speeds outside 1--9~km/h are ignored. If the traveler declines, the account has no samples, or Health is not available on the device, the estimate falls back to the airport walks and then to average times. Removing Health in Profile sets the connection to removed, clears the speed and recomputes every time at once; the app never labels a pace as slow or fast. The three recorded airport walks in the sample (840~m in 12 minutes, 630~m in 9 and 1{,}050~m in 15) give 4.2~km/h, the same as the average, so the sample journey only changes when Health is connected.
+
 \subsection{Situations and alerts}
-The app evaluates five situations from the current inputs, most urgent first. With $c$ the gate-closing time, $n$ the current time and $g$ the walk to the gate, the spare time is $c-(n+g)$. If it is negative, the traveler would arrive after the gate closes, and the app offers boarding assistance with the airline's phone number. If it is under 10 minutes, boarding is at risk. If the traveler is past the leave time with more spare time, the app says to return now. Separately, a gate in the flight report that differs from the ticket raises a gate change, and a next flight from another airport starts the Narita transfer. A situation shows only while its condition holds. If the closing time is unknown, timing situations are not computed. In the three timing situations, the Flight tab replaces the plan with a countdown and a Route button. Each new gate change, return-now or boarding-at-risk situation opens the Alerts screen once, with the time it began; an alert not acted on returns as a reminder after five minutes.
+The app evaluates five situations from the current inputs, most urgent first. With $c$ the gate-closing time, $n$ the current time and $g$ the walk to the gate, the spare time is $c-(n+g)$. If it is negative, the traveler would arrive after the gate closes, and the app offers boarding assistance with the airline's phone number. If it is under 10 minutes, boarding is at risk. If the traveler is past the leave time with more spare time, the app says to return now. Separately, a gate in the flight report that differs from the ticket raises a gate change, and a next flight from another airport starts the Narita transfer. A situation shows only while its condition holds. If the closing time is unknown, timing situations are not computed. In the three timing situations, the Flight tab replaces the plan with a countdown and a Route button.
+
+A gate change shows how one input reaches every screen. The store's gate is the latest gate in the flight report, or the ticket's gate if there is no report. The ticket card, the plan's gate sign, the alert, the Layover return-to-gate cards and the route steps all read that one value, so 108A appears everywhere at once and never as a shortened ``108''. The route changes from ``Gate 105 ahead'' to ``Follow signs for 108--149'' and ``Gate 108A'', and from step 2 the camera looks for the ``Gates 108--149'' sign instead of ``Gates 105--109''. In the sample journey, the report arrives a short time after the app opens, as a provider update would. Each new gate change, return-now or boarding-at-risk situation opens the Alerts screen once, with the time it began; an alert not acted on returns as a reminder after five minutes.
 
 \subsection{Queue updates and proposed changes}
-When a queue report raises the wait at a selected stop, the app recomputes $A$. If $A$ would pass $D$ by $o$ minutes, it searches later selected stops, from the last one back, for a visit that can be shortened by $o$ and still last at least 10 minutes. It proposes that change in words that carry the numbers, for example ``Allow 10 more minutes for the café queue. Shorten ANA LOUNGE to 18 min to still arrive by 17:05.'' Nothing changes until the traveler taps Apply; Keep my plan leaves it as it is, Undo restores the previous plan, and any edit to the plan discards a pending proposal. Proposals consider only stops the traveler selected and never add or remove stops. This follows the guidelines to support efficient correction and to scope services when in doubt \cite{ref144}.
+When a queue report raises the wait at a selected stop, the app recomputes $A$. If $A$ would pass $D$ by $o$ minutes, it searches later selected stops, from the last one back, for a visit that can be shortened by $o$ and still last at least 10 minutes. It proposes that change in words that carry the numbers, for example ``Allow 10 more minutes for the café queue. Shorten ANA LOUNGE to 18 min to still arrive by 17:05.'' Nothing changes until the traveler taps Apply. Apply first checks that the proposal was computed from the current plan; if the plan has changed since, the proposal is recomputed instead. Keep my plan keeps every stop and visit length but still counts the longer queue, so the times shown stay true. Undo after Apply restores the previous plan and shows the proposal again, and any other edit to the plan discards a pending proposal. Proposals consider only stops the traveler selected and never add or remove stops. This follows the guidelines to support efficient correction and to scope services when in doubt \cite{ref144}.
 
 \subsection{Route guidance}
-The Route tab gives three written steps to the gate and an end step, with Previous, Next step and End. Map shows a schematic Terminal 3 concourse with the current position and the gate; Camera shows the live back-camera view with the same step card. In Camera, Vision reads sign text and matches it against the sign expected at that step (for example ``Gates 105--109''); if no match is found within the time limit, the app says it could not read the sign and offers to try again or use the map. Switching views or leaving the camera keeps the current step. After a gate change, the steps lead to 108A. Route options change the walk to the gate from 12 minutes (Direct) to 16 (Step-free) or 15 (Less crowded), which the leave time and alerts then use. The Layover tab offers a 30-minute landside visit to the Terminal~2 observation deck; the app works out the time needed to go by shuttle, return and pass security, and directs the traveler to the gate when there is not enough time.
+The Route tab gives three written steps to the gate and an end step, with Previous, Next step and End. Map shows a schematic Terminal 3 concourse with the current position and the gate; Camera shows the live back-camera view with the same step card. In Camera, Vision reads sign text and matches it against the sign expected at that step (for example ``Gates 105--109''); if no match is found within 10 seconds, the app says it could not read the sign and offers to try again or use the map. The camera passes at most two frames a second to Vision's fast text recognizer for English and Japanese. The matcher compares the recognized lines with tokens for the expected sign after removing spaces and dashes, so ``105--109'', ``105-109'' and ``105 - 109'' all match, as do the Japanese and English lounge and bus signs. Nothing from the camera is stored or sent. Where the device has no camera or access is denied, the Camera view explains this and the Map view keeps the same step. Switching views or leaving the camera keeps the current step. After a gate change, the steps lead to 108A. Route options change the walk to the gate from 12 minutes (Direct) to 16 (Step-free) or 15 (Less crowded), which the leave time and alerts then use. The Layover tab offers a 30-minute landside visit to the Terminal~2 observation deck; the app works out the time needed to go by shuttle, return and pass security, and directs the traveler to the gate when there is not enough time.
 
 \subsection{Journey steps, tickets and flights}
-Journey steps list the checkpoints from arrival to boarding: arrival, connection, security, passport control and gate. ``Now'' is the first step the traveler has not confirmed, never inferred from location. Steps that may not apply offer Not needed, and the last change can be undone. The Narita variant lists passport control, bags, customs and the transfer. A ticket can be added with the camera or from an airline PDF, which the app reads for a flight number, date and route that the traveler checks before saving, or by manual entry with validation. The Wallet, Gmail and Calendar import screens state that these are not available yet and point to the PDF instead.
+Journey steps list the checkpoints from arrival to boarding: arrival, connection, security, passport control and gate. ``Now'' is the first step the traveler has not confirmed, never inferred from location. Steps that may not apply offer Not needed, and the last change can be undone. The Narita variant lists passport control, bags, customs and the transfer. A ticket can be added with the camera or from an airline PDF, which the app reads for a flight number, date and route that the traveler checks before saving, or by manual entry with validation. Photos use Vision's accurate text recognizer, and PDFs use their embedded text. The parser looks for a flight number (a two-character airline code and up to four digits, preferring known airline codes), a date in ISO, day-month or month-day form, and a route written as two airport codes joined by an arrow, dash or ``TO''. It keeps only what it found; a document without a flight number is reported as unreadable, and impossible dates are rejected. The Wallet, Gmail and Calendar import screens state that these are not available yet and point to the PDF instead.
+
+\subsection{Backend Worker}
+The Worker (\texttt{Backend/src/index.js}) protects every \texttt{/v1} route; only a health route is public. In production it verifies a Cloudflare Access token (an RS256 signature checked against the Access keys, then issuer, audience, expiry and subject) and refuses to run without authentication. Requests are rate-limited per hashed account and route category at 60 a minute, and the Worker fails closed with 503 if the limiter is missing. Provider keys (FlightAware, Amadeus, Sherpa and others) are Worker secrets that never reach the app. Journey progress is stored per account, trip and flight leg in a SQLite-backed Durable Object: each update carries an event ID and the revision it expects; a stale revision returns 409 with the current record, and a replayed event ID returns the stored result instead of applying it twice. The optional explanation route sends already-computed facts to a Workers AI model at temperature 0 and accepts only a reordering of the same fact IDs and a focus from a fixed list; any other answer falls back to the original order, so the model cannot add, change or remove a fact. The 40 Worker tests use mocked providers and cover authentication, account isolation, concurrent commits and replay.
 
 \subsection{Replicating the system}
 The source is public at \url{https://github.com/Frontiere-aerienne/AirBorder}. On a Mac with Xcode 26 or newer and XcodeGen, run \texttt{./Scripts/generate.sh} to create \texttt{AirBorder.xcodeproj}, select the \texttt{AirBorder} scheme and an iPhone 13 simulator, and run the app (Cmd+R) or its tests (Cmd+U, or \texttt{SIMULATOR\_NAME='iPhone 13' ./Scripts/test.sh}). Installing on a personal iPhone needs only an Apple Account in Xcode. The Worker runs from \texttt{Backend/} with \texttt{npm ci --ignore-scripts} and \texttt{npm test}; \texttt{./Scripts/configure-secrets.sh} sets provider keys. Continuous integration builds the app and runs its unit and UI tests on a hosted macOS runner with an iPhone 13 simulator.
@@ -149,6 +192,28 @@ The source is public at \url{https://github.com/Frontiere-aerienne/AirBorder}. O
 \section{Implementation Status}\label{sec:status}
 \subsection{Implemented central features}
 The iPhone app implements the central journey: the ticket and plan on the Flight tab; adding, ordering, editing and removing stops; plan timing with walking estimates refined by Apple Health; the gate change to 108A with an automatic alert; return-now, boarding-at-risk and late-arrival situations; queue updates with Apply, Keep and Undo; Map and Camera route guidance with on-device sign reading and route options; journey steps; ticket import by camera, PDF and manual entry; the Haneda--Narita transfer; the lounge detail and floor map; and onboarding with replay. On 12 November 2026, continuous integration on the main branch passed all 34 unit tests (plan timing, situations, walking estimates and ticket parsing) and all 21 UI tests (one per main flow), and the Worker passed its 40 tests. These tests check the software; they are not usability evidence. The Heathrow Terminal~2 design used in our earlier proposal remained a design study and is not part of the app.
+
+Table~\ref{tab:status} lists the 13 central requirement groups behind the completion estimate below, with the evidence for each.
+
+\begin{table*}[t]\small\centering
+\begin{tabular}{@{}p{.22\textwidth}p{.09\textwidth}p{.6\textwidth}@{}}\toprule
+Requirement group (source) & Status & What exists and what is missing\\\midrule
+Gate-change alert (instructor) & Done & Alert opens automatically with 105 $\rightarrow$ 108A; one gate value used on every screen; unit and UI tests.\\
+One Back control (instructor; peers) & Done & One back icon per screen; Exit camera; End on the last route step; UI test of End returning to Flight.\\
+Onboarding (instructor) & Done & Runs once with Skip; Replay tutorial in Profile; UI test.\\
+Plan building (4 peers) & Done & Add/added state, ordered stops with times, edit, remove and reorder; unit and UI tests.\\
+Integrated directions (4 peers) & Partial & Map and Camera share steps and route options; the map is schematic and there is no positioning.\\
+Lounge details (1 peer) & Done & ANA LOUNGE page with floor map; access stated as ``check with your ticket''.\\
+Ticket input (2 peers) & Done & Camera and PDF reading with review; manual entry with validation; unreadable and denied states.\\
+Sign-reading recovery (1 peer) & Partial & Cannot-read state with retry and map fallback; no landmark confirmation or position correction.\\
+Transfer breakdown (3 peers) & Done & Haneda--Narita steps, baggage recheck and route; started by choosing NH~6.\\
+Walking estimate (earlier interviews; 1 peer) & Done & Average, airport walks and Health with consent, removal and fallback; unit and UI tests.\\
+Queue and crowd updates (3 peers) & Partial & Queue update with proposal; data are sample only, and crowd or full-shuttle updates are not modeled.\\
+Map app handoff (1 peer) & Not started & No handoff to Google or Apple Maps.\\
+Selected-plan proposals (our rule) & Done & Changes only selected stops, only after Apply; stale proposals dropped; Undo; unit tests.\\\bottomrule
+\end{tabular}
+\caption{Central requirement groups from the class critiques and our plan-safety rule, with their implementation status in the iPhone app.}\label{tab:status}
+\end{table*}
 
 \subsection{Central features not yet implemented}
 \begin{itemize}
@@ -206,6 +271,25 @@ The facilitator gives no coaching and logs any help. A task ends at the particip
 \clearpage
 \raggedbottom
 \begin{thebibliography}{10}
+
+\paragraph{What each task measures.} Table~\ref{tab:tasks} links each task to its hypothesis and to how its answer is scored. Answers are scored from the think-aloud recording and the participant's final statement against the answers written before the session, by two of the authors working independently; disagreements are resolved by discussion and the number of disagreements is reported.
+
+\begin{table*}[t]\small\centering
+\begin{tabular}{@{}p{.25\textwidth}p{.12\textwidth}p{.55\textwidth}@{}}\toprule
+Task & Measures & Scored as correct when the participant \ldots\\\midrule
+(a) When to leave and be at the gate & H2, S3 & states the leave time and the gate-arrival target (not the departure time) for their plan.\\
+(b) Gate change & H1, S1, S3 & names the full new gate and chooses an action that reaches it before the target, such as leaving the stop on time or shortening it.\\
+(c) Longer café queue & H1, H2, S3 & chooses a plan that still reaches the gate by the target, or knowingly keeps the plan and states the later arrival.\\
+(d) Required steps & S2, S3 & names each remaining required step before boarding; each omitted step is counted.\\\bottomrule
+\end{tabular}
+\caption{Study tasks, the hypotheses they inform, and their scoring rules. Ease and confidence ratings (S3) follow every task.}\label{tab:tasks}
+\end{table*}
+
+\paragraph{Analysis plan.} The participant is the unit of analysis; the four tasks are not treated as independent observations. For H1 and H2, each participant contributes one paired binary outcome per system, and we use McNemar's exact test, since the expected number of discordant pairs is small. For S1 and S3 we use the Wilcoxon signed-rank test on the paired differences. S2 compares omitted-step counts with the same test. Because there are two primary hypotheses, their $p$-values are adjusted with the Holm method; secondary results are reported as exploratory. We report each paired difference with its 95\% confidence interval and the individual outcomes, not only test results. A task that reaches the three-minute limit counts as incorrect for H1 and H2 and as censored for completion time; it is reported, never dropped. We check for order effects by comparing the first and second system across the two orders. With six to eight participants the study can show large differences only; a non-significant result will not be read as equivalence.
+
+\paragraph{Threats to validity.} The sample is small and recruited by convenience, so results describe these participants rather than all travelers. Order and learning effects are reduced, not removed, by counterbalancing and by swapping the trips. The comparison is not symmetrical: AirBorder runs a scripted trip, while Flighty shows a real flight, and some Flighty events are shown as screen captures; we therefore analyze live and screen-capture tasks separately. Both trips are made up and seated, so the study tests understanding and decisions, not walking through a real airport, stress or time pressure. Participants may favor the system they believe is ours; the facilitator presents both systems in the same neutral way and does not say which one the authors built. Finally, AirBorder's walking times are averages for one terminal; the study does not test whether its times are accurate.
+
+\paragraph{Data handling.} Participants are identified by codes. We do not collect ticket, passport or health data, and the study iPhone uses only the sample trips. Consent forms are stored apart from the task records, and recordings are kept only as long as scoring requires.
 
 \bibitem{ref7}
 Brian Y. Lim, Anind K. Dey and Daniel Avrahami. 2009. Why and Why Not Explanations Improve the Intelligibility of Context-Aware Intelligent Systems. In Proceedings of the SIGCHI Conference on Human Factors in Computing Systems (CHI '09). ACM, 2119--2128. \url{https://doi.org/10.1145/1518701.1519023}
