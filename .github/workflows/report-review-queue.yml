@@ -257,7 +257,7 @@ jobs:
             echo "<!-- report-review-request sha=$HEAD_SHA mode=$MODE -->"
             echo "## Review request: \`$short\` ($MODE mode)"
             echo
-            echo "**For Claude in Claude Code:** follow \`.github/report-review/INSTRUCTIONS.md\` in **$MODE** mode for the commit range below. Grade against \`RUBRIC.md\` and \`ANCHORS.json\`."
+            echo "**For Claude in Claude Code:** follow \`.github/report-review/INSTRUCTIONS.md\` in **$MODE** mode for the commit range below. Cite evidence for each grade, explain deductions, and give specific revisions. Use \`Scripts/reporting/format_review_score.py\` for the advisory score."
             if [ "$MODE" = consistency ]; then
               echo "Put any report edits on a \`report-sync/$short\` branch and open a PR labeled \`report-sync\`."
             else
