@@ -192,6 +192,14 @@ final class JourneyStore: ObservableObject {
         }
     }
 
+    func canOpenPlanRoute(for assignment: GateAssignment) -> Bool {
+        assignment == gateAssignment && !isAirportTransfer && !hasTimingSituation && !gateHasClosed
+    }
+
+    private var gateHasClosed: Bool {
+        outbound.gateCloses.map { now >= $0 } ?? false
+    }
+
     /// "Boarding soon" from 30 minutes before boarding.
     var flightStatus: String { now >= SampleJourney.boarding - 30 ? "Boarding soon" : outbound.status }
 
@@ -254,14 +262,15 @@ final class JourneyStore: ObservableObject {
 
     func alertPresentation(for kind: AlertKind) -> AlertPresentation? {
         alerts[kind].map {
-            AlertPresentation(kind: kind, recordID: $0.id, gate: gate, previousGate: previousGate, issuedAt: $0.issuedAt)
+            AlertPresentation(kind: kind, recordID: $0.id, gate: gate, previousGate: previousGate,
+                              issuedAt: $0.issuedAt, closes: outbound.gateCloses, flightDate: outbound.date)
         }
     }
 
     private func isCurrent(_ presentation: AlertPresentation) -> Bool {
         alertPresentation(for: presentation.kind) == presentation &&
             conditions.contains { $0.alertKind == presentation.kind } &&
-            (presentation.kind != .gateChange || !isAfterClosure)
+            !gateHasClosed && !isAfterClosure
     }
 
     private var isAfterClosure: Bool {

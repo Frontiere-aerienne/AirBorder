@@ -201,7 +201,7 @@ struct AlertsView: View {
             HStack(spacing: 8) {
                 GateSign(gate: presentation.gate)
                 Text("closes").outfitText(15, .regular, AB.ice.opacity(0.75))
-                Text(store.outbound.gateCloses?.description ?? "–").outfitText(20, .semibold, AB.ice)
+                Text(presentation.closes?.description ?? "–").outfitText(20, .semibold, AB.ice)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 2)
                     .background(AB.ice.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
@@ -246,13 +246,15 @@ struct AlertsView: View {
 
     private var walkText: String {
         let walk = store.gateWalkMinutes
-        guard kind == .boardingAtRisk, let closes = store.outbound.gateCloses else { return "\(walk) min walk" }
-        return "\(walk) min walk, \(closes - (store.now + walk)) min spare"
+        guard kind == .boardingAtRisk, let closes = presentation.closes else { return "\(walk) min walk" }
+        let spare = closes - (store.now + walk)
+        guard spare >= 0 else { return "\(walk) min walk" }
+        return "\(walk) min walk, \(spare) min spare"
     }
 
     /// "15 Oct, 12:00": the flight date and when the situation began.
     private var stamp: String {
-        "\(TripDate.format(store.outbound.date, "d MMM")), \(presentation.issuedAt.description)"
+        "\(TripDate.format(presentation.flightDate, "d MMM")), \(presentation.issuedAt.description)"
     }
 }
 

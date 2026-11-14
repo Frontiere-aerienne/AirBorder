@@ -466,6 +466,36 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertTrue(store.conditionInputs.atGate)
     }
 
+    func testPlanRouteFromOldGateCannotOverrideBoardingAssistance() {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.skipStep("passport")
+        let original = store.gateAssignment
+        store.confirmStep("gate", displayedGate: original)
+        store.setNow(ClockTime(17, 17))
+        XCTAssertTrue(store.canOpenPlanRoute(for: original))
+        XCTAssertNil(store.alertPresentation(for: .gateChange))
+
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(17, 17)))
+        XCTAssertFalse(store.canOpenPlanRoute(for: original))
+        XCTAssertFalse(store.canOpenPlanRoute(for: store.gateAssignment))
+    }
+
+    func testGateAlertCannotOpenRouteAfterClosureEvenAfterArrival() throws {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.skipStep("passport")
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0)))
+        let alert = try XCTUnwrap(store.alertToPresent)
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
+        store.setNow(ClockTime(17, 26))
+        XCTAssertTrue(store.conditionInputs.atGate)
+        XCTAssertFalse(store.acknowledge(alert))
+        XCTAssertEqual(store.alerts[.gateChange]?.acknowledged, false)
+        XCTAssertEqual(alert.gate, "108A")
+        XCTAssertEqual(alert.closes, ClockTime(17, 25))
+    }
+
     func testStopsMoveTheLeaveTimeForReturnNow() {
         let store = makeStore()
         store.setNow(ClockTime(16, 40))
@@ -496,10 +526,12 @@ final class JourneySituationStoreTests: XCTestCase {
             let now = ClockTime(17, 2 + Int(random.next() % 20))
             store.setNow(now)
             let previous = store.gateAssignment
+            let previousAlert = store.alertPresentation(for: .gateChange)
             store.confirmStep("gate", displayedGate: previous)
             store.receive(FlightFeed(gate: report, receivedAt: now))
             let context = "seed=\(seed), step=\(step), prior=\(expectedGate), report=\(String(describing: report)), time=\(now)"
             if let report, !report.isEmpty, report != expectedGate {
+                if let previousAlert { XCTAssertFalse(store.acknowledge(previousAlert), context) }
                 XCTAssertTrue(store.conditions.contains(.gateChanged(from: expectedGate, to: report)), context)
                 expectedGate = report
                 store.confirmStep("gate", displayedGate: previous)

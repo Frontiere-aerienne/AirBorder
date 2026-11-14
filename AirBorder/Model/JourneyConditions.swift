@@ -58,6 +58,8 @@ struct AlertPresentation: Hashable {
     let gate: String
     let previousGate: String
     let issuedAt: ClockTime
+    let closes: ClockTime?
+    let flightDate: String
 }
 
 struct ConditionInputs {
