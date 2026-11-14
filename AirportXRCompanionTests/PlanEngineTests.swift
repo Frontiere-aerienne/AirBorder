@@ -329,4 +329,18 @@ final class TerminalTwoTimingTests: XCTestCase {
         XCTAssertTrue(TerminalTwo.hasTime(now: ClockTime(14, 53), gateWalk: 12))
         XCTAssertFalse(TerminalTwo.hasTime(now: ClockTime(14, 54), gateWalk: 12))
     }
+
+    func testStopTimesStepByFifteenMinutesWithinLimits() {
+        let latest = StopTimes.latestLeave(walkToGate: 6)
+        XCTAssertEqual(latest.description, "16:59")
+        XCTAssertEqual(StopTimes.leave(.cafe, latest: latest).description, "16:59")
+        XCTAssertEqual(StopTimes.earlierLeave(latest, arrive: ClockTime(16, 0))?.description, "16:45")
+        XCTAssertEqual(StopTimes.laterLeave(ClockTime(16, 45), latest: latest)?.description, "16:59")
+        XCTAssertNil(StopTimes.laterLeave(latest, latest: latest), "Never past the latest leave")
+        XCTAssertNil(StopTimes.earlierArrive(ClockTime(15, 0)), "Plan starts at 15:00")
+        XCTAssertNil(StopTimes.laterArrive(ClockTime(16, 30), leave: ClockTime(16, 59)), "Keeps at least 15 min")
+        XCTAssertEqual(StopTimes.laterArrive(ClockTime(16, 0), leave: ClockTime(16, 59))?.description, "16:15")
+        XCTAssertTrue(StopTimes.overlaps((ClockTime(16, 0), ClockTime(16, 59)), (ClockTime(16, 30), ClockTime(17, 1))))
+        XCTAssertFalse(StopTimes.overlaps((ClockTime(15, 30), ClockTime(16, 0)), (ClockTime(16, 0), ClockTime(16, 59))))
+    }
 }

@@ -79,7 +79,7 @@
 		3B2419B78F1D71A8ECA1BAB1 /* AirportXRCompanionUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AirportXRCompanionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4B9672B292408F58FA2DF30D /* PlaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceViews.swift; sourceTree = "<group>"; };
 		5090071A59E95C9D6209297D /* PlanExtrasViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanExtrasViews.swift; sourceTree = "<group>"; };
-		515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		69EFAEA6D6A322BD89886D57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		770CEFD3F6BDCBEF83461528 /* MyPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPlanView.swift; sourceTree = "<group>"; };
 		780C31AB5EB373B7FECE9184 /* PlanEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEngineTests.swift; sourceTree = "<group>"; };
@@ -92,7 +92,7 @@
 		A248953DD47963CEC8591259 /* JourneyDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyDetailsView.swift; sourceTree = "<group>"; };
 		AC9E6B26198D4AF3E207D0EB /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
 		B236BD847C0EBAB4E5B5CB6D /* AirBorderUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBorderUITests.swift; sourceTree = "<group>"; };
-		B295EE1DB9471DAA4B19FC3B /* AirBorder.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AirBorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B295EE1DB9471DAA4B19FC3B /* AirBorder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AirBorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B772C8BD27CEBE135ED10D44 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		BF1C49F70E935C66E48A524C /* AirBorderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBorderApp.swift; sourceTree = "<group>"; };
 		CA44710E401393BF38EC76EE /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -641,6 +641,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 77FCC765M8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AirBorder;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
@@ -649,9 +650,7 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
-					UIInterfaceOrientationPortrait,
-				);
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -686,6 +685,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 77FCC765M8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AirBorder;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
@@ -694,9 +694,7 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
-					UIInterfaceOrientationPortrait,
-				);
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

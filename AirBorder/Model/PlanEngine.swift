@@ -83,6 +83,9 @@ struct PlanStop: Identifiable, Equatable, Codable {
     var visitMinutes: Int
     /// The wait came from a queue update rather than the usual estimate.
     var queueUpdated = false
+    /// Times the traveller chose on the Flight plan card; nil uses the defaults in `StopTimes`.
+    var arrive: ClockTime?
+    var leave: ClockTime?
 
     static let cafe = PlanStop(id: .cafe, name: "Curacion Cafe", shortName: "café", waitMinutes: 8, visitMinutes: 20)
     static let anaLounge = PlanStop(id: .anaLounge, name: "ANA LOUNGE", shortName: "lounge", waitMinutes: 0, visitMinutes: 28)
@@ -198,6 +201,72 @@ enum PlanEngine {
             )
         }
         return nil
+    }
+}
+
+// MARK: - Stop times (Flight plan card)
+
+/// Arrive and leave times for each stop, changed in 15-minute steps. A stop never ends after the
+/// latest time that still reaches the gate by the arrival target.
+enum StopTimes {
+    static let step = 15
+    static let minimumStay = 15
+    /// The plan strip starts here; nothing is scheduled earlier.
+    static let earliest = ClockTime(15, 0)
+
+    static func defaultArrive(_ id: PlaceID) -> ClockTime {
+        switch id {
+        case .anaLounge: ClockTime(16, 30)
+        case .skyLounge: ClockTime(15, 30)
+        default: ClockTime(16, 0)
+        }
+    }
+
+    static func latestLeave(walkToGate: Int, target: ClockTime = SampleJourney.gateArrivalTarget) -> ClockTime {
+        target - walkToGate
+    }
+
+    static func arrive(_ stop: PlanStop) -> ClockTime { stop.arrive ?? defaultArrive(stop.id) }
+
+    static func leave(_ stop: PlanStop, latest: ClockTime) -> ClockTime { min(stop.leave ?? latest, latest) }
+
+    /// The previous point on the 15-minute grid strictly before `time`.
+    static func stepBefore(_ time: ClockTime) -> ClockTime {
+        let offset = time - earliest
+        let steps = offset > 0 ? (offset - 1) / step : (offset - step) / step
+        return earliest + steps * step
+    }
+
+    /// The next point on the 15-minute grid strictly after `time`.
+    static func stepAfter(_ time: ClockTime) -> ClockTime {
+        let offset = time - earliest
+        let steps = offset >= 0 ? offset / step + 1 : -((-offset - 1) / step)
+        return earliest + steps * step
+    }
+
+    static func earlierArrive(_ arrive: ClockTime) -> ClockTime? {
+        let value = stepBefore(arrive)
+        return value >= earliest ? value : nil
+    }
+
+    static func laterArrive(_ arrive: ClockTime, leave: ClockTime) -> ClockTime? {
+        let value = stepAfter(arrive)
+        return value + minimumStay <= leave ? value : nil
+    }
+
+    static func earlierLeave(_ leave: ClockTime, arrive: ClockTime) -> ClockTime? {
+        let value = stepBefore(leave)
+        return value >= arrive + minimumStay ? value : nil
+    }
+
+    /// Later leave time, ending at `latest` exactly; nil once already there.
+    static func laterLeave(_ leave: ClockTime, latest: ClockTime) -> ClockTime? {
+        guard leave < latest else { return nil }
+        return min(stepAfter(leave), latest)
+    }
+
+    static func overlaps(_ a: (ClockTime, ClockTime), _ b: (ClockTime, ClockTime)) -> Bool {
+        a.0 < b.1 && b.0 < a.1
     }
 }
 

@@ -291,6 +291,29 @@ final class JourneyStore: ObservableObject {
         refreshAlerts()
     }
 
+    /// Arrive, leave and the latest leave that still reaches the gate, for a stop in the plan.
+    func times(_ id: PlaceID) -> (arrive: ClockTime, leave: ClockTime, latest: ClockTime)? {
+        guard let stop = plan.stops.first(where: { $0.id == id }) else { return nil }
+        let latest = StopTimes.latestLeave(walkToGate: venueToGateMinutes(id))
+        return (StopTimes.arrive(stop), StopTimes.leave(stop, latest: latest), latest)
+    }
+
+    // ponytail: arrive/leave live on the plan card only; the ordered Schedule (route, queue suggestion) still uses visit lengths.
+    func setTimes(_ id: PlaceID, arrive: ClockTime? = nil, leave: ClockTime? = nil) {
+        guard let index = plan.index(of: id), let current = times(id) else { return }
+        plan.stops[index].arrive = arrive ?? current.arrive
+        plan.stops[index].leave = leave ?? current.leave
+    }
+
+    /// Other stops in the plan whose times overlap this one.
+    func overlapping(_ id: PlaceID) -> [PlanStop] {
+        guard let mine = times(id) else { return [] }
+        return plan.stops.filter { other in
+            guard other.id != id, let theirs = times(other.id) else { return false }
+            return StopTimes.overlaps((mine.arrive, mine.leave), (theirs.arrive, theirs.leave))
+        }
+    }
+
     func replacePlan(with edited: Plan) {
         clearUndo()
         plan = edited
