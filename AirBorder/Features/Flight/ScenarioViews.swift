@@ -118,7 +118,9 @@ struct TravelUpdateBanner: View {
         let route = ("Route", { store.tab = .route })
         let call = ("Call ANA", { if let url = ANAHelp.url { openURL(url) } })
         switch (condition, place) {
-        case (.gateChanged, .flight): return ("Alerts", { open(.alerts(.gateChange)) })
+        case (.gateChanged, .flight):
+            guard let alert = store.alertPresentation(for: .gateChange) else { return nil }
+            return ("Alerts", { open(.alerts(alert)) })
         case (.gateChanged, .details), (.gateChanged, .layover): return route
         case (.returnNow, .details), (.returnNow, .layover): return route
         case (.boardingAtRisk, .flight), (.boardingAtRisk, .route): return call
@@ -130,7 +132,9 @@ struct TravelUpdateBanner: View {
 
     private var tapAction: (() -> Void)? {
         guard place == .flight else { return nil }
-        if let kind = condition.alertKind { return { open(.alerts(kind)) } }
+        if let kind = condition.alertKind, let alert = store.alertPresentation(for: kind) {
+            return { open(.alerts(alert)) }
+        }
         if case .arrivesAfterClosure = condition { return { showsAssistance = true } }
         return nil
     }
@@ -143,8 +147,10 @@ struct AlertsView: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    let kind: AlertKind
+    let presentation: AlertPresentation
     @State private var reminder = false
+
+    private var kind: AlertKind { presentation.kind }
 
     var body: some View {
         let record = store.alerts[kind]
@@ -156,7 +162,7 @@ struct AlertsView: View {
             HStack {
                 Spacer()
                 Button {
-                    store.acknowledge(kind)
+                    guard store.acknowledge(presentation) else { return }
                     dismiss()
                     store.tab = .route
                 } label: {
@@ -180,7 +186,7 @@ struct AlertsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             reminder = record?.isReminder(at: Date()) ?? false
-            store.alertSeen(kind)
+            store.alertSeen(presentation)
         }
     }
 
@@ -231,7 +237,7 @@ struct AlertsView: View {
 
     private var headline: String {
         switch kind {
-        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.outbound.departureGate) → \(store.gate)"
+        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.previousGate) → \(store.gate)"
         case .returnNow: "Time to return to Gate \(store.gate)"
         case .boardingAtRisk: "Boarding time is tight"
         }

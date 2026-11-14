@@ -255,17 +255,7 @@ final class AirBorderUITests: XCTestCase {
 
     // PROCEDURAL: trigger the sample feed after the app saves arrival at the old gate.
     func testGateChangeAfterArrivalReopensTrackerAndWarnsAboutBoarding() {
-        app.buttons["journeyDetailsLink"].tap()
-        app.buttons["checkpointLine"].tap()
-        app.buttons["confirm-security"].tap()
-        app.buttons["confirm-passport"].tap()
-        app.buttons["confirm-gate"].tap()
-        XCTAssertTrue(app.staticTexts["Haneda connection · All steps done"].exists)
-
-        app.terminate()
-        // Keep the confirmation from the first launch and deliver the gate update at 17:10.
-        app.launchArguments = ["-skipOnboarding", "-walkingSpeed", "5.6", "-now", "17:10", "-gateUpdate", "0"]
-        app.launch()
+        confirmArrivalAndRelaunchWithGateUpdate(at: "17:10")
         XCTAssertTrue(app.staticTexts["Boarding time is tight"].waitForExistence(timeout: 5))
         attachJourneySteps("Boarding risk after gate reassignment")
         app.buttons["back"].tap()
@@ -275,10 +265,38 @@ final class AirBorderUITests: XCTestCase {
         app.buttons["journeyDetailsLink"].tap()
         app.buttons["checkpointLine"].tap()
         XCTAssertTrue(app.staticTexts["Haneda connection · Step 5 of 5"].exists)
-        XCTAssertEqual(app.buttons["confirm-gate"].label, "Mark complete")
+        XCTAssertEqual(app.buttons["confirm-gate"].label, "Confirm arrival at Gate 108A")
+        XCTAssertEqual(app.descendants(matching: .any)["journey-step-gate"].value as? String, "Gate 108A")
         XCTAssertFalse(app.buttons["confirm-security"].exists)
         XCTAssertFalse(app.buttons["confirm-passport"].exists)
         attachJourneySteps("Gate checkpoint reopened")
+    }
+
+    func testLateGateChangeShowsBoardingAssistance() {
+        confirmArrivalAndRelaunchWithGateUpdate(at: "17:17")
+        let banner = app.buttons["travelUpdate-flight"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 5))
+        XCTAssertTrue(banner.label.contains("Arrival 4 min after closure"))
+        XCTAssertFalse(app.buttons["addStop"].exists)
+        banner.tap()
+        XCTAssertTrue(app.staticTexts["Boarding assistance"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Arriving 17:29"].exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Gate 108A closes 17:25")).firstMatch.exists)
+    }
+
+    private func confirmArrivalAndRelaunchWithGateUpdate(at time: String) {
+        app.buttons["journeyDetailsLink"].tap()
+        app.buttons["checkpointLine"].tap()
+        app.buttons["confirm-security"].tap()
+        app.buttons["confirm-passport"].tap()
+        let arrival = app.buttons["confirm-gate"]
+        XCTAssertEqual(arrival.label, "Confirm arrival at Gate 105")
+        arrival.tap()
+        XCTAssertTrue(app.staticTexts["Haneda connection · All steps done"].exists)
+
+        app.terminate()
+        app.launchArguments = ["-skipOnboarding", "-walkingSpeed", "5.6", "-now", time, "-gateUpdate", "0"]
+        app.launch()
     }
 
     func testReturnNowShowsCountdownInsteadOfThePlan() {

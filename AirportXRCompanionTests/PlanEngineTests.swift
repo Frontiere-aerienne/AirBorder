@@ -273,7 +273,7 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(store.gate, "105")
         store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0)))
         XCTAssertEqual(store.gate, "108A")
-        XCTAssertEqual(store.alertToPresent, .gateChange)
+        XCTAssertEqual(store.alertToPresent?.kind, .gateChange)
         XCTAssertEqual(store.alerts[.gateChange]?.issuedAt, ClockTime(12, 0))
         store.alertToPresent = nil
         store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 5)))
@@ -288,7 +288,9 @@ final class JourneySituationStoreTests: XCTestCase {
         let updateTime = ClockTime(17, 10)
         store.confirmStep("security")
         store.confirmStep("passport")
-        store.confirmStep("gate")
+        let gate105 = store.gateAssignment
+        XCTAssertEqual(gate105.code, "105")
+        store.confirmStep("gate", displayedGate: gate105)
         store.setNow(updateTime)
 
         XCTAssertEqual(store.gate, "105")
@@ -305,10 +307,13 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(store.checklist.current?.id, "gate", "The new gate needs its own confirmation")
         XCTAssertFalse(store.conditionInputs.atGate, "Confirmation at 105 cannot confirm arrival at 108A")
         XCTAssertEqual(store.primaryCondition, .boardingAtRisk(closesIn: 15, walk: 12))
-        XCTAssertEqual(store.alertToPresent, .boardingAtRisk)
+        XCTAssertEqual(store.alertToPresent?.kind, .boardingAtRisk)
         XCTAssertFalse(store.checklist.canUndo("gate"))
 
-        store.confirmStep("gate")
+        store.confirmStep("gate", displayedGate: gate105)
+        XCTAssertEqual(store.checklist.current?.id, "gate", "A tap from the old gate row cannot confirm the new gate")
+        XCTAssertEqual(store.primaryCondition, .boardingAtRisk(closesIn: 15, walk: 12))
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
         XCTAssertTrue(store.checklist.isComplete)
         XCTAssertTrue(store.conditionInputs.atGate)
         XCTAssertFalse(store.hasTimingSituation)
@@ -321,13 +326,14 @@ final class JourneySituationStoreTests: XCTestCase {
         store.skipStep("passport")
         let update = FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0))
         store.receive(update)
-        store.confirmStep("gate")
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
+        store.acknowledge(.gateChange)
 
         let restored = makeStore(defaults: defaults)
         XCTAssertTrue(restored.conditionInputs.atGate)
         restored.receive(update)
         restored.receive(FlightFeed(gate: nil, receivedAt: ClockTime(12, 10)))
-        XCTAssertEqual(restored.feed, update)
+        XCTAssertEqual(restored.feed, FlightFeed(gate: "108A", receivedAt: update.receivedAt, previousGate: "105"))
         XCTAssertTrue(restored.checklist.isComplete)
         XCTAssertTrue(restored.conditionInputs.atGate)
 
@@ -336,7 +342,36 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(restored.checklist.current?.id, "gate")
         XCTAssertFalse(restored.conditionInputs.atGate)
         XCTAssertEqual(restored.checklist.steps.first { $0.id == "passport" }?.state, .skipped)
+        XCTAssertEqual(restored.primaryCondition, .gateChanged(from: "108A", to: "108B"))
+        XCTAssertEqual(restored.alertToPresent?.kind, .gateChange)
+        XCTAssertEqual(restored.alerts[.gateChange]?.acknowledged, false)
         XCTAssertEqual(makeStore(defaults: defaults).checklist.current?.id, "gate")
+        XCTAssertEqual(makeStore(defaults: defaults).primaryCondition, .gateChanged(from: "108A", to: "108B"))
+
+        restored.acknowledge(.gateChange)
+        restored.receive(FlightFeed(gate: "105", receivedAt: ClockTime(12, 20)))
+        XCTAssertEqual(restored.primaryCondition, .gateChanged(from: "108B", to: "105"))
+        XCTAssertEqual(restored.alerts[.gateChange]?.issuedAt, ClockTime(12, 20))
+        XCTAssertEqual(restored.alerts[.gateChange]?.acknowledged, false)
+    }
+
+    // PROCEDURAL: verify that an estimated missed boarding window takes priority over a gate-only alert.
+    func testLateReassignmentKeepsArrivalAfterClosureVisible() {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.confirmStep("passport")
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
+        let updateTime = ClockTime(17, 17)
+        store.setNow(updateTime)
+        store.receive(FlightFeed(gate: "108A", receivedAt: updateTime))
+
+        XCTAssertEqual(store.checklist.current?.id, "gate")
+        XCTAssertEqual(store.conditions, [
+            .arrivesAfterClosure(arrival: ClockTime(17, 29), minutesLate: 4),
+            .gateChanged(from: "105", to: "108A"),
+        ])
+        XCTAssertTrue(store.hasTimingSituation)
+        XCTAssertNil(store.alertToPresent)
     }
 
     func testLegacyGateConfirmationReopensWhenRestored() throws {
@@ -344,7 +379,7 @@ final class JourneySituationStoreTests: XCTestCase {
         let store = makeStore(defaults: defaults)
         store.confirmStep("security")
         store.skipStep("passport")
-        store.confirmStep("gate")
+        store.confirmStep("gate", displayedGate: store.gateAssignment)
 
         // Simulate a save from the previous version by removing the new gate field.
         let key = "journeyState.v1"
@@ -360,6 +395,59 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(restored.checklist.steps.dropLast(), store.checklist.steps.dropLast())
         XCTAssertFalse(restored.conditionInputs.atGate)
         XCTAssertFalse(restored.checklist.canUndo("gate"))
+    }
+
+    // PROCEDURAL: hold the first alert open while the next assignment arrives.
+    func testRepeatGateUpdateReplacesOpenAlertAndRejectsStaleAcknowledgment() throws {
+        let store = makeStore()
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0)))
+        let first = try XCTUnwrap(store.alertToPresent)
+        let openPath: [Destination] = [.journeyDetails, .alerts(first)]
+        store.alertToPresent = nil
+        store.alertSeen(first)
+
+        store.receive(FlightFeed(gate: "108B", receivedAt: ClockTime(12, 0)))
+        let second = try XCTUnwrap(store.alertToPresent)
+        XCTAssertNotEqual(first, second, "Updates in the same minute still need distinct identities")
+        XCTAssertEqual(Destination.presentingAlert(second, on: openPath), [.journeyDetails, .alerts(second)])
+        XCTAssertFalse(store.acknowledge(first))
+        store.alertSeen(first)
+        XCTAssertNil(store.alerts[.gateChange]?.firstSeen)
+        XCTAssertEqual(store.alerts[.gateChange]?.acknowledged, false)
+        XCTAssertTrue(store.acknowledge(second))
+    }
+
+    func testAfterClosureClearsAnAlreadyOpenTimingAlert() throws {
+        let store = makeStore()
+        store.setNow(ClockTime(17, 10))
+        let alert = try XCTUnwrap(store.alertToPresent)
+        XCTAssertEqual(alert.kind, .boardingAtRisk)
+        let openPath: [Destination] = [.journeyDetails, .alerts(alert)]
+
+        store.setNow(ClockTime(17, 17))
+        XCTAssertEqual(store.primaryCondition, .arrivesAfterClosure(arrival: ClockTime(17, 29), minutesLate: 4))
+        XCTAssertNil(store.alertToPresent)
+        XCTAssertEqual(Destination.showingArrivalAfterClosure(on: openPath), [])
+        XCTAssertEqual(Destination.showingArrivalAfterClosure(on: [.journeyDetails]), [.journeyDetails])
+    }
+
+    func testGateChangingAwayAndBackInvalidatesOldArrivalAction() {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.skipStep("passport")
+        let original = store.gateAssignment
+        store.setNow(ClockTime(17, 10))
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(17, 10)))
+        store.receive(FlightFeed(gate: original.code, receivedAt: ClockTime(17, 10)))
+        let current = store.gateAssignment
+
+        XCTAssertEqual(current.code, original.code)
+        XCTAssertNotEqual(current, original)
+        store.confirmStep("gate", displayedGate: original)
+        XCTAssertEqual(store.checklist.current?.id, "gate")
+        XCTAssertEqual(store.primaryCondition, .boardingAtRisk(closesIn: 15, walk: 12))
+        store.confirmStep("gate", displayedGate: current)
+        XCTAssertTrue(store.conditionInputs.atGate)
     }
 
     func testStopsMoveTheLeaveTimeForReturnNow() {

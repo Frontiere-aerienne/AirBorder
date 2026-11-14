@@ -1,5 +1,9 @@
 # Project Context Ledger: AirportXRCompanion
 
+### November 14 PR #13 gate follow-up
+
+The approved gate row identifies the full gate and confirms arrival against that assignment's revision. An update that changes the gate away and back invalidates an old button action. A subsequent gate report uses the immediately preceding gate, replaces an alert already on screen, and rejects acknowledgments from the old card. When an arrival estimate crosses closure, the after-closure state takes priority and dismisses the superseded alert. The November source was built from a freshly generated Xcode project with Xcode 27.1. The iPhone 13 / iOS 27.0 run passed 41 unit tests and six targeted UI tests. Added deterministic regression expectations to repository contribution and UI queue instructions.
+
 ### November 13 native gate-change reproduction and repair
 
 On advisory review revision a03cd3b, a focused native XCTest run on iPhone 13 / iOS 27.0 passed 12 existing checks and reproduced one failure with three failed assertions. After confirming arrival at Gate 105 and receiving Gate 108A at 17:10, the store retained a complete checklist and its at-gate flag, so it produced the gate-change condition without the expected boarding-risk condition. Earlier steps retained their states. The original test and Xcode evidence are in /tmp/airborder-gate-regression.13HhV9.

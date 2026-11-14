@@ -22,6 +22,7 @@ struct JourneyStepsView: View {
 
     private func row(_ step: JourneyStep, number: Int, checklist: JourneyChecklist) -> some View {
         let isCurrent = checklist.canConfirm(step.id)
+        let displayedGate = isCurrent && step.id == "gate" ? store.gateAssignment : nil
         return HStack(spacing: 14) {
             StepMarker(state: step.state, number: number, isCurrent: isCurrent, size: 28)
             if checklist.canSkip(step.id) {
@@ -44,10 +45,11 @@ struct JourneyStepsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                stepLabel(step, status: checklist.status(of: step), showStatus: isCurrent || step.state == .skipped)
+                let status = displayedGate.map { "Gate \($0.code)" } ?? checklist.status(of: step)
+                stepLabel(step, status: status, showStatus: isCurrent || step.state == .skipped)
                 Spacer(minLength: 4)
                 if isCurrent {
-                    completeButton(step)
+                    completeButton(step, displayedGate: displayedGate)
                 } else if checklist.canUndo(step.id) {
                     CTAButton(title: "Undo", style: .plain, height: 44, fullWidth: false) {
                         store.undoStep()
@@ -75,10 +77,11 @@ struct JourneyStepsView: View {
         .accessibilityIdentifier("journey-step-\(step.id)")
     }
 
-    private func completeButton(_ step: JourneyStep) -> some View {
-        CTAButton(title: "Mark complete", height: 44, fullWidth: false) {
-            store.confirmStep(step.id)
+    private func completeButton(_ step: JourneyStep, displayedGate: JourneyStore.GateAssignment? = nil) -> some View {
+        CTAButton(title: displayedGate == nil ? "Mark complete" : "Confirm arrival", height: 44, fullWidth: false) {
+            store.confirmStep(step.id, displayedGate: displayedGate)
         }
+        .accessibilityLabel(displayedGate.map { "Confirm arrival at Gate \($0.code)" } ?? "Mark complete")
         .accessibilityIdentifier("confirm-\(step.id)")
     }
 
