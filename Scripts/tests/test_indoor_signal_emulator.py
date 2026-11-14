@@ -1,6 +1,8 @@
 # PROCEDURAL: Black-box checks of the standalone QA input source, without the app.
 import json
+import os
 import pathlib
+import random
 import sys
 import unittest
 from urllib.error import HTTPError
@@ -55,6 +57,39 @@ class DriverTests(unittest.TestCase):
             self.assertEqual(error.exception.code, code)
             error.exception.close()
         self.assertEqual(self.request("/status"), before)
+
+    def test_randomized_paused_replay_controls(self):
+        seed_text = os.environ.get("AIRBORDER_DRIVER_TEST_SEED")
+        seed = int(seed_text) if seed_text is not None else random.SystemRandom().getrandbits(64)
+        rng = random.Random(seed)
+        print(f"AIRBORDER_DRIVER_TEST_SEED={seed}", flush=True)
+
+        # Input delivery stays paused so the random control sequence is the only clock.
+        # Include boundary bursts on every run and vary the actions between them.
+        actions = ["previous"] * 2
+        actions += rng.choices(["next", "previous", "reset", "pause", "invalid"], k=48)
+        actions += ["next"] * 15 + ["reset"]
+        index = sequence = 0
+        for step, action in enumerate(actions):
+            with self.subTest(seed=seed, step=step, action=action):
+                if action == "invalid":
+                    with self.assertRaises(HTTPError) as error:
+                        self.step(action)
+                    self.assertEqual(error.exception.code, 400)
+                    error.exception.close()
+                    status = self.request("/status")
+                else:
+                    sequence += 1
+                    index = {"next": min(index + 1, 12), "previous": max(index - 1, 0),
+                             "reset": 0, "pause": index}[action]
+                    status = self.step(action)
+                self.assertEqual(status["sampleIndex"], index)
+                self.assertEqual(status["sequence"], sequence)
+                self.assertTrue(status["paused"])
+                reading = self.request("/reading")
+                self.assertEqual(reading["matchedNodeID"], status["matchedNodeID"])
+                self.assertIn(reading["level"], (3, 4))
+                self.assertTrue(all(0 <= reading["point"][axis] <= 1 for axis in ("x", "y")))
 
 
 if __name__ == "__main__":
