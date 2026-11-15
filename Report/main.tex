@@ -1,13 +1,11 @@
-\documentclass[sigconf,nonacm]{acmart}
-\usepackage{amsmath,tikz}
+\documentclass[sigconf,nonacm,balance=false]{acmart}
+\usepackage{amsmath}
 \graphicspath{{figures/}}
-\usepackage{placeins}
 \settopmatter{printacmref=false,printfolios=true}
 \setcopyright{none}
 \acmConference{}{}{}
 \acmYear{2026}
-\definecolor{ink}{HTML}{17364A}
-\title{AirBorder: Coordinating Airport Decisions Across a Passenger Journey}
+\title{AirBorder: Helping Travelers Replan an Airport Connection}
 \settopmatter{authorsperrow=3}
 \author{Aravinda Venkatesan}
 \affiliation{\institution{University of South Florida}\city{Tampa}\state{Florida}\country{USA}}
@@ -19,110 +17,59 @@
 \setlength{\emergencystretch}{2em}
 \begin{document}
 \raggedbottom
+
 \begin{abstract}
-Connecting air passengers must combine a gate deadline, walking times, queues, required procedures and the stops they want to make, while flight information changes. AirBorder is a native iPhone app that keeps these in one journey and shows the next feasible action: when to leave a stop, how long the walk to the gate takes and what changed. Two traveler interviews shaped its requirements, and a high-fidelity Figma prototype was revised after class critiques. The implemented app covers a Tokyo Haneda connection with a gate change, a queue update that proposes a shorter stop, map and camera route guidance, ticket import and walking estimates refined by Apple Health. We plan a within-subjects study that compares AirBorder with Flighty's Connection Assistant on next-action accuracy and deadline interpretation after a gate change.
+When a connection changes, a traveler must decide whether there is time to finish a meal, rest or work before walking to the new gate. AirBorder is an interactive iPhone prototype that combines selected stops, travel and queue estimates, and the boarding deadline on one timeline. A controlled Haneda connection demonstrates gate-change recovery and plan revision after a longer queue. The prototype keeps itinerary updates, selected activities and gate guidance in the same journey state.
 \end{abstract}
-\ccsdesc[500]{Human-centered computing~Human computer interaction (HCI)}
-\ccsdesc[300]{Human-centered computing~Ubiquitous and mobile computing systems and tools}
-\ccsdesc[300]{Human-centered computing~Empirical studies in HCI}
-\keywords{airport connections, passenger decision support, mobile interfaces, explanation, evaluation plan}
+\keywords{airport connections, mobile interfaces, passenger decision support, mobile interaction}
 \maketitle
+
 \section{Introduction}
-\subsection{Problem}
-Passengers in an unfamiliar airport must combine boarding deadlines, walking and transport times, queues, baggage and border procedures, and the stops they want to make. A departure time is not a gate-arrival deadline, and a walking estimate may leave out a queue. The information sits in separate places: the ticket, the departure board, airline messages and signs. Our interaction problem is turning these scattered constraints into a feasible next action, and helping the traveler see how that action changes when the information does.
+A traveler at an unfamiliar connecting airport may know the new gate and still have to decide whether to leave a meal unfinished. The time on the ticket is the scheduled departure, while the gate can close earlier. A longer walk or queue can consume the time the traveler had set aside to eat, rest or work. The problem is working out which activity still fits. The consequences of misreading the deadline include giving up useful time or reaching the gate after closure.
 
-Disruption makes this coordination matter. Our two interviewed travelers described lost rest, missed commitments and extra costs after delays \cite{ref13}. A late inbound flight shortens the usable connection time, and a gate change can lengthen the walk while a traveler is still at a café or lounge. Figure~\ref{fig:motivation} shows the resulting planning task.
+AirBorder serves adults who want to use the time between flights, especially when they are unfamiliar with the terminal. The traveler chooses a stop and sees when to leave it, when they are expected at the gate and when it closes. When a flight update changes the gate, a notice names the new gate and opens directions. When a queue grows, the app recalculates the plan and can offer a shorter visit. The traveler chooses whether to apply it. We implement these interactions for a Bangkok--Haneda--Los Angeles journey and a Haneda--Narita transfer variant.
 
-\begin{center}
-\begin{tikzpicture}[font=\scriptsize]
-\node[draw=ink!40,rounded corners,align=center,text width=2.05cm,minimum height=.72cm] (a) at (-.7,0) {Gate, queue or\\arrival changes};
-\node[draw=ink!40,rounded corners,align=center,text width=2.05cm,minimum height=.72cm] (b) at (2,0) {Recheck time budget\\walks + waits};
-\node[fill=orange!18,rounded corners,align=center,text width=2.05cm,minimum height=.72cm] (c) at (4.7,0) {Adapt next action\\shorten a stop / reroute};
-\draw[->,thick,ink] (a)--(b);\draw[->,thick,ink] (b)--(c);
-\end{tikzpicture}
-\captionof{figure}{Passenger decision after a change: update the time budget while keeping the gate deadline, then adapt the next action.}\label{fig:motivation}
-\end{center}
+\subsection{What the passenger has to decide}
+The design concerns the period from arrival at the connecting airport to reaching the onward gate. During this period, a traveler may need to pass a checkpoint, move between concourses, or reach a different airport. The traveler may also want to fit in an optional stop. A useful answer gives a next action together with the facts that support it. A traveler deciding whether to stay at a lounge needs the time to return to the gate and the applicable target. The duration of the connection printed on the itinerary is too coarse to answer that question.
 
-\subsection{End users and approach}
-AirBorder is for adults making an airport connection, especially in an airport they do not know well, who want to use the time between flights without risking the next one. It keeps the selected stops, the walk to the gate and the gate-closing time in one journey. It shows when to leave each stop and when the traveler will reach the gate, and it alerts the traveler when the gate or a queue changes. A queue update can lead to a proposed change, such as a shorter lounge visit, that applies only after the traveler accepts it. In aviation, AI support that helped pilots gather information throughout a diversion decision, rather than only recommending an outcome, supported forward reasoning, and decisions were faster when it was combined with a recommendation \cite{ref221}. AirBorder applies this idea to passengers: the time budget and its parts stay visible beside the next action.
+Consider the prototype's onward flight from Haneda. The 18:00 departure identifies the flight, 17:25 is the gate closure in the fixture, and 17:05 is the plan's arrival target. A plan that reaches the gate at 17:15 still leaves ten minutes before closure, but has used ten minutes of the margin set aside by the plan. The scheduled departure is 55 minutes after the planning target. AirBorder presents the estimated arrival alongside the target and closure.
 
-\subsection{Scope}
-We ask whether travelers can identify the limiting constraint, tell the gate deadline apart from the departure time and revise a plan after a change. The implemented app covers one connection at Tokyo Haneda (HND) Terminal 3, from Bangkok to Los Angeles, plus a variant with a transfer to Narita (NRT). Live flight data, other airports and physical-device testing are outside the current implementation (Section~\ref{sec:status}).
+We use a same-terminal case to isolate replanning around a known gate and a selected activity. The Haneda--Narita variant shows why a change in departure airport requires a different sequence of steps, including a ground transfer.
 
-\section{Interview End Users}
-We analyzed the recorded answers of two adult travelers, R1 and R2, received on September 28 and 29 \cite{ref13}. Both completed the questionnaire online and independently; it combined categorical items, written accounts and interactive interface tasks, and it showed follow-up questions only when an earlier answer made them relevant \cite{ref2}. We coded the written accounts by situation, need, workaround and consequence, and left contradictions unresolved. Core answers selected later sections through fixed rules, so a reported connection, rest need or difficulty opened only the questions that applied. Each response was stored with the questionnaire version, which let us tell an unanswered item from a question that was never shown; a question not shown is not treated as a negative answer. The interface tasks presented a gate change, a map view and an update that stopped, and recorded the participant's first action, an ease rating and an optional comment. Appendix~\ref{app:interviews} gives both accounts.
+\section{Related Work and Baseline}\label{sec:baseline}
 
-\begin{center}\small
-\begin{tabular}{@{}p{.27\columnwidth}p{.30\columnwidth}p{.30\columnwidth}@{}}\toprule
-Profile & R1 & R2\\\midrule
-Age range & 18--24 & 18--24\\
-Occupation/field & Student; CS & Student; CS\\
-Journeys in 2 years & 3--5 & 3--5\\
-Phone; language & iPhone; English & iPhone; English\\
-AI tools used & ChatGPT; Claude & ChatGPT; Gemini\\\bottomrule
-\end{tabular}
-\captionof{table}{Reported participant characteristics.}\label{tab:participants}
-\end{center}
+\subsection{Making time estimates actionable}
+A layover planner gives the traveler two kinds of timing information. A deadline names the latest useful arrival, while an estimate describes how long it may take to get there. Fernandes et al.\ studied this distinction in a controlled transit task where a traveler chose when to leave to catch a bus. Their results motivate comparing point estimates with quantile dotplots that show how likely different travel times are \cite{ref8}. For a connecting passenger, the comparable decision is when to leave a chosen stop. AirBorder uses fixed travel times in the prototype to make that decision inspectable. An airport extension would first need calibrated observations before it could show an arrival probability.
 
-Both travelers prioritized leave-by time, routes and an explanation of ``what changed and when.'' R1 also wanted to compare activities; R2 wanted document and transit-entry checks. R1 prefers map-first guidance; R2 prefers camera guidance with the map available. In the interface tasks, neither used the dedicated map-expansion control, and after a gate change R2 wrote ``miss the map directing to new gate.'' R1 reported lost activity time after delays; R2 reported work and rest needs, extra costs and outdated chatbot advice. Both favor free or included facilities. Table~\ref{tab:needs} links these findings to the design.
+\subsection{Explaining changes and preserving control}
+Lim et al.\ found that explaining the cause of a context-aware system's behavior can help people understand it \cite{ref7}. For AirBorder, the relevant cause is a changed fact, such as an additional ten-minute wait or a different gate. The interface should show which decision that fact changes and which constraints still apply. For the queue example, the proposal identifies the affected visit and the revised duration needed to meet the same arrival target. Amershi et al.'s human--AI interaction guidelines motivate making consequences visible and supporting efficient correction \cite{ref144}. Those choices appear in the current prototype as an explicit Apply decision, an option to keep the selected visit lengths, and Undo after an applied adjustment.
 
-Their accounts also set the scale of the problem. R1's latest connection, within the past six months, was scheduled for one to under two hours and left no time for the meal and rest R1 wanted, because the inbound flight was late or the onward flight left earlier than expected. Both prefer a scheduled layover of two to under four hours with flexible activities. R2 reported four or more delays in two years, one of four to under eight hours, with rebooking, communication and meal costs and support requests that were only partly met; R2 asked for earlier notice, realistic ranges for how long things take, the effect on the connection and clear support contacts. R2 rated a journey tracker moderately useful, mainly for the current and next step, queue time and required documents. These answers shaped the Flight tab's single timeline, the airline contact on the late-arrival alert and the journey steps.
+Zhang et al.\ examined how decision support can help professional pilots gather facts and reason forward during a diversion \cite{ref221}. The passenger problem has a related structure at a different scale. After a gate change, the traveler needs to see the new gate, check the route and decide whether the remaining activity fits. Presenting the steps and constraints gives the traveler a way to check the advice. Research with AI-assisted decisions also suggests that the effort of verification and the visibility of sources can affect reliance \cite{ref219,ref220}. This informs the proposed verification step for live sources. In the prototype, the worked scenario exposes the numeric change and its effect on arrival.
 
-The interface tasks also showed that ease ratings and behavior can disagree. R1 rated the gate and map tasks very easy, yet chose the camera rather than the map-expansion control; R2 rated the gate task neither easy nor difficult without finding the action. We therefore score what participants do and state in the planned study separately from how easy they say a task was.
+\subsection{Flighty Connection Assistant}
+Flighty Pro's Connection Assistant is the baseline because it supports the same immediate goal of reaching an onward gate. Flighty describes a connection estimate assembled from itinerary-specific steps such as getting off the incoming flight, clearing required checks, transferring between terminals, and walking to the gate. It updates the status of the connection as the tracked flights change. These features show how much of the connection is committed to the required journey. Flighty uses the itinerary's minimum connection time as a starting point for its status assessment and then estimates the required steps. The scheduled connection benchmark, the gate closure, and the arrival target used to plan a stop each serve a different purpose. Keeping them distinct makes it possible to explain how each interface supports a passenger deciding when to leave.
 
-The two records share a narrow student, computer-science, English-language and iPhone profile, and R2 gave conflicting flight-frequency answers. The findings motivate requirements and hypotheses; they are not prevalence estimates or usability scores.
+The comparison focuses on a traveler who has chosen an optional stop and must act on a change. For example, a connection estimate can tell them what tasks and walking remain. The practical question at the caf\'e is how much of their visit still fits and when they need to leave. AirBorder places the chosen visit, the arrival target and the effect of the update in one plan. Appendix~\ref{sec:eval} specifies the comparison protocol, including how to match the gate, walk and arrival target across interfaces.
 
-\begin{table*}[t]
-\begin{minipage}{\textwidth}\centering\small
-\begin{tabular}{@{}p{.27\linewidth}p{.33\linewidth}p{.32\linewidth}@{}}
-\toprule
-Interview evidence & Design response in AirBorder & Evaluation question\\\midrule
-Both: leave-by time, routes and changes & Flight tab shows time before the gate closes, leave and gate-arrival times; alerts state the old and new gate & Can they identify when to leave and why?\\[3pt]
-R1 map-first; R2 camera-first; R2 missed the route to the new gate & Route tab with Map and Camera views sharing one step; Route button on every alert & Can they reach the route to a changed gate?\\[3pt]
-R1 lost activity time; R2 work/rest needs & Ordered stops with editable visit times; queue updates propose a shorter later stop & Can they revise a stop and still meet the deadline?\\[3pt]
-R2 outdated advice & Alert time stamps; Help states which data are saved sample data; airline contact on alerts & Can they tell what is confirmed and where to check?\\
-\bottomrule
-\end{tabular}
-\caption{Interview evidence translated into AirBorder features and evaluation questions.}\label{tab:needs}
-\end{minipage}
-\end{table*}
-
-\section{Current Interface/Solutions}
-\paragraph{Primary baseline.} Flighty's Connection Assistant addresses connection feasibility directly. It estimates the steps of a connection, such as deplaning, immigration, baggage, security and the walk to the departure gate, and updates the connection status as conditions change. It does not link that status to a traveler's own stops: someone choosing a meal or a lounge visit still has to work out when to leave. AirBorder makes the chosen stop, its leave time and the effect of a change visible together. Flighty is therefore our comparison system (Section~\ref{sec:eval}).
-
-\paragraph{Related solutions.} TripIt Pro lists airport amenities with walking directions, and airline apps such as Fly Delta send gate notifications and offer rebooking. Both interviewees use Google Flights, airline or airport apps and ChatGPT, and R2 reported effort moving chatbot advice into an itinerary \cite{ref13}. Signs, departure boards and staff remain the main alternatives in the airport.
-
-\paragraph{Related research.} Explaining why a system behaved as it did improved understanding and trust, whereas why-not explanations lowered understanding \cite{ref7}. AirBorder therefore leads with why the plan changed and keeps blocked alternatives secondary. Showing sources reduced reliance on incorrect answers from a language model, while explanations alone increased reliance on correct and incorrect answers alike \cite{ref219}; explanations reduced overreliance when they made an answer cheaper to verify \cite{ref220}. AirBorder therefore shows the values behind a proposal, such as the extra queue minutes and the new visit length, so a traveler can check them. In a controlled transit experiment, quantile dotplots and CDFs led to better leave-time decisions than a single predicted time or text uncertainty \cite{ref8}. The level at which uncertainty is shown also matters: uncertainty attached to individual reasoning steps reduced users' independent verification of a language model's answer \cite{ref222}. AirBorder currently shows single average estimates; a range for the leave-by result is planned, with the airline kept visible as the place to confirm the gate.
-
-\section{Initial Design}\label{sec:initial-design}
+\section{Initial Design}
 \subsection{High-fidelity prototype}
-Our high-fidelity prototype is an interactive Figma design for iPhone 13 (390 $\times$ 844 points) with four tabs: Flight, Layover, Route and Profile. It uses a navy ticket card, yellow gate signs and the Outfit typeface, and real Haneda Terminal 3 photographs. Its scenario is a Bangkok--Haneda--Los Angeles trip: the traveler lands at 11:15, and the onward flight NH~106 departs at 18:00 from Gate~105, which closes at 17:25. The Flight tab shows the ticket and ``Your plan''; Layover lists airside venues, landside places and city options; Route gives step-by-step directions to the gate; Profile holds walking data, connected accounts and settings. Prototype links simulate a gate change to 108A, a longer café queue, ``return now'' and ``boarding at risk'' alerts, and a transfer to Narita.
+Our interactive Figma prototype used an iPhone 13 frame with Flight, Layover, Route and Profile tabs. A navy ticket and yellow gate label identified the onward flight. Layover grouped venues by location relative to procedures. The original Haneda scenario set onward departure at 18:00 and gate closure at 17:25 at Gate 105. Prototype links staged a gate change, a longer caf\'e queue and an inter-airport transfer. The traveler could explore a caf\'e or lounge and follow step-by-step route guidance.
 
-\subsection{Screens and flows}
-\emph{Onboarding.} A welcome screen and three short pages explain the layover timeline (departure, layover, destination), the time before the gate closes and a route walked at the traveler's own pace; Skip is available on each page.
+\subsection{User feedback}
+The prototype makes gate changes visible through an alert that shows both gate identifiers and offers direct access to the updated route. A single Back action handles screen navigation. Camera has a dedicated exit, and End closes route guidance. Travelers can skip the tutorial and replay it from Profile.
 
-\emph{Flight.} The navy ticket shows the route, the departure time and a yellow gate sign; below it, ``Your plan'' states the time before the gate closes and a Route button. Each selected stop has a card with a timeline from now to leave, at the gate and gate closing. Journey details list both flights, baggage, the return flight and a Call ANA action; Journey steps show the checkpoints from arrival to boarding. When a timing situation holds, the plan is replaced by a countdown and a Route button in the matching color: amber for return now and red for boarding at risk.
+The venue card confirms when a stop is added. My plan lists saved stops in order, shows their visit durations, and provides access to editing and removal. Travelers can open the plan from a venue card or from Flight beside the gate timeline. Map and Camera share the current route step, and travelers can choose an alternative route. Ticket input supports photo capture, PDF import and manual entry. Figure~\ref{fig:screens} shows the implemented interface.
 
-\emph{Layover.} Three segments separate Airside venues near the gate (filtered by Rest or Food \& drink), Landside places such as a private workspace booth, an electronics shop with its phone number and the Terminal~3 and Terminal~2 observation decks, and City \& transfer options such as the Haneda Innovation City sky deck and the Keikyu line. Each airside card shows the walk from the traveler and back to the gate and an Add button; landside and city cards show the time to return through security.
+\subsection{Interaction design across working screens}
+\paragraph{Finding the plan again.} A traveler may choose a venue in Layover and then return to Flight to check whether the visit still fits. The venue card confirms the individual selection. My plan brings the complete sequence beside the flight timeline so the traveler can compare the order, adjust a visit duration, or remove a stop before committing time to it. After a gate update, Flight still opens the same list the traveler built from Layover.
 
-\emph{Route.} A title names the destination gate, a Map/Camera switch sits above a walking-time strip, and a numbered step card carries the written instruction with Previous, Next step and End. Route options open below the card.
+\paragraph{Keeping the new gate visible.} The gate alert uses the complete identifiers, including the letter in 108A. A traveler can match the change to a ticket or terminal sign before following the Route action. The resulting route screen still names the destination. The distinction between the current-gate state and the change notification matters when the alert is dismissed. Acknowledging an update records that the traveler has seen it. It leaves the updated gate available in Flight and Route. In the local replay build, arrival confirmation belongs to the old gate assignment and has to be made afresh for the new one. This behavior supports a plausible recovery case: a person has reached one gate, sees the update, and needs both a way to get to the new gate and a reminder that reaching the old gate is no longer sufficient.
 
-\emph{Profile.} Saved flights, Connected accounts (Apple Health, Gmail, Calendar), Previous trips, Step-free routes, Language, Privacy, Help \& information, About, Replay tutorial and Reset preferences, which returns stops, journey steps and route settings to their starting state.
+\paragraph{Continuity across directions.} Map provides a terminal overview and a stable reference for the destination. Camera is useful when the traveler is looking at a sign and needs the instruction for the current step. We gave these views a shared current step so a switch preserves the place in the route. A conspicuous Exit camera action returns the traveler to the route view. The overall destination belongs at the top of the route while the step text can change as the traveler advances. The route interaction also needs separate physical-device verification because switching views in a staged journey cannot expose every camera or movement problem.
 
-\subsection{Changes after the class critiques}
-The instructor and classmates reviewed the prototype; we received 14 substantive classmate responses. Their points, and what we changed, were:
-\begin{itemize}
-\item \textbf{Gate changes must be prominent} (instructor). A gate update now opens an Alerts screen automatically, showing ``Gate 105 $\rightarrow$ 108A'', the closing time and the walk. The full identifier 108A replaces 105 on the ticket, the plan and the route.
-\item \textbf{One working Back control} (instructor; peers). Each screen has one back icon. The camera view has an Exit camera button, and the last route step has an End button.
-\item \textbf{Onboarding} (instructor). The welcome and three onboarding screens run once, with Skip; Profile offers Replay tutorial.
-\item \textbf{Clear plan building} (four peers). ``Add caf\'e'' changes to an added state, stops appear in order with visit times, and they can be edited, removed and reordered in My plan.
-\item \textbf{Integrated directions} (four peers). Map and Camera views share the same route step and written instruction, so switching views keeps progress. Route options offer Direct, Step-free and Less crowded walks.
-\item \textbf{Lounges, tickets, transfers and walking} (several peers). We added a lounge detail page with a floor map, ticket import by camera and PDF, a step-by-step Haneda--Narita transfer, and walking estimates that start from average times and use the traveler's own pace when Apple Health is connected.
-\item \textbf{Queue and crowd changes} (three peers). A queue update recalculates the plan and, if the traveler would reach the gate late, proposes shortening a later stop, with Apply, Keep my plan and Undo.
-\end{itemize}
-Classmates also praised the colors, the introductory guidance, the facility cards and the airside/landside grouping, so we kept them unchanged. Figure~\ref{fig:screens} shows the revised screens as implemented.
+\paragraph{Reviewing a change before applying it.} A queue update can affect the arrival estimate even when the traveler wants to retain the full lounge visit. The proposal distinguishes the new wait from the optional edit it motivates. Keeping the visit still incorporates that wait. Shortening the visit remains an edit the traveler can accept or decline. The displayed consequence is a clock time the traveler can compare with their target. Explainability studies support showing why guidance changed and making the basis for verification accessible \cite{ref7,ref220}. The revised plan exposes the venue, added wait, changed visit and resulting arrival.
 
-Several suggestions were changed rather than adopted literally. The critique asked us to weigh a dedicated plan tab against prominent entry points; we kept the four original tabs and made the plan reachable from the Flight tab (``My plan'') and from each venue card, because the plan is meaningful only next to the gate and its closing time. Our earlier design asked travelers to set a walking pace; in response to the walking-estimate critique, it became an automatic estimate that uses the traveler's own airport walks and Health data when available and never asks travelers to judge their own pace. Queue updates do not reorder or remove stops; they propose the smallest change to one selected stop, and the traveler decides. Each of these keeps the traveler in control of the plan while still answering the critique.
+\paragraph{Onboarding and recovery.} A brief first-run sequence orients the traveler to the flight, plan and route. They can skip it when they already understand the app, then replay it from Profile. Help identifies which facts come from the sample journey. A traveler can leave Camera, back out of a venue detail view, or undo an offered plan change without clearing the journey. These exits matter most when information changes while a person is already using the interface.
 
 \begin{figure*}[t]
 \centering
@@ -130,45 +77,20 @@ Several suggestions were changed rather than adopted literally. The critique ask
 \includegraphics[width=.2\textwidth]{App-Flight.png}\hfill
 \includegraphics[width=.2\textwidth]{App-GateAlert.png}\hfill
 \includegraphics[width=.2\textwidth]{App-Route.png}
-\caption{The implemented app on an iPhone simulator. From left: adding a café or lounge near the gate; the Flight tab with the plan timeline (now, leave, at gate, gate closes); the gate-change alert, with the full identifier 108A and a Route action; and the Route tab, whose Map and Camera views share the current step.}\label{fig:screens}
+\caption{Four views from the implemented iPhone prototype. From left, the traveler adds a stop, reads the plan timeline, receives a gate-change alert with a Route action, and follows directions. The Route panel shows the original gate assignment.}\label{fig:screens}
 \Description{Four phone screens: an Add to my plan list with Curacion Cafe and ANA LOUNGE; the Flight tab with a navy ticket, Gate 105 and a timeline from 12:00 to 17:25; an Alerts screen showing Gate 105 to 108A, closing at 17:25 with a 12-minute walk; and a Route to Gate 105 screen with Map selected and the step "Follow the Gates 105--109 sign".}
 \end{figure*}
 
 \section{System}
-Functionally, AirBorder lets the traveler see their connecting flight and the time left before the gate closes; add caf\'es, lounges and a landside visit to an ordered plan with leave and gate-arrival times; receive alerts when the gate changes or time runs short; accept or decline a proposed change after a queue update; follow step-by-step directions to the gate on a map or with the camera; track required steps such as security and passport control; add a ticket by camera, PDF or manual entry; and refine walking estimates with Apple Health. This section gives the technical details needed to rebuild these features.
-\subsection{Platform and architecture}
-AirBorder is a native iPhone app written in Swift and SwiftUI for iOS 18 or later. A single observable journey store holds the selected plan, the journey checkpoints, the latest flight report, alert records, the chosen route and walking data; every tab reads it, so a change appears everywhere at once. The store is saved on the device as JSON in user defaults. Vision recognizes text in ticket photos and in signs seen by the camera, PDFKit reads ticket PDFs, AVFoundation provides the camera, and HealthKit supplies walking speed. All recognition runs on the device.
+\subsection{Shared journey state}
+The app uses Swift and SwiftUI on iOS 18 or newer. The journey store holds the selected stops, latest flight report, checkpoints, alerts and route preferences for all four tabs. Ordered stop records contain a location, queue wait and visit duration. State is written as versioned JSON to local user defaults. When an input changes, each screen derives its timing and directions from the same store. The planning functions live in \texttt{AirBorder/Model}, the shared store and navigation in \texttt{AirBorder/App}, and the views in \texttt{AirBorder/Features}.
 
-The code is organized in three layers. \texttt{Model/} holds plain value types and pure functions: the journey and flight legs, the plan engine, the situation rules, the checklist, walking estimates and ticket parsing. They have no user-interface code, so the unit tests call them directly. \texttt{App/} holds the store, the root view and tab navigation. \texttt{Features/} holds one folder per tab (Flight, Layover, Route, Profile) and the onboarding flow; \texttt{Design/} holds the shared colors, the Outfit typeface, cards, buttons and information sheets taken from the Figma components. Each tab has its own navigation stack, and alerts, journey details and import screens are pushed onto the Flight stack, so a single back icon always returns to the screen that opened them.
+The store separates an airline observation from a traveler action. Accepting a suggestion edits a selected visit. A flight report changes the gate shown on the ticket and in guidance. The alert identifies the change using the gate on the sample ticket and the reported gate. Timing states use the clock and the walk for the selected route. This lets the app place a time-critical prompt ahead of a routine reminder. An alternative route keeps its own duration, so a longer path can change when the traveler needs to leave.
 
-\begin{figure}[t]
-\centering
-\begin{tikzpicture}[font=\scriptsize,box/.style={draw=ink!50,rounded corners,align=center,text width=1.75cm,minimum height=.62cm}]
-\node[box] (in1) at (0,1.5) {Ticket and flight report};
-\node[box] (in2) at (0,.5) {Queue report};
-\node[box] (in3) at (0,-.5) {Apple Health speed};
-\node[box] (in4) at (0,-1.5) {Traveler edits};
-\node[box,fill=ink!8,text width=1.6cm,minimum height=3.4cm] (st) at (2.55,0) {Journey store\\[2pt]plan, checklist,\\feed, alerts,\\route choice,\\health state};
-\node[box] (d1) at (5.1,1.5) {Schedule: leave and gate times};
-\node[box] (d2) at (5.1,.5) {Situations and alerts};
-\node[box] (d3) at (5.1,-.5) {Proposed change};
-\node[box] (d4) at (5.1,-1.5) {Route steps and sign target};
-\foreach \i in {1,2,3,4}{\draw[->,ink] (in\i.east)--(st.west|-in\i.east);\draw[->,ink] (st.east|-d\i.west)--(d\i.west);}
-\end{tikzpicture}
-\caption{Data flow in the app. Inputs change the journey store; the schedule, situations, proposals and route steps are recomputed from it, and every tab reads the results.}\label{fig:dataflow}
-\Description{Four inputs (ticket and flight report, queue report, Apple Health speed, traveler edits) feed a central journey store, which produces four derived outputs: the schedule, situations and alerts, a proposed change, and route steps with the sign target.}
-\end{figure}
+\subsection{Planning under a gate deadline}
+The planner adds the walk to each stop, the wait and the visit duration, and then the walk from the last stop to the gate. For a direct return, the latest time to leave is the gate-arrival target minus the walk. For a sequence of planned stops, the timeline instead shows the scheduled end of the last visit and its projected gate arrival. In the Haneda sample, 17:05 is the planning target, 17:25 is gate closure and 18:00 is scheduled departure. The 20-minute allowance in the scenario is a planning choice. The interface distinguishes arriving by the target, having little time before closure, and arriving after closure.
 
-Figure~\ref{fig:dataflow} shows how state moves through the app. Only inputs are stored: the plan, the checklist, the latest flight report, the alert records, the route preference, the Health connection state, the saved flights and the profile. Everything the traveler sees about timing is derived on demand from those inputs, so there is no second copy that could go stale. The store writes a versioned JSON record (\texttt{journeyState.v1}) to user defaults after every change and reads it at launch; a UI-test launch argument resets it. The walking speed from Health is not stored: it is read again from Health each time.
-
-A separate Cloudflare Worker written in JavaScript holds provider credentials and exposes authenticated endpoints for flight status and search, departure and arrival boards, an airport facility registry, entry requirements, reminders, optional model explanations and revisioned journey storage. The app does not call the Worker yet: it ships one saved sample journey, and Help states that its flight times, gates, venues and queues are not live. The flight report is modeled on the Worker's flight-status response (a gate and a receipt time), so connecting the two replaces the sample report without changing the situation rules.
-
-\subsection{Plan timing}
-All times are airport-local minutes. Let $s_0$ be when stops begin (16:00 in the sample), and let each selected stop $i$ have a queue wait $q_i$ and visit length $v_i$. With $w(a,b)$ the walking time between places, the start of stop $i$ is $t_i = e_{i-1} + w(p_{i-1},p_i)$, where $e_{i-1}$ is when the previous stop ends ($e_0=s_0$, $p_0$ the start point), and the stop ends at $e_i = t_i+q_i+v_i$. The traveler leaves the last stop at $e_n$ and reaches the gate at
-\[A = e_n + w(p_n,\mathrm{gate}).\]
-The airline's gate-arrival target $D$ is 20 minutes before the gate closes (17:05 for a 17:25 close). With no stops, the leave-by time is $D$ minus the walk to the gate.
-
-Table~\ref{tab:worked} works through the sample plan. With a café (8-minute wait, 20-minute visit) and the ANA LOUNGE (28 minutes), the traveler reaches the gate exactly at 17:05. When the café wait rises to 18 minutes, the same computation gives 17:15, ten minutes past the target. Shortening the lounge to 18 minutes restores 17:05; keeping both stops as they are still reaches the gate before it closes, but after the target. The Flight tab shows these times on a timeline from now to the gate closing (Figure~\ref{fig:screens}).
+A caf\'e with an 8-minute queue and a 20-minute visit followed by a 28-minute lounge visit produces a 17:05 arrival. When the caf\'e wait increases to 18 minutes, arrival moves to 17:15. Reducing the lounge visit to 18 minutes restores 17:05. The proposal identifies the queue increase and the visit it would shorten. Applying it changes the selected visit and offers Undo. Keeping the plan preserves the visit but still incorporates the longer wait. Other stops and required steps retain their state. Table~\ref{tab:worked} shows the timing changes.
 
 \begin{table}[t]\small\centering
 \begin{tabular}{@{}lccc@{}}\toprule
@@ -180,144 +102,314 @@ At the gate & 17:05 & 17:15 & 17:05\\\bottomrule
 \caption{Worked timing for the sample plan at average walking pace (5-minute walk from café to lounge, 4 minutes from lounge to gate; target 17:05, gate closes 17:25).}\label{tab:worked}
 \end{table}
 
-Walking times come from a table of average minutes between Terminal 3 places at 4.2~km/h. If the traveler connects Apple Health, the app reads walking speed and, together with the speed from recorded airport walks on previous trips (equal weight), rescales each walk: $w' = \lceil 70\,w / (1000\,k/60)\rceil$ for pace $k$ in km/h. Without either source, the average times apply.
+The proposal function first checks that the updated venue belongs to the plan. It recalculates arrival with the new wait and measures how far the result exceeds the target. Among stops that follow the affected venue, it looks for a visit that can absorb the difference while retaining at least 10 minutes. If no visit meets that condition, the function produces no shortening proposal. This makes the proposed edit traceable to a single change while letting the traveler edit the plan directly. Before applying a proposal, the app checks that its source plan still matches the current plan.
 
-The walking estimate follows a consent path. Profile $\rightarrow$ Connected accounts explains what is read before the system permission sheet appears, and the app asks only to read one Health type, walking speed, which iPhone and Apple Watch record. It takes the average of the last 28 days of samples and converts it from metres per second to km/h. Speeds outside 1--9~km/h are ignored. If the traveler declines, the account has no samples, or Health is not available on the device, the estimate falls back to the airport walks and then to average times. Removing Health in Profile sets the connection to removed, clears the speed and recomputes every time at once; the app never labels a pace as slow or fast. The three recorded airport walks in the sample (840~m in 12 minutes, 630~m in 9 and 1{,}050~m in 15) give 4.2~km/h, the same as the average, so the sample journey only changes when Health is connected.
+Walking times come from a table of average durations at 4.2~km/h. A valid estimate of personal pace \(k\) in km/h rescales an average leg of \(w\) minutes to \(\lceil 4.2w/k \rceil\) minutes. The estimator can combine a HealthKit speed with an airport-walk estimate derived from total distance divided by total walking time. With both inputs it takes their mean. With a single input it uses that value. With neither it uses the table. The current Haneda build supplies the airport-walk history from the sample journey, at 4.2~km/h. Collection of a traveler's own airport walks remains future work. HealthKit access is read-only and requires consent. Fernandes et al.\ showed that how a display conveys uncertainty affects transit departure decisions \cite{ref8}. The prototype displays a point estimate for each scripted walk.
 
-\subsection{Situations and alerts}
-The app evaluates five situations from the current inputs, most urgent first. With $c$ the gate-closing time, $n$ the current time and $g$ the walk to the gate, the spare time is $c-(n+g)$. If it is negative, the traveler would arrive after the gate closes, and the app offers boarding assistance with the airline's phone number. If it is under 10 minutes, boarding is at risk. If the traveler is past the leave time with more spare time, the app says to return now. Separately, a gate in the flight report that differs from the ticket raises a gate change, and a next flight from another airport starts the Narita transfer. A situation shows only while its condition holds. If the closing time is unknown, timing situations are not computed. In the three timing situations, the Flight tab replaces the plan with a countdown and a Route button.
+\subsection{Time calculation and response boundaries}
+Let $s$ be the start of the planned activity sequence in minutes after midnight, $w_i$ the walk to stop $i$, $q_i$ the estimated queue and $v_i$ the selected visit duration. The planner calculates the start of the first visit block as $s+w_1$ and adds $q_1+v_1$ to get its end. Each subsequent stop starts after the preceding stop ends and the traveler completes the next walk. For $n$ stops and a final walk $w_g$ the projected gate arrival is
+\[
+ A=s+\sum_{i=1}^{n}(w_i+q_i+v_i)+w_g.
+\]
+All these quantities refer to one connecting airport's local clock for the fixture. The selected order affects $w_i$, so adding a venue or moving it can change both the work spent at the venue and the route needed to reach it. Holding stop durations fixed while reordering them need not hold total travel time fixed.
 
-A gate change shows how one input reaches every screen. The store's gate is the latest gate in the flight report, or the ticket's gate if there is no report. The ticket card, the plan's gate sign, the alert, the Layover return-to-gate cards and the route steps all read that one value, so 108A appears everywhere at once and never as a shortened ``108''. The route changes from ``Gate 105 ahead'' to ``Follow signs for 108--149'' and ``Gate 108A'', and from step 2 the camera looks for the ``Gates 108--149'' sign instead of ``Gates 105--109''. In the sample journey, the report arrives a short time after the app opens, as a provider update would. Each new gate change, return-now or boarding-at-risk situation opens the Alerts screen once, with the time it began; an alert not acted on returns as a reminder after five minutes.
+We use $T$ for the plan's gate-arrival target and $C$ for closure. The two relevant margins are $T-A$ and $C-A$. The first measures whether the plan preserves its intended arrival time. The second measures how much time remains before the scheduled gate closing. For the original 17:05 arrival the margins are zero and twenty minutes. The extra ten minutes at the caf\'e yields a target margin of minus ten and a closure margin of ten. A proposal can therefore be warranted even when a trip still fits before closure. In a direct walk with no planned stops, the leave-by calculation answers a different question: for a 12-minute leg and a 17:05 target, leaving at 16:53 reaches the target exactly.
 
-\subsection{Queue updates and proposed changes}
-When a queue report raises the wait at a selected stop, the app recomputes $A$. If $A$ would pass $D$ by $o$ minutes, it searches later selected stops, from the last one back, for a visit that can be shortened by $o$ and still last at least 10 minutes. It proposes that change in words that carry the numbers, for example ``Allow 10 more minutes for the café queue. Shorten ANA LOUNGE to 18 min to still arrive by 17:05.'' Nothing changes until the traveler taps Apply. Apply first checks that the proposal was computed from the current plan; if the plan has changed since, the proposal is recomputed instead. Keep my plan keeps every stop and visit length but still counts the longer queue, so the times shown stay true. Undo after Apply restores the previous plan and shows the proposal again, and any other edit to the plan discards a pending proposal. Proposals consider only stops the traveler selected and never add or remove stops. This follows the guidelines to support efficient correction and to scope services when in doubt \cite{ref144}.
+\paragraph{Meaning of the walking estimate.} The walk matrix describes fixture legs between the starting point, Curacion Cafe, ANA LOUNGE, SKY LOUNGE and the gate. Its baseline uses 70 metres per minute. Rescaling changes the duration while preserving the preselected path. It cannot decide whether a route contains an accessible lift or whether a corridor is open. Those conditions require verified route data. The fixture's direct and step-free choices carry separate time estimates so the implications of taking a longer path are visible. In the replay, lowering the pace from 4.2 to 3.15~km/h changes a 12-minute walk to 16 minutes. Moving from three minutes before closure to one minute after closure is a consequence of the injected inputs.
 
-\subsection{Route guidance}
-The Route tab gives three written steps to the gate and an end step, with Previous, Next step and End. Map shows a schematic Terminal 3 concourse with the current position and the gate; Camera shows the live back-camera view with the same step card. In Camera, Vision reads sign text and matches it against the sign expected at that step (for example ``Gates 105--109''); if no match is found within 10 seconds, the app says it could not read the sign and offers to try again or use the map. The camera passes at most two frames a second to Vision's fast text recognizer for English and Japanese. The matcher compares the recognized lines with tokens for the expected sign after removing spaces and dashes, so ``105--109'', ``105-109'' and ``105 - 109'' all match, as do the Japanese and English lounge and bus signs. Nothing from the camera is stored or sent. Where the device has no camera or access is denied, the Camera view explains this and the Map view keeps the same step. Switching views or leaving the camera keeps the current step. After a gate change, the steps lead to 108A. Route options change the walk to the gate from 12 minutes (Direct) to 16 (Step-free) or 15 (Less crowded), which the leave time and alerts then use. The Layover tab offers a 30-minute landside visit to the Terminal~2 observation deck; the app works out the time needed to go by shuttle, return and pass security, and directs the traveler to the gate when there is not enough time.
+\paragraph{Three ways a proposal can end.} Applying a valid proposal writes the new plan and keeps the previous plan available to Undo. Keeping the plan preserves the selected activity durations while incorporating the larger wait. Editing or removing a stop updates the plan and causes the offered proposal to be reconsidered. The engine checks that the selected plan still equals the proposal's starting plan before applying it. If a selected caf\'e is removed, its queue has no target in the remaining plan. If the only later stop is too short to absorb the overrun, the engine produces no shortening proposal under the ten-minute minimum. The traveler can still edit the plan directly or leave for the gate. These cases show why the interface needs to present the underlying arrival estimate even when it has no valid one-stop adjustment to offer.
 
-\subsection{Journey steps, tickets and flights}
-Journey steps list the checkpoints from arrival to boarding: arrival, connection, security, passport control and gate. ``Now'' is the first step the traveler has not confirmed, never inferred from location. Steps that may not apply offer Not needed, and the last change can be undone. The Narita variant lists passport control, bags, customs and the transfer. A ticket can be added with the camera or from an airline PDF, which the app reads for a flight number, date and route that the traveler checks before saving, or by manual entry with validation. Photos use Vision's accurate text recognizer, and PDFs use their embedded text. The parser looks for a flight number (a two-character airline code and up to four digits, preferring known airline codes), a date in ISO, day-month or month-day form, and a route written as two airport codes joined by an arrow, dash or ``TO''. It keeps only what it found; a document without a flight number is reported as unreadable, and impossible dates are rejected. The Wallet, Gmail and Calendar import screens state that these are not available yet and point to the PDF instead.
+\paragraph{Facts, estimates and their source.} The trip includes a staged reported gate and scheduled flight times, an internal planning target and estimated walks. A delay to scheduled departure, by itself, entails no change to the boarding cutoff. The local replay exercises that boundary by sending the departure and gate-closing changes as separate events. A product with live inputs would need to match a report to the flight and departure date, retain its source and age, and surface a missing closure as unknown. The fixture uses explicitly supplied values for the comparison. It also leaves the traveler a way to inspect which change caused the displayed arrival. This is the relevant connection to evidence on uncertainty displays and verification \cite{ref8,ref219,ref222}.
 
-\subsection{Accessibility and privacy}
-Screen titles are marked as headings for VoiceOver, controls carry accessibility labels, and compact icon buttons keep a 44-point tap area. Gate identifiers are never truncated, and the Step-free routes setting in Profile makes the step-free route the default with its own walking time. Sign reading accepts both the Japanese and English text on Haneda's signs. The app asks for two permissions, each with a plain explanation: the camera (``Frames stay on this iPhone'') and read-only access to walking speed in Health (``It stays on this iPhone''). The app sends no data to a server in this version: links to airline and airport pages open in Safari or the phone app, and the journey, saved flights, profile and any recognized text stay on the device, as the Privacy sheet in Profile states. Health data is read, never written, and is not saved by the app.
+\subsection{A queue update from calculation to decision}\label{sec:queue-rule}
+In the Haneda example, the plan holds the ordered stops and the duration the traveler has chosen for each. The queue event supplies the identity of the affected stop and a revised wait. The planner copies the current plan, replaces the wait in the copy and reruns the same schedule used by My plan. It then measures the new overrun against 17:05. The queue grew by ten minutes in the worked example, and the original plan had zero slack. Consequently the overrun is also ten minutes. If there had been four minutes of spare time, the same increase would require recovering only six minutes. That distinction matters to a person who wants to retain as much of the lounge visit as possible.
 
-\subsection{Testing}
-The 34 unit tests call the model layer directly with fixed times. They cover plan timing (no stops, café then lounge, shorter café and reordering), queue proposals (shortening the later selected stop, no proposal when no later stop can absorb the delay, Apply only after the tap and Undo, Keep counting the queue, stale proposals dropped), walking estimates (pace scaling, airport walks with and without Health, the step-free preference), journey steps (``Now'', Confirm, Not needed and Undo), ticket parsing (itinerary and boarding-pass text, a missing flight number, impossible dates), situations (none at noon, gate change from the report, return now, boarding at risk, arrival after closing, ordering, no timing situation at the gate or without a closing time, the Narita transfer, reminders), sign matching in English and Japanese, and the Terminal~2 visit window. The 21 UI tests drive the app on the simulator, one per main flow: the four tabs, adding stops and applying a proposal, the gate alert, the return-now and late-arrival states, route steps and their End, camera guidance with its map fallback, Apple Health, onboarding, manual flight entry, baggage, editing a flight date, the import screens, the Terminal~2 visit and the Narita transfer. Launch arguments fix the clock, reset saved state and supply a walking speed, so each test starts from the same journey.
+\noindent\textbf{Listing 1. Queue replanning rule.} Plain-language pseudocode for the prototype's selected-stop rule in \texttt{PlanEngine.swift}. Each time is expressed in whole minutes on the sample airport clock.
+\begin{verbatim}
+propose(saved plan, changed stop, new wait, pace):
+    if changed stop is absent or wait did not rise:
+        return no proposal
 
-\subsection{Backend Worker}
-The Worker (\texttt{Backend/src/index.js}) protects every \texttt{/v1} route; only a health route is public. In production it verifies a Cloudflare Access token (an RS256 signature checked against the Access keys, then issuer, audience, expiry and subject) and refuses to run without authentication. Requests are rate-limited per hashed account and route category at 60 a minute, and the Worker fails closed with 503 if the limiter is missing. Provider keys (FlightAware, Amadeus, Sherpa and others) are Worker secrets that never reach the app. Journey progress is stored per account, trip and flight leg in a SQLite-backed Durable Object: each update carries an event ID and the revision it expects; a stale revision returns 409 with the current record, and a replayed event ID returns the stored result instead of applying it twice. The optional explanation route sends already-computed facts to a Workers AI model at temperature 0 and accepts only a reordering of the same fact IDs and a focus from a fixed list; any other answer falls back to the original order, so the model cannot add, change or remove a fact. The 40 Worker tests use mocked providers and cover authentication, account isolation, concurrent commits and replay.
+    updated = copy saved plan with new wait
+    overrun = arrival(updated, pace) - gate target
+    if overrun <= 0:
+        return no proposal
 
-\subsection{Replicating the system}
-The source is public at \url{https://github.com/Frontiere-aerienne/AirBorder}. On a Mac with Xcode 26 or newer and XcodeGen, run \texttt{./Scripts/generate.sh} to create \texttt{AirBorder.xcodeproj}, select the \texttt{AirBorder} scheme and an iPhone 13 simulator, and run the app (Cmd+R) or its tests (Cmd+U, or \texttt{SIMULATOR\_NAME='iPhone 13' ./Scripts/test.sh}). Installing on a personal iPhone needs only an Apple Account in Xcode. The Worker runs from \texttt{Backend/} with \texttt{npm ci --ignore-scripts} and \texttt{npm test}; \texttt{./Scripts/configure-secrets.sh} sets provider keys. Continuous integration builds the app and runs its unit and UI tests on a hosted macOS runner with an iPhone 13 simulator.
+    for each later stop, from last to first:
+        new visit = its visit - overrun
+        if new visit >= 10 minutes:
+            revised = copy updated with new visit
+            return proposal(saved plan, new wait, revised)
+
+    return no proposal
+
+resolve(proposal, action, current plan):
+    if current plan differs from proposal.base:
+        recalculate and leave the plan unchanged
+    else if action is Apply:
+        save current plan for Undo
+        commit proposal.revised
+    else if action is Keep:
+        commit revised wait only
+\end{verbatim}
+
+The candidate order is a design choice. Searching backwards favors intervening later in the trip, after the disruption, when the traveler can still use their first selected stop. The prototype adjusts one visit at a time and keeps a minimum ten-minute visit. Two later stops might jointly absorb a delay that either stop alone cannot absorb. That case produces no proposal under this rule, leaving the traveler free to choose a different sequence or head to the gate. This bounded behavior keeps the proposed change small enough to describe on the screen.
+
+The saved-plan check belongs to the action handler. If the traveler opens Edit stop while a proposal exists and then saves a different visit or order, a proposal made for the earlier plan can no longer be applied. My plan can show the recalculated proposal for the current sequence. Apply commits the adjusted wait and the shorter visit together. Keep my plan keeps each visit length but incorporates the staged wait. Undo restores the previous saved plan after an applied adjustment. The visible distinction between discovering a delay and accepting a change gives the traveler control at the moment it matters. It also gives the evaluator an observable decision, even when the traveler declines the offered adjustment.
+
+\paragraph{Previewing a manual edit.} In Edit stop, a traveler can shorten a visit in a five-minute step, restore its original saved duration, or change the stop order. The screen evaluates the draft using the same walking legs and durations as the saved plan. Save commits that draft. Going back leaves the saved sequence in place. Remove acts on the selected stop and returns the traveler to the plan. Retaining a separate draft protects the traveler who wants to inspect the timing effect without committing to the edit. For a venue later in the route, even a simple reorder can change the direction and length of the walks between stops, so the preview recalculates the schedule as a whole. The existing timing table and Listing~1 show the quantities a reader needs to audit the result.
+
+\subsection{How a saved plan changes under a different constraint}
+The timing equation and Listing~1 can be applied to three variations of the same selected activities. At the reference pace with the caf\'e first, the original plan arrives at 17:05 and the longer queue moves arrival to 17:15. The planner proposes recovering ten minutes by reducing ANA LOUNGE to 18 minutes. With the same queue and itinerary at 3.15~km/h, the five-minute venue-to-venue walk becomes seven minutes and the four-minute walk from the lounge to the gate becomes six. The updated plan now arrives at 17:19. It takes a fourteen-minute adjustment to reach 17:05, leaving a fourteen-minute lounge visit. The queue report has not changed. The walk consumes four additional minutes and changes the feasible visit. At either pace, keeping the selected visits preserves their durations and incurs the revised wait.
+
+Reordering the original plan creates a different case. Starting at 16:00, the sample walk to ANA LOUNGE takes five minutes and the 28-minute visit ends at 16:33. Walking five minutes back to the caf\'e and spending eight minutes waiting and twenty minutes visiting gives a 17:06 departure from the caf\'e. Its eight-minute walk to the gate gives a 17:14 arrival at the reference pace. The same two venues and visit durations now miss the planning target. The caf\'e is last, so a new caf\'e queue report has no later stop from which the rule can recover time. The app's plan preview can show the effect of the reordering. A shortening suggestion cannot solve this configuration without relaxing the rule about which part of the plan may change.
+
+These cases expose two separate constraints in the design. The traveler selects the activities and their order, and the proposal only adjusts a downstream visit when it can restore the target above the minimum. The rule therefore has a specific, inspectable scope. It examines the selected plan once to calculate arrival and scans later stops in reverse order until it finds one that can absorb the overrun. It assumes that shortening a visit changes elapsed time by the same number of minutes and preserves the walk and wait estimates for the selected route. If a venue's queue depended on the new arrival time, that assumption would require a different calculation. Showing the walk and wait contributions is what makes the current proposal explainable with a small set of values.
+
+\subsection{Triggering and clearing a time-sensitive notice}
+The condition engine in \texttt{JourneyConditions.swift} takes the scenario clock, ticket gate, staged flight report, applicable closure, selected walk and leave-by time. It also receives whether the traveler has confirmed arrival at the gate and whether the onward flight leaves from another airport. For a same-airport connection, it first identifies any changed gate by comparing the reported gate with the one on the ticket. It then estimates arrival if the traveler starts walking now. When closure is known and the traveler is still away from the gate, $\text{closure}-(\text{now}+\text{walk})$ determines the urgency. An arrival later than closure produces an arrival-after-closure condition. Zero through nine minutes to spare produces boarding risk. With at least ten minutes to spare, reaching the leave-by time produces a return-now condition. The ten-minute threshold controls the prototype's notice. This is a prototype threshold.
+
+At 17:00, a twelve-minute walk to the original gate arrives at 17:12 with thirteen minutes before closure. A direct traveler with a planning target of 17:05 has already passed the 16:53 leave-by time, so the app can prompt them to return with time to close still available. The same walk beginning at 17:10 reaches the gate at 17:22 and leaves only three minutes. At 17:17 it reaches the gate at 17:29, four minutes late. These are three separate clock settings under the same route assumptions. A developer can replay them using the \texttt{-now} launch argument and \texttt{-gateUpdate off}. Given an unknown closure, the engine does not derive a countdown or a boarding-risk judgment. In the transfer configuration the app presents the airport transfer condition and leaves the Haneda gate rules out of that calculation.
+
+An alert also has a lifecycle. The store retains the sample time at which a situation arose, when the alert was first seen and whether the traveler acknowledged it. The reminder rule can recognize a previously shown, unacknowledged alert after a five-minute interval. This timer is distinct from the simulated airport clock used for the time calculation. A separate local build addresses another change in state. A revised gate can require another arrival confirmation even if the old gate was marked complete. The local build associates confirmation with the gate assignment it applied to, allowing earlier steps to stay complete when the gate step reopens. The other checkpoint states remain valid for the same passenger journey.
+
+\subsection{Guidance, checkpoints and imports}
+Map and Camera share the destination and current step. Map shows a schematic concourse. In Camera, AVFoundation supplies frames and Vision matches Japanese or English text against the expected sign. The traveler can retry or return to the same Map step when the camera cannot read a sign. The prototype provides sign-assisted directions. Physical positioning and registered AR overlays remain unverified.
+
+The journey tracker lists checkpoints such as security, passport control and reaching the onward gate. The Narita variant adds baggage collection, customs and the ground transfer. The app imports a ticket photo through Vision, reads embedded PDF text through PDFKit, or accepts manual entry. The traveler reviews extracted fields before saving. Camera frames are processed locally.
+
+The current checkpoint is the earliest outstanding step. When a checkpoint supports skipping, the traveler can explicitly mark that it does not apply and undo the change. The tracker uses the supplied procedure sequence for the sample trip. A ticket can supply a route and date, while confirming a physical checkpoint requires the traveler's action.
+
+\subsection{Guidance and trip inputs in the sample journey}
+The guide treats the traveler's route and the checklist as related but separate state. The Route tab names the active destination and presents Map and Camera modes for the same written step. The final guide control, ``End,'' returns to Flight. In Camera, the traveler can leave directly, choose ``Use Map instead,'' or use ``Use Map'' after a sign cannot be read. These recoveries preserve the current step and destination. The guide uses a scripted route with instructions tied to expected signs.
+
+The Journey steps screen makes procedural state explicit. For the Haneda connection, the list represents arrival, security, passport control, and arrival at the gate. The current outstanding item is identified, while completed items expose ``Undo.'' A scenario-permitted omission exposes ``Not needed,'' which the traveler may reverse. The persisted record contains confirmed and skipped checklist states. Security, passport control, baggage collection, and reaching the gate require an explicit traveler action. Camera frames, route transitions, and tickets do not create a checkpoint confirmation.
+
+The Haneda--Narita variant uses an airport-transfer condition. Choosing NH~6 changes the notice to ``Change airports: Haneda $\rightarrow$ Narita,'' the destination to ``Route to Narita,'' and the instruction to ``Follow Bus signs.'' Its checklist contains arrival, passport, bags, customs, and Narita. The baggage detail states ``Collect at Haneda T3 2F. Recheck at Narita T1 by 20:00.'' This scripted transfer uses fixture timings and procedures, with operator timetable, terminal access, admission eligibility, and physical location remaining outside its verified scope. An unavailable gate-close value leaves timing unresolved.
+
+The store persists selected stops, checklist states, the saved trip flight, manually saved flights, route-accessibility preference, health-connection state, received sample report, alerts, and onboarding completion as versioned local state. The saved flight is the traveler's confirmed edit. The in-progress flight draft, proposed revision, undo snapshot, presented alert, toast, current tab, and route step are transient interface state. A queue proposal affects a selected stop only after ``Apply,'' and ``Undo'' restores the preceding plan. This boundary makes it possible to reload a saved trip while discarding an unfinished edit.
+
+\subsection{Interpreting a sign along the route}
+The screen separates the intended destination from the visual cue that helps the traveler find it. A change to Gate 108A switches the destination, but the route can still start by following signs for Gates 105--109. The camera's expected text comes from the current script step. A later step can look for the sign covering Gates 108--149. In the airport-change case, the guide instead looks for the bus sign. In all three cases, the text is a cue for the displayed instruction. The system does not infer the terminal position or advance the checkpoint simply because it recognizes one of those strings.
+
+The available camera frames are processed on the phone. The sign reader uses English and Japanese recognition and compares the recognized text with the expected token. It normalizes spaces and dash variants, so the range can still match when a sign uses different typography. Matching a token ends the scan and shows the guidance for the current step. When the reader reports failure, the interface lets the traveler try again or return to Map with the same step. In Map, the written instruction gives the traveler a way to look for the sign without a camera session. This is useful when the phone cannot obtain a clear image, and it keeps the effort of recovering proportionate to the uncertainty about a sign.
+
+A system supporting an entire field route would need a stronger claim than recognition of one code range. Similar ranges can appear at several points and the route changes if a corridor is closed. In the current implementation, the script supplies context and the traveler moves the step forward explicitly. This keeps the camera attached to an understandable task. It also gives the prototype a reliable action to fall back to when access is blocked or after a reader exits Camera.
+
+\paragraph{Keeping procedure state separate.} The journey tracker stores whether each procedural step is pending, confirmed, or marked as not needed when the sample permits that option. The next actionable step is derived from the pending entries. Changing Map to Camera has no effect on those entries. Neither opening a ticket nor seeing the expected sign changes whether Security or Passport control is complete. The interaction instead lets the traveler confirm a prerequisite or mark an optional item as inapplicable and reverse the latest change. In the initial single-terminal fixture, Arrival and Connection are already confirmed and Security comes next. The traveler can see which prerequisites still apply without reconstructing the sequence from the itinerary. The inter-airport fixture uses a separate checklist because the passenger must reach a different departure airport before seeking the gate.
+
+\subsection{From ticket text to a journey record}
+Ticket capture and airport guidance use image recognition for different decisions. On a boarding pass or itinerary image, the app looks for data the traveler can review before saving. On a terminal sign, it looks for a phrase associated with the current route step. The ticket parser accepts free text from Vision or the text layer of a PDF. It prefers a recognized airline code when several strings resemble flight numbers and normalizes entries such as JL043 to JL~43. A date and route may also be present. The parser recognizes date formats with named months as well as numeric dates, validates the resulting date and keeps route fields optional. A date such as February 30 cannot become a valid trip date through formatting alone.
+
+The review step is important even when text recognition succeeds. An itinerary can list several segments, and an OCR match that resembles a flight number can refer to a different segment. Confirmation gives the traveler a chance to identify the intended one in the context of the trip. When a photo cannot be read, the traveler can try another capture, use a PDF with a text layer, or enter the flight manually. Reading ticket text grants no authority to assess the passenger's right to enter a country, airline check-in status or current gate. Those would require a suitable source. In the implemented prototype, the reviewed entry can be saved on the phone. The Haneda experience and its gates come from the explicit sample journey.
+
+\subsection{Recovering from a gate change in the running prototype}
+A reproducible demonstration starts with a clean sample trip and the original onward flight. On Flight, read the current gate from the ticket, then open the plan and check the selected stops. With the staged gate update enabled, the alert's two identifiers make the change visible. Open Route from the alert. The destination header, subsequent instructions and the home ticket now refer to the new gate. Return to the plan to see the same selected stops. This sequence reveals three user-visible consequences of the shared state: the gate is consistent between views, travel instructions follow the new destination, and the optional stops remain available to evaluate. The traveler decides whether to keep, shorten or leave a stop.
+
+When the traveler is approaching the deadline, the displayed travel notice uses the selected route's walk and the current fixture clock. At 17:00 the same terminal walk that reaches the gate well before closure can still be too late for the planned target. The alert's job is to express the action that is useful at that point. Its full gate label helps the traveler avoid following the old route after returning from the alert. A deliberately short walk in one scenario therefore supports testing the communication of the deadline, while a longer walk in another changes what is feasible without forcing a change in the passenger's planned activities. These samples demonstrate what the interface computes from supplied facts. They establish no general rule about how quickly a particular traveler will walk at Haneda.
+
+\subsection{Choosing a route and keeping the trip in view}
+Route options offer Direct, Step-free and Less crowded. Their reference durations are 12, 16 and 15 minutes respectively in the Haneda fixture. The choices give a passenger with a different walking preference a reason to inspect the time alongside the route description. Under the 17:05 target, the reference direct route leaves at 16:53, while the reference step-free route leaves at 16:49. The four-minute difference is meaningful even when both choices are feasible. The preferred step-free setting makes that option the starting choice. The underlying durations and route descriptions are supplied by the fixture. The app has no surveyed set of working lifts, temporary obstructions or real-time crowd counts from which to certify a step-free or less crowded path.
+
+The route through saved stops answers a related question. It lists each venue in the order the traveler selected, then the shared gate and the walk required after the final stop. Its leg estimates come from the stop-to-stop table. The direct alternatives are predefined walks to the gate. The app does not yet solve for a different accessible path across every arbitrary combination of stop locations. A deployable version would need to carry route constraints through the full sequence, including facility entrances, levels and any temporary route closure. The distinction is visible in what the prototype can demonstrate. A traveler can compare the time for a different final route and can separately inspect a sequence of venues.
+
+The handoff screen offers two external links using Haneda Terminal~3 as the search target. That target can help establish the terminal in an external map. Full handoff would require a verified gate or indoor destination and support for resuming the same route step on return. For the current workflow, Continue in AirBorder takes the traveler back to the route screen and My plan remains accessible. The distinction is important near a decision point where losing saved stops or a gate assignment would force a traveler to reconstruct the connection from memory.
+
+\subsection{Trip edits and the scope of saved information}
+There are two different entry points into flight state. The manual and captured-ticket flows produce a saved entry after review. The trip editor controls the fixture itinerary used by the main journey views. Editing the date and flight number in that screen first updates a draft. Saving an edit that crosses the NH~106 and NH~6 boundary replaces the procedural checklist and returns route guidance to its first step. This matters when the old route led to a gate in a different airport. The reinitialized checklist records which steps now belong to the fixture journey. It cannot infer which steps a traveler has already performed for an itinerary acquired independently. The app updates the relevant alert state after saving. The selected activity plan is stored separately from the fixture flight switch, so its presence alone is insufficient to establish that its visits remain feasible for a changed airport.
+
+The implementation also separates a chosen walking preference from a measured speed. The step-free setting selects a default route type. The optional walking-speed connection requests read access to the walking speed quantity in Apple Health. When available, the source computes the mean of samples from the previous 28 days and converts metres per second to kilometres per hour. The prototype averages that result with the airport-history estimate supplied by the fixture. Removing the connection clears the reading from the journey store and refreshes the proposal using the remaining estimate. This lets a person use the workflow without a usable health reading. An everyday walking mean has a different interpretation from a timed airport leg with bags or a wait for a lift. The app uses it to vary an estimated duration.
+
+A journey record survives reopening the app through the versioned local save. This keeps the intended stops, checklist progress and alert history available across a tab switch or a later launch. A draft review and an unaccepted recommendation are temporary. Keeping these states separate supports a useful recovery question: after returning to the phone, what has already been done and what is still awaiting a decision? The stored observation and the user's acknowledgement provide different information. The first identifies a potential change in the trip. The second records that the app has already presented it and the traveler acted on the alert. It is still necessary to consult the current gate and checklist to decide what to do next.
+
+\subsection{Crossing an airport boundary}
+
+The native prototype includes two deliberately bounded workflow replays beyond the
+same-terminal plan calculation.  The examples below use fixture-specific values for schedules, procedures and access. They illustrate the choices and prerequisites the interface exposes.
+
+\paragraph{Haneda--Narita change.} Selecting the fixture flight NH~6 changes the
+outbound record from HND--LAX to NRT--LAX.  The fixture departure is 21:00 from
+Narita Terminal~1, with a fixture gate-close time of 20:20; the resulting interval
+from the fixture inbound arrival at 11:15 is 9~h~45~m.  This selection is not
+treated as a later Haneda gate or a conventional gate update.  It changes the
+prominent condition to ``Change airports: Haneda $\rightarrow$ Narita,'' the Route
+destination to Narita, and the first written direction to ``Follow Bus signs.''
+Consequently, the same-terminal return-now, boarding-risk, and gate-change rules
+do not produce a confident Haneda gate instruction for this branch.  The transfer
+countdown instead refers to the fixture Narita closure.
+
+The procedural sequence also changes rather than merely adding a transport card.
+The NH~6 fixture checklist is Arrival (already confirmed), Passport control, Bags,
+Customs, and Transfer to Narita.  The traveler confirms each successive step. The route detail directs them to collect the bag at Haneda Terminal~3, 2F, then take the 13:10 bus from 1F. The 95-minute ride arrives at Narita Terminal~1 at 14:45. The traveler must recheck the bag by 20:00 in this fixture, then complete departure security and passport control before the 20:20 gate closure. The Travel documents link opens official guidance. The procedure and timetable use fixture data.
+
+Baggage is the concrete reason that the airport-change UI differs from the
+same-terminal fixture.  The normal sample sheet describes one 32~kg checked bag
+as tagged to LAX and remaining with the airline at Haneda.  The NH~6 sheet instead
+states ``Collect at Haneda T3 2F. Recheck at Narita T1 by 20:00,'' while retaining
+the fixture allowance of one 32~kg checked bag and 10~kg cabin baggage.  Declaring
+one extra bag changes the displayed allowance state, but it neither verifies a
+booking nor changes the fixed transfer timing.  Thus the interface exposes the
+different reclaim/recheck obligation before the bus route rather than implying that
+the original through-check assumption survives an airport change.
+
+\paragraph{Terminal~2 observation deck.} The landside Observation Deck branch is
+an optional visit in the fixture. The interface labels the deck as Terminal~2, 5F, with a fixture 06:30--22:00
+label.  The admission calculation uses an 11-minute fixture walk to
+the shuttle, a 4-minute fixture wait, and a 15-minute fixture shuttle for a total of 30~minutes one way.  If admitted, the visitor may add exactly one 30-minute fixture visit to
+the local journey state and then inspect the explicit shuttle route: lift to
+Terminal~3 1F and Bus Stop~0, take the free shuttle through T1 to T2, and lift from
+T2 1F to 5F.  ``Arrived at Terminal~2'' retains a distinct return action.
+
+The return constraint is calculated separately from the outward trip.  For the
+average-route fixture's 12-minute gate walk, the deck leave-by time is
+17:05 minus 30~minutes to return to T3, minus 30~minutes for security, minus
+12~minutes to the gate: 15:53.  The visit is offered only when the current fixture
+clock plus the 30-minute outward transfer plus the 30-minute visit is no later than
+that leave-by time.  Starting at 14:53 makes an exact fit. Starting a minute later would miss the target. With the fixture clock at 15:00, the interface blocks ``Add a
+30-minute visit,'' shows ``Not enough time for Terminal~2,'' and directs the
+traveler to the gate.   The return screen retains shuttle, security, and gate-walk
+obligations before reopening directions.  A fixture ``shuttle full'' state adds
+10~minutes and requests plan review or a return to the gate without automatically
+altering selected stops.
+
+\paragraph{Reproducing the two workflows.}
+From a fresh sample trip, choose NH~6 in Edit flight details or launch with
+\texttt{-flight NH6}, then open Baggage for this flight and Route. To open the
+observation-deck case, restore NH~106, go to Layover and choose Landside and
+View route \& return. Add the 30-minute visit and follow the shuttle instructions.
+After selecting Arrived at Terminal~2, View Journey shows the return sequence.
+Opening the deck at 15:00 with the default route gives the blocked case.
+
+\subsection{Source boundaries and replication}
+The iPhone demonstration calculates its decisions locally from the supplied journey facts. Research on LLM-assisted decisions shows why verification matters: source access can help people recognize incorrect answers, explanations help when they make the evidence easier to check, and the placement of uncertainty cues can affect independent verification \cite{ref219,ref220,ref222}. Our queue screen shows the changed minutes and the resulting arrival so a traveler can check the recommendation. Help identifies the sample data and the airline contact supports external verification.
+
+To reproduce the sample interactions, use a Mac with Xcode 26 or newer and XcodeGen. With the AirBorder project files in place, run \texttt{./Scripts/generate.sh} and open \texttt{AirBorder.xcodeproj}. Select the AirBorder scheme and an iPhone 13 simulator. Start with \texttt{-resetState -gateUpdate off} in the scheme's launch arguments. In Layover, add Curacion Cafe followed by ANA LOUNGE. Open My plan on Flight, apply the longer-queue suggestion, verify the new visit and arrival times, then undo. For a gate-only run, relaunch with \texttt{-resetState -now 17:10 -gateUpdate 1}. The final value sets a one-second delay before the scripted update. The \texttt{-flight NH6} option loads the Narita variant.
+
+\paragraph{Departure delay and gate closure.} A separate local build at \texttt{4950f39} models inbound arrival, an onward departure delay, indoor movement, gate reassignment and an explicit change to closure on one clock. When Gate 105 becomes 108A, arrival must be confirmed for the new gate and earlier checkpoints retain their state. At 17:10, a 17:25 closure leaves three minutes with a 12-minute walk and is missed by one minute with a 16-minute walk. The replay supplies 4.2 and 3.15~km/h to produce those walks. The departure delay leaves closure unchanged until a separate update. The indoor feed uses synthetic landmarks to advance the scripted Gate 105 route and stops applying when the gate changes. These events and durations are supplied by the scenario.
+
+\subsection{Validating journey updates in the browser prototype}
+
+The repository also contains a browser prototype in \texttt{Web/}. It distinguishes a traveler's
+plan, a reported airport condition, and a prompt shown because of that condition.
+The distinction is visible in Flight, Layover, Route, and the journey-step
+sheet.  A plan is an ordered list of optional stops with a chosen duration and
+completion state.  An observation is a bounded record, such as a queue, gate,
+transfer duration, or weather affecting an outdoor stop.  Each has an
+identifier, event time, and, where appropriate, expiry time.  The calculator
+uses it only when it has a usable value and has not expired at the fixture
+clock.  It therefore does not turn a missing queue, expired transfer estimate,
+or expired gate report into a zero-minute value.  Instead, the plan becomes
+unknown and the interface asks the traveler to check missing details.
+
+This behavior gives source changes a bounded consequence.  A newer observation
+for the same queue, gate, or transfer replaces an older one only when its event
+time is later; replaying the same event identifier is ignored.  A gate event is
+accepted only for the sample onward flight, and the displayed gate is updated
+from that event.  The selected stops are not silently removed when the gate
+changes.  Their timing is recalculated against the new terminal destination,
+and Route uses the same current gate as the flight card.  Thus the Gate~105 to
+Gate~108A scenario changes the destination and the direct walk without claiming
+that the traveler's location, boarding status, or ability to reach the new gate
+has been detected.  Route progress remains an interaction state: the traveler
+uses the next, previous, finish, and direct-route controls, rather than the
+prototype inferring progress from a location signal.
+
+The gate-change notice is therefore a change explanation, not a separate flight
+record.  It presents both complete gate identifiers and a route action.  The
+enduring record is the current gate in shared journey state, so Flight and Route
+continue to show the current destination after the notice has been read.  In the
+browser replay the notice is rendered while the gate-change scenario is
+selected, rather than acting as a dismissible inbox item.  Seeing it is not
+evidence of arrival, clearance, or boarding.
+
+The same separation applies when the traveler leaves the activity list.  An
+optional stop can be added only while the route is known and the connection is
+not in an urgent or airport-transfer state.  Once selected, it may be edited
+within the catalogue minimum and a one-day upper bound, removed, reordered, or
+marked complete from the route guide.  Each edit increments the plan revision so the route reflects the altered sequence.  Editing a stop changes only the visit
+duration; it does not manufacture a new queue estimate or alter the passenger's
+gate.  Completing a stop advances the stored fixture position, so subsequent
+walks are calculated from that stop rather than from the initial position.
+Removing a stop does not erase the remaining itinerary.  It yields a new plan
+whose timing and route can be inspected immediately.
+
+Recommendations are intentionally constrained recoverable edits.  The current
+browser rule may recommend removing one selected optional stop when the known
+plan misses its gate-arrival target, or when a selected outdoor stop conflicts
+with a current rain observation.  A recommendation stores the plan revision,
+observation revision, and fixture clock from which it was derived.  Apply
+recomputes the recommendation and succeeds only if all three still match.  A
+gate update, new queue observation, elapsed fixture time, manual duration edit,
+or reorder therefore invalidates an older action instead of applying it to a
+different journey.  On rejection, the UI tells the traveler that the plan
+changed and asks them to review the current suggestion.  On acceptance, the
+previous stop list is retained as a one-step Undo snapshot.  Undo is available
+only while that snapshot still belongs to the current revision, preventing an
+older restoration from overwriting a later edit.  The traveler can retain or directly edit the plan. An estimate can change independently of the chosen stops.
+
+An onward flight from a different airport changes the primary action.  In the
+Haneda--Narita fixture, the main action becomes review of transfer steps rather
+than route guidance to a local gate, and optional activity controls are disabled.
+The transfer sheet asks the traveler to confirm baggage handling, entry and
+document needs, transport, current travel time, and airline deadlines before
+choosing transport.  The journey-step sheet exposes arrival, connection,
+transfer, security, and gate/board stages as distinct confirmations.  A step
+can be marked confirmed, returned to pending, or marked not needed only where
+the fixture designates it conditional.  These confirmations do not change the
+plan timing, grant entry permission, or establish baggage eligibility.  They
+record only the traveler's stated progress through the displayed sequence.
+
+When an authenticated host supplies a real trip and leg binding, those step
+confirmations have a separate persistence path from the optional-stop plan.
+The client first loads the owner-bound record, then queues local confirmations
+in order with event identifiers and expected revisions.  It can display queued
+progress during a temporary failure, but a revision conflict pauses replay and
+offers the saved record only through an explicit ``Use saved progress'' action.
+An ownership mismatch or logout clears the displayed progress rather than
+carrying it into another account.  This synchronization applies to checklist
+status, not to route timing, flight facts, or selected activities; the browser's
+ordinary fixture mode remains session-local.
+
+\paragraph{An estimate with an expiry.}
+In the browser's queue fixture, the opening plan has 18 minutes of travel and 70 minutes of activity. At minute 1, a caf\'e observation adds a 20-minute wait, moving projected arrival to minute 109. Removing either of the two selected activities produces a minute-58 arrival in this controlled case. At minute 15 the wait observation expires. The engine then returns an unknown arrival and suppresses both proposals, because expiry cannot establish that the queue is empty. The app can retain the traveler's selected activities while asking for the information they need to resolve the decision. This behavior differs from the native queue example because the browser treats observation validity as an explicit part of the decision.
+
+\paragraph{A delay affects the itinerary that uses the transfer.}
+The browser engine adds a shuttle wait only when the route includes that shuttle. In its paired fixtures, both travelers select the same caf\'e and have a minute-60 target. When the transfer is in the itinerary, a report increasing its duration from ten to thirty minutes changes travel from 22 to 42 minutes. At event minute 1, projected gate arrival is minute 68. With no shuttle in the itinerary, the same report leaves travel at 12 minutes and projected arrival is minute 38. Holding the stop fixed shows what drives the difference. A delay somewhere in the terminal network does not by itself create a reason to remove a stop that lies on an unaffected route. The prototype keeps the link between the selected route and the relevant observation explicit.
 
 \section{Implementation Status}\label{sec:status}
-\subsection{Implemented central features}
-The iPhone app implements the central journey: the ticket and plan on the Flight tab; adding, ordering, editing and removing stops; plan timing with walking estimates refined by Apple Health; the gate change to 108A with an automatic alert; return-now, boarding-at-risk and late-arrival situations; queue updates with Apply, Keep and Undo; Map and Camera route guidance with on-device sign reading and route options; journey steps; ticket import by camera, PDF and manual entry; the Haneda--Narita transfer; the lounge detail and floor map; and onboarding with replay. On 12 November 2026, continuous integration on the main branch passed all 34 unit tests (plan timing, situations, walking estimates and ticket parsing) and all 21 UI tests (one per main flow), and the Worker passed its 40 tests. These tests check the software; they are not usability evidence. The Heathrow Terminal~2 design used in our earlier proposal remained a design study and is not part of the app.
+The November main-branch build supports stop selection and editing, the timing display, gate and queue updates, map and camera guidance, journey steps, ticket input and onboarding.
 
-Table~\ref{tab:status} lists the 13 central requirement groups behind the completion estimate below, with the evidence for each.
-
-\begin{table*}[t]\small\centering
-\begin{tabular}{@{}p{.22\textwidth}p{.09\textwidth}p{.6\textwidth}@{}}\toprule
-Requirement group (source) & Status & What exists and what is missing\\\midrule
-Gate-change alert (instructor) & Done & Alert opens automatically with 105 $\rightarrow$ 108A; one gate value used on every screen; unit and UI tests.\\
-One Back control (instructor; peers) & Done & One back icon per screen; Exit camera; End on the last route step; UI test of End returning to Flight.\\
-Onboarding (instructor) & Done & Runs once with Skip; Replay tutorial in Profile; UI test.\\
-Plan building (4 peers) & Done & Add/added state, ordered stops with times, edit, remove and reorder; unit and UI tests.\\
-Integrated directions (4 peers) & Partial & Map and Camera share steps and route options; the map is schematic and there is no positioning.\\
-Lounge details (1 peer) & Done & ANA LOUNGE page with floor map; access stated as ``check with your ticket''.\\
-Ticket input (2 peers) & Done & Camera and PDF reading with review; manual entry with validation; unreadable and denied states.\\
-Sign-reading recovery (1 peer) & Partial & Cannot-read state with retry and map fallback; no landmark confirmation or position correction.\\
-Transfer breakdown (3 peers) & Done & Haneda--Narita steps, baggage recheck and route; started by choosing NH~6.\\
-Walking estimate (earlier interviews; 1 peer) & Done & Average, airport walks and Health with consent, removal and fallback; unit and UI tests.\\
-Queue and crowd updates (3 peers) & Partial & Queue update with proposal; data are sample only, and crowd or full-shuttle updates are not modeled.\\
-Map app handoff (1 peer) & Not started & No handoff to Google or Apple Maps.\\
-Selected-plan proposals (our rule) & Done & Changes only selected stops, only after Apply; stale proposals dropped; Undo; unit tests.\\\bottomrule
+\begin{table}[t]\centering\small
+\begin{tabular}{@{}p{.23\columnwidth}p{.71\columnwidth}@{}}\toprule
+Status & Central requirement groups \\\midrule
+Implemented (9) & Gate alert, Back controls, onboarding, plan building, lounge details, ticket input, transfer steps, walking estimates and selected-plan proposals.\\
+Partial (3) & Integrated guidance has a schematic map. Camera has sign-reading recovery without verified positioning. Queue changes use sample data.\\
+Pending (1) & Gate-level handoff to an external map and restoration of in-app guidance.\\\bottomrule
 \end{tabular}
-\caption{Central requirement groups from the class critiques and our plan-safety rule, with their implementation status in the iPhone app.}\label{tab:status}
-\end{table*}
+\caption{Completion against 13 central prototype requirements, including the restriction on changes to selected stops.}\label{tab:status}
+\end{table}
 
-\subsection{Central features not yet implemented}
+Nine of the 13 requirement groups in Table~\ref{tab:status} are complete, for an implementation estimate of 69\%. The remaining groups concern indoor guidance, recovery when the camera cannot read a sign, live queue updates, and resuming guidance after an external map handoff.
+
+\section{Conclusion}
+AirBorder brings the onward gate, boarding deadline, and selected stops into one connection plan. A gate change redirects guidance while preserving the traveler’s choices. When a longer queue threatens the arrival target, the prototype shows the timing consequence and can offer a shorter visit that the traveler can accept or undo. These behaviors are demonstrated with supplied schedules, routes, and disruption events.
+
+\section{Future Work}
+
 \begin{itemize}
-\item \textbf{Live data.} The app uses a saved sample journey. Connecting it to the Worker's flight-status endpoint, so that real gate changes and times arrive, is not done.
-\item \textbf{Real positioning.} The map is schematic and does not track location; Camera reads signs but does not place arrows in the scene.
-\item \textbf{Other airports and trips.} Only Haneda Terminal 3 and the Narita transfer are modeled; a manually added flight is saved but has no airport plan.
-\item \textbf{Uncertainty display.} Estimates are single average values; ranges and live queue data are planned.
-\item \textbf{Validation.} Testing on a physical iPhone, the Japanese and French translations and the participant study remain to be done.
+\item \textbf{Connect live data to the traveler’s current decision.} Start with one terminal and an airport and airline partner. Match events to the operating flight, date, terminal and venue, and store each fact's source, timestamp and expiry. A departure delay should preserve the boarding cutoff until the source responsible for that cutoff updates it. If a longer queue leaves no feasible shortening, show the revised wait and arrival estimate so the traveler can decide whether to leave a stop or go directly to the gate. Verify how the interface handles conflicting gate reports, expired observations and out-of-order events before enabling live guidance.
+
+\item \textbf{Calibrate leave-by advice with observed durations.} Collect walk, checkpoint, and shuttle times for specific routes and times of day, accounting for shared effects such as crowding that slows both walking and screening. Use the resulting arrival distributions to estimate a leave-by time at a stated confidence. Compare predicted on-time probabilities with observed outcomes on held-out operating days and terminals. Then compare how travelers interpret a range, a quantile display and a point estimate in the airport scenario. Transit results provide a reason to test these formats \cite{ref8}.
+
+\item \textbf{Verify accessible routes and preserve guidance offline.} Build a terminal route graph with confirmed gates, lifts, checkpoint boundaries and temporary closures. Use the same selected route to calculate walking time and generate directions, so a step-free alternative also changes the leave-by estimate. Retain the last confirmed gate, deadline, and route step with freshness labels when connectivity drops. Check on a physical phone whether travelers can continue using a map or written directions when camera permission is denied, a sign fails to match, or an external map cannot return them to the exact indoor step.
+
+\item \textbf{Extend coverage beyond Haneda.} Pilot routes at airports with different connection patterns. Heathrow would exercise terminal transfers by bus and the associated security step. Amsterdam Schiphol would test how the plan changes when a connection crosses the Schengen border. Singapore Changi would test when the traveler can use the transit shuttle to Terminal~4 and when the route must use the public side. Package each airport's verified layout, transfer services, checkpoint rules and timing data separately so the same planner can use them. Confirm the path with the operator for the specific itinerary, including baggage handling and step-free access, before showing a leave-by estimate.
+
+\item \textbf{Extend recovery to airport changes and missed connections.} Develop the Haneda--Narita scenario around verified handovers. Show where baggage must be collected and rechecked, when ground transport needs to depart, and which checkpoint or deadline limits the plan. If the itinerary becomes infeasible, compare replacement routes using the traveler's airport preferences and time to reach each airport. Surface the responsible airline or operator beside any unresolved condition. Keep the changed facts, time calculation, and confirmation action together so the traveler can check a recommended edit before accepting it \cite{ref144,ref220}.
 \end{itemize}
-
-\paragraph{Order of remaining work.} We will finish in an order that keeps the timing rules stable before live data arrive: first, connect the flight report to the Worker's flight-status route for the flight number, date, gate and closing time, with stale or missing values shown as unknown rather than as zero; next, replace sample queue values with a source when an authorized one exists; then add ranges to the leave-by estimate. Physical-device runs of the camera flow and the translation pass follow, and the participant study runs on the version frozen before recruitment.
-
-\subsection{Completion estimate}
-We estimate the project at about 70\% complete. The basis is the 13 central requirement groups from the critiques and our plan-safety rule: 9 are implemented in the app (gate alert, Back controls, onboarding, plan building, lounge details, ticket input, transfer steps, walking estimate and selected-plan proposals), 3 are partial (route guidance without positioning, sign-reading recovery, and queue updates from sample data only), and 1 is not started (handoff to Google or Apple Maps). Counting partial groups as incomplete, 9 of 13 is 69\%. Live data, device testing and the study are tracked separately and not included in this share.
-
-\section{Evaluation Plan}\label{sec:eval}
-\subsection{Population}
-We will recruit six to eight adults who have made at least one connecting flight in the past two years, through university and community channels and aviation-enthusiast groups, without pressure from instructors. The recruitment message will read: ``We are testing a phone app that helps travelers plan the time between connecting flights. The session uses only made-up trips, and you can stop at any time.'' Screening requires participants to be 18 or older, to use an iPhone, and not to have worked on or seen AirBorder; we will record prior use of Flighty, airport familiarity and confidence with mobile apps, and seek a mix of these. Collaborators on this project and the two interviewees will not take part.
-
-\subsection{Hypotheses}
-\begin{itemize}
-\item \textbf{H1 (primary).} After a gate change, more participants identify a feasible next action with AirBorder than with Flighty Connection Assistant. \textbf{H1$_0$:} the proportion is the same with both.
-\item \textbf{H2 (primary).} Participants interpret the leave-by deadline correctly more often with AirBorder. \textbf{H2$_0$:} deadline interpretation accuracy does not differ.
-\item \textbf{S1 (secondary).} Participants complete the gate-change task faster with AirBorder. \textbf{S1$_0$:} completion time does not differ.
-\item \textbf{S2 (secondary).} In the matched tasks, participants omit fewer required steps with AirBorder than with Flighty Connection Assistant. \textbf{S2$_0$:} the number of omitted required steps does not differ.
-\item \textbf{S3 (secondary).} Participants rate AirBorder higher for ease and confidence. \textbf{S3$_0$:} ratings do not differ.
-\end{itemize}
-The secondary hypotheses explain the primary ones: faster, more complete handling of required steps and higher confidence would indicate why next-action accuracy differs. H1 scores the action the participant chooses, not agreement with the app.
-
-\subsection{Method}
-\paragraph{Design.} The study is within-subjects: each participant completes matched tasks with both AirBorder and Flighty Connection Assistant. System order is counterbalanced (half AirBorder first), and each system uses one of two equivalent trips, swapped between orders, to reduce learning effects.
-
-\paragraph{Matched trips.} Both trips are a Haneda connection with the same structure: a café and a lounge before the onward flight, a gate change, and a queue update. In the AirBorder trip, the café (8-minute wait, 20-minute visit) and the ANA LOUNGE (28 minutes) bring the traveler to the gate at 17:05; the café wait then rises to 18 minutes, and the correct response is to shorten the lounge to 18 minutes or leave it earlier. Flighty shows only real tracked flights, so its trip uses a tracked Haneda connection with similar timing, entered before the session. Where Flighty cannot show an event, such as the gate change, the participant sees a matched screen capture of Flighty on the same iPhone; tasks on the live app and on screen captures are analyzed separately. Correct answers for each task are written in advance.
-
-\paragraph{Participant procedure.}
-\begin{enumerate}
-\item \emph{Consent.} The facilitator explains the study, that all trips are made up, that the session is recorded only with permission, and that the participant may stop at any time; the participant signs the consent form.
-\item \emph{Background.} A short questionnaire on recent connections, apps used and confidence with mobile apps.
-\item \emph{Instructions.} The facilitator reads: ``You are at Tokyo Haneda between flights. Please use the app to answer each task as you would on a real trip, and think aloud. I cannot help with the app, but I will repeat a task if you ask.''
-\item \emph{Practice} with the first system on an unrelated screen.
-\item \emph{Tasks with the first system.} (a) Say when you must leave your stop and when you must be at the gate. (b) Your gate has changed: find the new gate and decide what to do now. (c) The café queue is longer: decide what to do with your plan. (d) Name each step still required before boarding. After each task, the participant rates ease and confidence.
-\item \emph{Tasks with the second system}, on the other trip.
-\item \emph{Closing interview} with the questions below, then a preference question and debrief.
-\end{enumerate}
-The facilitator gives no coaching and logs any help. A task ends at the participant's final answer or after three minutes.
-
-\paragraph{Equipment.} Participants use AirBorder and Flighty installed on the same iPhone 13, running the latest public iOS release and the latest Flighty version available at the time of the sessions; the exact iOS and app versions are recorded for each session. The recording setup is pending (Appendix~\ref{app:pending}).
-
-\paragraph{Location.} The session site, and whether any session runs remotely, will be fixed before the first session (Appendix~\ref{app:pending}).
-
-\paragraph{Time.} Each task ends at the participant's final answer or after three minutes. The expected total session length is pending (Appendix~\ref{app:pending}).
-
-\subsection{Metrics}
-\textbf{Primary metrics:} the proportion of participants who choose a feasible next action after the gate change (H1), and deadline interpretation accuracy, scored against the written answers (H2). As in the transit study of leave-time decisions \cite{ref8}, we score the decision, not only whether the participant can read a value. \textbf{Secondary metrics:} task completion time from the end of the task reading to the final answer (S1); omitted required steps in task (d), with help, partial and incomplete answers coded separately (S2); and post-task ease and confidence on seven-point scales, ``How easy or difficult was this task?'' (very difficult to very easy) and ``How confident are you in your answer?'' (not at all to completely) (S3). We also score whether the participant's explanation of the change names its cause, separately from the action chosen, since understanding of a system's behavior is distinct from task success \cite{ref7}. Paired comparisons use McNemar's test for the binary accuracy measures and the Wilcoxon signed-rank test for times and ratings, with each participant as the unit of analysis.
-
-\paragraph{Interview questions.} After each system: ``Which information helped you decide?'', ``What was unclear about the route or your plan?'' and ``What would you need before relying on this during a connection?'' At the end: ``Which app would you use on your next connection, and why?''
-\paragraph{Pilot and protocol freeze.} Before recruitment we will run one or two pilot sessions with people outside the sample to check task wording, the scoring rules and the session length; pilot data are not analyzed. After the pilot, the app version, the two trips, the task wording and the scoring rules are frozen, and any later change is reported as a deviation.
-
-\paragraph{What each task measures.} Table~\ref{tab:tasks} links each task to its hypothesis and to how its answer is scored. Answers are scored from the think-aloud recording and the participant's final statement against the answers written before the session, by two of the authors working independently; disagreements are resolved by discussion and the number of disagreements is reported.
-
-\begin{table*}[t]\small\centering
-\begin{tabular}{@{}p{.25\textwidth}p{.12\textwidth}p{.55\textwidth}@{}}\toprule
-Task & Measures & Scored as correct when the participant \ldots\\\midrule
-(a) When to leave and be at the gate & H2, S3 & states the leave time and the gate-arrival target (not the departure time) for their plan.\\
-(b) Gate change & H1, S1, S3 & names the full new gate and chooses an action that reaches it before the target, such as leaving the stop on time or shortening it.\\
-(c) Longer café queue & H1, H2, S3 & chooses a plan that still reaches the gate by the target, or knowingly keeps the plan and states the later arrival.\\
-(d) Required steps & S2, S3 & names each remaining required step before boarding; each omitted step is counted.\\\bottomrule
-\end{tabular}
-\caption{Study tasks, the hypotheses they inform, and their scoring rules. Ease and confidence ratings (S3) follow every task.}\label{tab:tasks}
-\end{table*}
-
-\paragraph{Analysis plan.} The participant is the unit of analysis; the four tasks are not treated as independent observations. For H1 and H2, each participant contributes one paired binary outcome per system, and we use McNemar's exact test, since the expected number of discordant pairs is small. For S1 and S3 we use the Wilcoxon signed-rank test on the paired differences. S2 compares omitted-step counts with the same test. Because there are two primary hypotheses, their $p$-values are adjusted with the Holm method; secondary results are reported as exploratory. We report each paired difference with its 95\% confidence interval and the individual outcomes, not only test results. A task that reaches the three-minute limit counts as incorrect for H1 and H2 and as censored for completion time; it is reported, never dropped. We check for order effects by comparing the first and second system across the two orders. With six to eight participants the study can show large differences only; a non-significant result will not be read as equivalence.
-
-\paragraph{Threats to validity.} The sample is small and recruited by convenience, so results describe these participants rather than all travelers. Order and learning effects are reduced, not removed, by counterbalancing and by swapping the trips. The comparison is not symmetrical: AirBorder runs a scripted trip, while Flighty shows a real flight, and some Flighty events are shown as screen captures; we therefore analyze live and screen-capture tasks separately. Both trips are made up and seated, so the study tests understanding and decisions, not walking through a real airport, stress or time pressure. Participants may favor the system they believe is ours; the facilitator presents both systems in the same neutral way and does not say which one the authors built. Finally, AirBorder's walking times are averages for one terminal; the study does not test whether its times are accurate.
-
-\paragraph{Records kept for each task.} For every task the facilitator logs the participant code, the system and its order, the trip version, the time the task reading ended, the time of the final answer, the final answer itself, each request for help and whether the task reached the time limit. Once the recording setup is fixed (Appendix~\ref{app:pending}), the recordings let us check the times and count returns to an earlier screen, which we report descriptively as a sign of searching. The think-aloud is used only to score answers and to quote reasons in the analysis of the interview questions, which we code by the information participants used, what was unclear and what they would need before relying on the app.
-
-\paragraph{Interpreting the outcomes.} The hypotheses are designed so that each pattern of results points to a design decision. If H1 and H2 hold, the shared timeline and the gate alert are doing their job, and live data become the main remaining work. If H2 holds but H1 does not, participants read the deadline but do not turn it into an action, which would point to the Route button and the alert wording rather than to the timing display. If H1 holds without faster completion (S1), the gain comes from accuracy rather than speed, which is the outcome that matters for a missed flight. If AirBorder is rated easier (S3) without higher accuracy, the interviews already warn that ease ratings can hide failures, and we would not treat the ratings as evidence of benefit. Fewer omitted steps (S2) with no change in H1 would suggest that journey steps help with procedures but not with the plan. Because explanations can raise reliance on wrong answers as well as right ones \cite{ref219}, task (c) also checks whether participants who keep their plan notice the later arrival rather than accept the shown times without checking.
-
-\paragraph{Data handling.} Participants are identified by codes. We do not collect ticket, passport or health data, and the study iPhone uses only the sample trips. Consent forms are stored apart from the task records, and recordings are kept only as long as scoring requires.
 
 \clearpage
-\raggedbottom
+
 \begin{thebibliography}{10}
 
 \bibitem{ref7}
@@ -341,107 +433,118 @@ Zelun Tony Zhang, Sebastian S. Feger, Lucas Dullenkopf, Rulu Liao, Lou S\"{u}ssl
 \bibitem{ref222}
 Mauricio Villavicencio, Sitong Pan and Qianwen Wang. 2026. Not All Uncertainty Is Equal: How Uncertainty Granularity Shapes Human Verification in LLM-Assisted Decision Making. In Proceedings of the 2026 ACM Conference on Fairness, Accountability, and Transparency (FAccT '26). ACM, 3804--3857. \url{https://doi.org/10.1145/3805689.3812329}
 
-\bibitem{ref2}
-AirBorder project. 2026. Deployed travel survey (interview instrument). \url{https://airborder-travel-survey.pages.dev/}
-
-\bibitem{ref13}
-AirBorder project. 2026. \textit{Preliminary Survey Response Analysis}. Unpublished research report, October 3. Version-aware analysis of two traveler responses.
-
-\bibitem{ref14}
-AirBorder project. 2026. \textit{Synthetic Scenario Audit and Verification Record}. Unpublished technical report, October 4. Includes scenario reconciliation, exclusion manifests, database inventory and local repair verification.
-
 \end{thebibliography}
-\clearpage\appendix
-\FloatBarrier
-\section*{Declaration of Generative AI Use}
-OpenAI ChatGPT/Codex and Anthropic Claude assisted with literature discovery, drafting and revision, figure preparation, and synthetic survey-test scenarios. The authors selected the research claims and design decisions and remain responsible for the accuracy of the final report and its citations. The synthetic scenarios are identified as test data and excluded from the analysis of interviewed travelers.
 
-\section{Interview Summaries}\label{app:interviews}
+\clearpage
+\appendix
+\section{Evaluation Plan}\label{sec:eval}\label{app:sessions}
+\subsection{Population}
+We will recruit six to eight adults who use an iPhone and made an airport connection within the past two years. We plan to invite volunteers through community travel channels and aviation-enthusiast groups and seek varied terminal familiarity and confidence with phone apps. Screening records recent connection experience, prior Flighty use and prior AirBorder exposure. People who worked on or previously used the prototype are excluded. Six participants meet the undergraduate minimum for a three-person group.
 
-\subsection{R1}
-\paragraph{Background.} R1 is an 18--24-year-old computer-science student who reports three to five air journeys within two years, uses an iPhone and prefers English.
-\paragraph{Recent journey.} The recorded answers establish recent travel without a detailed last-trip narrative. R1 prefers a scheduled layover of two to under four hours and a few activities with flexible timing, emphasizing shorter total journey duration. This preference does not establish the longest layover experienced.
-\paragraph{Problems.} R1 reports repeated delays, stress and lost rest, with no financial effect. Reported causes include weather, technical problems and late inbound aircraft. A document-related refusal response includes cases later resolved; R1 could not recall details, so it does not establish a missed flight.
-\paragraph{Tools used.} R1 uses Google Flights and airline/airport apps or websites, and has tried ChatGPT and Claude. ChatGPT was the most-used chatbot, used once or twice for itineraries around meetings, events or deadlines; R1 rated it slightly helpful and selected discovering an unconsidered option as a benefit. For model identity, R1 selected ``GPT or an OpenAI reasoning model'' and wrote ``The family selected above is all I remember.'' This broad category identifies neither a model version nor definite use of a reasoning model. R1 could not recall chatbot difficulties or how the advice was acted on, and added ``Nothing more to add.'' In the described connection, signs, flight screens and an airline app were used.
-\paragraph{Improvements wanted.} R1 selects leave-by time, gate/route guidance and activity comparison, and requests ``What changed and when.'' Free rest seating is preferred; payment for the selected facility is acceptable only when free or included in benefits.
-\paragraph{Interface task results.} R1 first selected directions after the gate change, camera rather than the dedicated map-expansion control, and Retry after updates stopped. R1 prefers map-first guidance, a central offline message and remembered navigation settings.
-\paragraph{Regions, airports and journey context.} R1 reports a United States home base but declines a city and usual departure airport. Both the connecting-journey and delayed-journey grids place origin, main connection and destination in North America. Specific airports are not supplied, and no preferred or avoided connecting airport is named. Leisure/sightseeing and visiting family or friends are reported travel purposes. R1 usually self-funds travel and has traveled alone and with adults; the described connection was alone, domestic-to-domestic, on one booking, at an airport visited once or twice before.
-\paragraph{Experienced layover and planning.} The latest connection was within six months, with a scheduled duration of one to under two hours and no time for discretionary activities. Eating and resting were desired, but less time than expected followed an incoming delay or earlier onward departure. R1 usually plans after booking and before travel, favors flexible timing and a two-to-under-four-hour scheduled layover. This is a preferred duration, not a longest-ever layover. Outside-airport choices include landside, nearby places and the city depending on the trip; acceptable transport duration depends on available time. Entry permission, baggage handling, return documents and leave-by margins are requested checks.
-\paragraph{Facilities, connectivity and digital confidence.} R1 prioritizes free rest chairs and also selects sleep pods, hourly transit hotels, showers and charging. Wi-Fi and local SIM/eSIM data are used; pre-downloaded maps and directions are desired. R1 reports being very confident with technology and using unfamiliar digital services a few times a month. No accessibility diagnosis or walking limitation is inferred from facility choices.
-\paragraph{Disruption detail and support.} R1 reports two or three delays in two years; the selected return-journey delay was 30 to under 60 minutes. Departure estimates changed repeatedly. Nothing was provided, R1 did not ask for assistance and reported not needing help. Signs, staff coordination, seating, facilities and connectivity were rated helpful for adjustment. R1 favored monitoring official updates and understanding why a delay continued. One document-related refusal lacked a clear explanation; the subsequent event could not be recalled.
-\paragraph{Subjective feedback and control preferences.} R1 wrote ``Everything shown is clear'' in the route feedback, yet the first map-task action was camera rather than expansion. Gate and map tasks were rated very easy, Retry somewhat easy, and the activity decision somewhat difficult. R1 preferred a return-time window with the spread of likely outcomes, while reporting slight confidence and moderate effort on the initial task. The central offline message was preferred, although R1 said ``Cannot judge from these illustrations'' when explaining the choice. Several other comment fields contain Nothing to add or Nothing to change; these indicate no elaboration, not verified absence of difficulty.
-\paragraph{Advisories and airport feedback.} R1 wants affected places and times aligned with the itinerary, advice before leaving the airport, and preparation for local laws, customs, restricted goods and weather. Aggregated feedback sharing is acceptable with review before sharing. Movement statistics are conditional, with a separate choice for each airport visit; a facility discount would make R1 somewhat more willing. That stated preference is separate from operational tracking permission.
-\paragraph{Design implications.} We will test editable activity durations, prominent leave-by information, discoverable map controls and explanations linked to route changes. These implications are hypotheses grounded in one account, rather than population preferences.
-
-\subsection{R2}
-\paragraph{Background.} R2 selects Student, gives computer science as the field and software developer as the role. R2 is aged 18--24, reports three to five air journeys within two years, uses an iPhone and prefers English.
-\paragraph{Recent journey.} R2 reports a recent connection, prefers two to under four hours for a scheduled layover and values rest and work. A conflicting ``No flights'' response remains unresolved; we exclude that item from missed-flight conclusions. A detailed last-trip narrative and longest experienced layover are not established.
-\paragraph{Problems.} R2 reports extra travel/meal costs, missed commitments, stress and lost rest during disruptions. Support requests were partly fulfilled. A reported documentation refusal includes the possibility of later resolution and does not independently establish invalid documents or missed boarding.
-\paragraph{Tools used.} R2 uses Google Flights, Skyscanner, KAYAK, airline/airport apps and travel media, and has used ChatGPT and Gemini for some trips. ChatGPT was the most-used chatbot, rated very helpful for discovering options, comparing routes, planning layovers, document checks and transport. R2 also reported outdated or inconsistent information, missed constraints and effort transferring advice into maps or itineraries. R2 selected ``GPT or an OpenAI reasoning model'' and wrote ``The family selected above is all I remember.'' This is the same broad category as R1, without a specific model or confirmation of reasoning-model use. Benefits included finding information faster, comparing trade-offs, discovering options and turning scattered information into a usable plan. Across their experience, R2 selected using advice as inspiration without changing a plan, using most or all of a suggested plan, and saving advice for later without yet acting on it. These multiple selections need not describe one trip. R2 added ``Nothing more to add.'' No specific airline app was named.
-\paragraph{Improvements wanted.} R2 selects leave-by guidance, gate/route guidance and document/transit-entry checks, and wants ``What changed and when.'' In the changed-gate task R2 wrote ``miss the map directing to new gate.'' We interpret this as a reason to investigate route-action visibility, alongside wording and interaction behavior.
-\paragraph{Interface task results.} R2 reported not finding the changed-gate action, selected camera rather than the dedicated map-expansion control, and selected Retry after updates stopped. R2 prefers camera guidance with the map hidden until opened, a persistent offline banner and remembered settings.
-\paragraph{Regions and airport choices.} R2 reports a United States home base. The free-text home-region answer is ``Asian,'' which does not identify a city and remains ambiguous. Tampa International (TPA; stored as KTPA) is both a usual and preferred home-base departure airport. Reasons include access time/cost, fares, nonstop options, disruption alternatives, assistance and facilities. Atlanta (ATL; KATL) is a preferred connecting airport, with connection time, straightforward transfers, document requirements, benefits, assistance and city access selected as reasons. This preference does not establish that Atlanta was used on the described journey. Neither a departure nor connecting airport is specifically avoided.
-
-Both detailed journey grids describe North America as the origin and Asia excluding the Middle East as connection and destination. The broad travel-country item lists only the United States; it therefore does not fully describe the route grids. Vietnam is selected for future travel or connection preference, not as a verified destination of the recorded journey. We retain these answers separately rather than reconstructing an unsupported itinerary.
-\paragraph{Travel context, fares and work.} R2 travels for work/conferences, family/friends and study. Economy is the usual and reported cabin; no upgrades are reported. Flights are self-funded or supported by a university, scholarship or research grant, with booking decisions varying by trip. R2 prefers nonstop journeys and considers total cost, timing and duration. The airline-preference comment is ``service,'' without an airline name. R2 reports no loyalty-program participation or credit card, while reporting lounge entry through ticket entitlement or guest invitation; those access routes do not imply membership.
-
-R2 usually works or studies during layovers and requests quiet bookable space, a place for calls and nearby power. Fixed commitments include examinations/classes, appointments and meetings. Booking-tool, airline and fare/cabin restrictions have affected travel. Group responsibilities include meeting points, keeping people together, handling documents and food/toilet needs. These reports support deadline-aware productivity and explicitly shared companion context.
-\paragraph{Connection and procedures.} The reported connection occurred seven to twelve months earlier, on one booking, alone at a first-visit airport. Its scheduled duration was two to under four hours, with one to under two hours available for activities. Rest, food and work were undertaken. Delays and longer-than-expected procedures reduced usable time. The domestic-to-international classification coexists with international-arrival baggage-recheck reasons; their relationship remains unresolved in the available record. R2 selected airport-change activity in one item but answered No to the direct airport-change question, so that event is also unresolved. The record reports misunderstanding or missing an announcement.
-\paragraph{Facilities, city access and preparation.} R2 selects free rest seating, pods, showers and suitable food; the chosen facility is acceptable only if free or included. Outside options emphasize airside, landside and nearby places, with 31--60 minutes as a possible one-way trip. R2 wants entry checks, clear checkpoint locations, adjustable leave-by reminders, early wrap-up warnings and comparison of quick versus predictable transport. Codeshare confusion concerns the operating airline, latest gate information, check-in, baggage and disruption contacts. A journey tracker is rated moderately useful, particularly for the current/next step, queue time and required documents.
-\paragraph{Disruption and recovery detail.} R2 reports four or more delays, with a selected delay of four to under eight hours. Financial effects include rebooking, communication and meal costs, without an estimable amount. Reported support includes cash, credit, reimbursement and hotel accommodation; requests were partly fulfilled. These selections are not a verified entitlement determination. R2 asks for earlier notice, realistic duration ranges, connection effects and clear support contacts. After the document-related refusal, R2 wrote ``I have to ask staff and airline service to help me.''
-\paragraph{Subjective feedback and interaction controls.} R2 requested ``Expected Arrival time and expected departure time'' for judging journeys. Technology confidence is moderate. The gate task was rated neither easy nor difficult despite not finding the action; map expansion was rated very easy although the first action selected camera. R2 rated the activity task somewhat easy but did not find an action, reporting slight confidence and moderate effort. These contrasts motivate observation rather than treating ease ratings as success. Camera guidance with a hidden map, persistent offline status, per-journey location permission and user-started announcement listening are preferred. Battery use matters, and source/time, recognized text and flight match should accompany announcement results. ``Follow instruction'' is the brief announcement comment, not evidence of what action was taken.
-\paragraph{Advisories and data sharing.} R2 wants forecast source, timestamp and uncertainty, along with advice relevant to citizenship, residence and transit jurisdictions. Alternative routes, refund conditions and monitoring before changing bookings are selected. R2 conditionally accepts reviewed, grouped airport feedback with recipient visibility, but is probably unwilling to share movement statistics; incentives would not change that position. This refusal remains distinct from the list of potentially attractive rewards. No personal access need is inferred from selecting accessibility as an airport-choice factor.
-\paragraph{Design implications.} We will test a visible updated-route action, source age, correctable procedure information and advice connected to the itinerary. R2's preferred airports are preferences rather than detailed best/worst airport experiences.
-
-\subsection{Interpretation and limitations}
-The interview evidence for this submission comprises the two recorded traveler responses \cite{ref13}. Both contain brief narratives and conditional nonresponse; neither supplies a specific best/worst airport episode. R2's conflicting flight-frequency, procedure and airport-change answers remain unresolved and excluded from incident-specific conclusions. Supported reports of needs, tools and difficulties motivate design hypotheses. Recorded task intervals begin at rendering, and both respondents received the same initial variants; observed completion times and comparative A/B performance remain unestablished. The proposed usability evaluation is described separately in Section 4.13.
-
-\paragraph{Evidence type and trace.} A written comment documents a difficulty in the respondent's own words; a supplied-option selection is a preference within the offered choices; a task action documents behavior under that versioned stimulus. Table~\ref{tab:interview-trace} preserves this distinction. Our coding interprets recorded v84 answers and task recaps; independent recoding and full stored-answer equality have not been established.
-\begin{table*}[t]\centering\small
-\begin{tabular}{@{}p{.10\textwidth}p{.15\textwidth}p{.29\textwidth}p{.36\textwidth}@{}}
-\toprule
-Record & v84 task & Recorded action/comment & Bounded interpretation and design consequence\\\midrule
-R1 & q760, gate change & Selected directions & The updated-route action was selected in this task; retain a visible route control.\\[4pt]
-R2 & q760, gate change & Did not find the action; wrote ``miss the map directing to new gate'' & Investigate label and control visibility; make updated directions explicit.\\[4pt]
-R1 and R2 & q764, map expansion & Both selected camera rather than the dedicated expansion control & First-action mismatch motivates a labeled Expand map control; it does not prove general inability to navigate.\\\bottomrule
-\end{tabular}
-\caption{Versioned action-to-design trace from the two traveler records. q760 and q764 identify specific interface tasks; written feedback, where present, is distinguished from the first action.}\label{tab:interview-trace}
-\end{table*}
-
-\subsection{From interview evidence to implementation decisions}
-
-The interviews inform implementation requirements through reported behavior and difficulty, rather than through model or product popularity. The following links make that reasoning explicit. Each remains a design hypothesis for evaluation; two accounts do not establish general demand or validate a technology choice.
-
-\paragraph{Source reliability and constraint checking.} R2 reports wrong, outdated or inconsistent chatbot information and overlooked documents, route, budget or other constraints. We therefore attach source and retrieval time to advice, retain correctable traveler and itinerary fields, and validate access and timing before committing a recommendation. The relevant test is whether a traveler notices an unresolved condition and chooses a suitable verification action. This evidence motivates correctable document checks and a deterministic validation layer. Selection of Timatic or any particular model additionally requires independent coverage and technical evaluation.
-
-\paragraph{Continuity between advice and action.} R2 reports effort transferring chatbot advice into maps, bookings or an itinerary; both participants use ChatGPT and report other AI tools. We therefore use a shared, versioned journey state and traveler-reviewed context intake, with route and task handoffs that retain the confirmed deadline. A connector is one implementation option, not a participant-requested protocol. For R2's work/study context, a selected meeting brief from Drive, an authorized calendar appointment or traveler-shared ChatGPT Work context could become a reviewed task with a deadline and location. The laptop companion could suggest a feasible work interval and a wrap-up reminder; phone guidance would retain the same task, gate and return budget. Changes propagate through versioned journey state. Connector availability, permission and synchronization require verification; familiar use of ChatGPT does not imply access to its conversation history. We will test whether the transition preserves the intended activity without re-entry or duplicate alerts, and whether the traveler can correct or disconnect imported context.
-
-\paragraph{Activity feasibility and work deadlines.} R1 reports no discretionary time during the described connection despite wanting food and rest. R2 reports rest, food and work, reduced usable time, and fixed study or meeting commitments. These accounts support explicit activity duration, preparation and save-and-pack allowances, plus recalculation after route or procedure changes. We will test whether travelers can identify which activity must shorten and when they must stop. Job or student status alone does not activate a productivity assumption.
-
-\paragraph{Configurable guidance and discoverability.} R1 prefers map-first navigation; R2 prefers camera guidance with the map hidden until opened. Both want remembered settings, yet neither first used the dedicated map-expansion control. Our design separates presentation preference from task success: navigation state is configurable and persisted, while visible expansion and route-change actions receive observed usability testing. Their reported iPhone use motivates iOS testing; Android testing checks whether the same interaction remains understandable on another phone platform.
-
-\paragraph{Facilities, connectivity and recovery.} Both prioritize free rest seating and free or included facility access, supporting explicit price and benefit conditions alongside the available activity time. This does not establish willingness to pay for AirBorder. R1's Wi-Fi/SIM use and desire for downloaded maps support offline route packs. R2's battery concern supports bounded background work. Their different financial and non-financial disruption effects support separate recovery actions, support contacts and cost fields rather than a single delay-severity score.
-
-\paragraph{Control over feedback and movement data.} R1 conditionally accepts movement statistics with a choice for each airport visit; R2 is probably unwilling and says incentives would not change that position. We therefore separate ordinary app use, reviewed feedback and movement logging, with independent controls and a usable non-tracking path. These answers inform the interaction design; the regional policy analysis independently determines processing requirements.
-
-\paragraph{Procedure identity and responsible contacts.} R2's codeshare confusion concerns the operating airline, check-in, baggage, gate updates and disruption contacts. This motivates separate marketing/operating-carrier fields and a responsible contact attached to each journey step, rather than a single undifferentiated airline label. R2's requested current/next-step tracker, queues and documents support explicit handover states. We will test whether the traveler can identify the correct checkpoint and contact after a change; the reported baggage and airport-change contradictions remain unresolved.
-
-\paragraph{City access and transport uncertainty.} R1 requests entry, baggage and return-document checks; R2 requests checkpoint locations, adjustable leave-by reminders, early wrap-up warnings and quick-versus-predictable transport comparisons. These reports support separate entry and return-security conditions, departure-aware transport segments and visible uncertainty. R1's shorter-journey preference and R2's cost/timing trade-offs support editable priorities after feasibility checks. They do not determine probability thresholds or numerical preference weights. Those parameters require calibration and direct elicitation.
-
-\paragraph{Announcements and advisory provenance.} R2 reports missed or misunderstood announcements and prefers user-started listening, per-journey location permission, recognized text, flight match, source and time. These map to an explicit capture control and a reviewable candidate update before journey state changes. R2's request for advisory source, timestamp and uncertainty, distinguished by citizenship, residence and transit, supports jurisdiction-tagged records rather than a generic warning. We will test adjacent-flight misclassification and conflicting advice. Specific hazard agents and data providers remain architectural choices subject to coverage verification.
-
-\paragraph{Service attributes and resource use.} R2's quiet bookable workspace, calls and nearby power motivate service-level filters; ticket or guest lounge access does not establish workspace availability. Together with both travelers' free/included preferences, this supports separate venue access, service availability, price and return-time checks. R1's downloaded-route preference and R2's battery concern also inform offline preparation and bounded background inference. Their answers motivate resource controls, while device benchmarks determine model size, energy use and latency.
-
-\paragraph{Interpreting model familiarity.} Both participants recall only ``GPT or an OpenAI reasoning model.'' We retain this wording as context for familiarity with AI-assisted travel planning, not evidence favoring an exact model, provider or inference architecture. R1's slightly helpful and R2's very helpful ratings coexist with distinct usage patterns and reliability reports. Future comparison will therefore measure supported answers, missed constraints, transfer effort and recovery, alongside perceived helpfulness.
-
-\FloatBarrier
-
-\section{Pending Evaluation Details}\label{app:pending}
-The following details of the evaluation plan are not yet fixed. They will be set before the first session and reported with the study.
+\subsection{Hypotheses}
+The first two hypotheses test decision accuracy and deadline comprehension. The secondary hypotheses and their null hypotheses cover time, missing steps and perceived ease and confidence.
 \begin{itemize}
-\item \emph{Recording setup:} whether sessions use screen recording, a camera and audio recording, given participant permission.
-\item \emph{Location:} the room or site of the sessions, and whether any session runs remotely.
-\item \emph{Session length:} the expected total duration, including consent, practice, both systems and the closing interview. Each task is already limited to three minutes.
+\item \textbf{H1, primary.} A higher proportion of travelers choose a feasible next action after a gate change in AirBorder than in Flighty Connection Assistant. \textbf{Null:} the proportions are equal.
+\item \textbf{H2, primary.} A higher proportion correctly interpret the leave-by deadline in AirBorder. \textbf{Null:} deadline interpretation accuracy is equal.
+\item \textbf{S1, secondary.} Correct gate-change responses are faster in AirBorder. \textbf{Null:} completion times are equal.
+\item \textbf{S2, secondary.} Travelers omit fewer required steps in AirBorder. \textbf{Null:} omission counts are equal.
+\item \textbf{S3, secondary.} Travelers rate ease and confidence higher in AirBorder. \textbf{Null:} ratings are equal for each item.
 \end{itemize}
+
+\subsection{Method}
+\paragraph{Comparison rationale.} Section~\ref{sec:baseline} explains the selection of Flighty's Connection Assistant as the baseline.
+
+Each participant uses AirBorder and Flighty's Connection Assistant in a within-subjects comparison. We counterbalance interface order and rotate two matched Haneda cases. The pilot will check that both conditions can present equivalent task facts. Where equivalent screen captures can support a task, both conditions use captures and contribute to comprehension evidence. A task with missing facts will be reported as a coverage gap. We will finalize the conditions, scoring key and cases before recruitment.
+
+\paragraph{Equipment, location and time.} Sessions will last 35--45 minutes in a quiet indoor room, with the room to be booked. We will use the same iPhone 13, a facilitator's timer and a coded task log. With consent, we will record the screen and think-aloud audio. The facilitator takes written notes for sessions without recording. Following consent, screening and neutral practice, each participant completes four tasks per interface. These ask when to leave and reach the gate, what to do after reassignment, how to respond to a longer queue, and which required steps remain. The facilitator reads a standard prompt, times the response up to three minutes, logs any help, and collects two ratings. We then reset the case and repeat the procedure for the second interface, followed by a preference question and debrief. The remainder of this appendix gives the six session assignments, full protocol, scripts and recording sheet.
+
+\subsection{Metrics}
+H1 scores the full new gate together with an action that meets the supplied arrival target. H2 scores the stated leave-by time and arrival target together, with each component retained for diagnosis. Secondary measures are time to a correct gate-change response, omitted required steps, and seven-point ease and confidence ratings. The queue task records understanding of the extra wait and whether the proposed action meets the task goal. For each block, ask which information helped the decision, what was unclear about the route or plan, and what the participant would need before relying on the app. The appendix gives the exact prompts and scoring rules.
+
+The participant is the unit of analysis. We will report eligible paired outcomes and use exact McNemar tests for the two primary binary measures, with Holm adjustment. We will use Wilcoxon signed-rank tests for comparable paired secondary outcomes and report them as exploratory. Assistance, timeouts, unavailable tasks and incomplete pairs have separate codes. Task duration is compared only for matched interactive conditions.
+
+\subsection{Session schedule}
+The undergraduate final project requires at least two participant evaluations per group member. The six assignments below schedule the minimum for three members. Each assignment represents one planned participant session with two interface blocks. The six slots exclude pilot sessions. The codes identify slots for eligible volunteers and carry no personal information. The two case briefs will be finalized after Flighty and AirBorder pass the matching check in Section~\ref{sec:eval}.
+
+\subsection{Six assignments}
+Each facilitator covers two sessions, one beginning with each interface. Assign the next eligible volunteer to the next available numbered slot. A and B designate the two matched case briefs. Follow the shared procedure and use a separate response record for each session.
+
+\begin{enumerate}
+\item \textbf{P01, Facilitator 1.} Block 1 AirBorder, case A. Block 2 Flighty, case B.
+\item \textbf{P02, Facilitator 1.} Block 1 Flighty, case A. Block 2 AirBorder, case B.
+\item \textbf{P03, Facilitator 2.} Block 1 AirBorder, case B. Block 2 Flighty, case A.
+\item \textbf{P04, Facilitator 2.} Block 1 Flighty, case B. Block 2 AirBorder, case A.
+\item \textbf{P05, Facilitator 3.} Block 1 AirBorder, case A. Block 2 Flighty, case B.
+\item \textbf{P06, Facilitator 3.} Block 1 Flighty, case A. Block 2 AirBorder, case B.
+\end{enumerate}
+
+\subsection{Detailed session procedure}
+\paragraph{Preparing a matched case.} The facilitator prepares two case briefs with the same four task types. The briefs document the initial screen, the stated position, simulated current time, planned stop, initial gate, new gate, connection steps already completed, and the values on which the answer key depends. For each task the brief also identifies the event to release, the expected UI state and the single intended starting point. A gate change must be visible before timing starts. A queue task must state whether the traveler wants to preserve a visit if feasible or may abandon it. If two choices satisfy the stated preference and arrival target, both belong in the key. The cases should preserve comparable margins relative to the target so that one condition does not admit an obvious safe choice while the other requires substantially more reasoning.
+
+The pilot will open each study condition on the intended phone and walk through its assigned tasks using the written setup. The facilitator checks which facts are present, how they are found, whether identifiers and times can be read, and whether the scripted changes can be staged without altering the rest of the case. The comparator may display its own timing terms. Participants receive the same scenario definitions, and the scoring key records how the relevant information is represented in each condition. If a task depends on an activity, wait or event that only AirBorder can show under the intended conditions, the pilot records the missing capability. The paired comparison requires equivalent input facts and an opportunity to respond in both conditions. Capture-based tasks use the same capture-based procedure in both interfaces and are interpreted as comprehension tasks.
+
+\paragraph{From arrival to the first block.} Check the eligibility criteria, explain that the study uses a fictional traveler itinerary, and ask for informed consent. Assign a session code without storing a name on the task sheet. Ask about prior airport connections, experience with Flighty and confidence navigating unfamiliar terminals. These questions provide context for interpreting navigation and terminology. Ask separately whether the participant permits recording. If they prefer to continue without recording, the facilitator takes written notes and records the exact final answers. The facilitator explains that the software is being evaluated, that it is acceptable to pause or stop, and that a task asks what the participant would do using the information they see.
+
+Seat the participant at a table and present the phone in the portrait orientation used for the prototype. The facilitator checks that the display is comfortable to read and that both conditions use the same phone settings. They confirm that the relevant build, case and start screen are loaded. Any adjustment made to keep the phone usable is recorded and applied in both conditions. Practice uses a short unrelated example that introduces the task procedure, including speaking a final answer, without rehearsing the gate, times or strategy of either study case.
+
+\paragraph{Running each task.} Restore the task's specified state, leave the participant at the indicated screen and read the task prompt. Use the same four-task sequence in both conditions. Each individual task starts when the facilitator finishes reading its prompt. The facilitator may repeat the prompt verbatim and log the repeat. When the participant asks where an answer is located, use a neutral response such as \emph{Please continue as you would if using the app on your own}. Record any substantive help separately. Stop the timer when the participant gives their final answer or reaches the three-minute limit. An initial wrong turn followed by recovery remains part of elapsed time. A correction before a final answer can score as correct, and the log retains the initial action to help diagnose the interface. Ask the standardized ease and confidence questions immediately after stopping the timer so their administration does not enter the task duration.
+
+For the first question, the participant identifies the leave-by time and the gate-arrival target. For the second, the participant supplies the complete new gate and explains how they would meet the target while handling the current activity. The facilitator does not prompt a traveler who omits the letter suffix. For the third, the participant explains how the added wait affects the existing plan and identifies an action. A participant may give a feasible change without using the interface's offered wording. For the fourth, the participant names the required steps that remain in the supplied journey state. An optional step or one already completed does not count toward the required set. After the four tasks, the facilitator asks the three interview questions and records comments against the condition while those experiences are fresh.
+
+\paragraph{Switching conditions and debriefing.} End the first block and reset the phone to the independent starting state for the second. Open the assigned trip and condition from Appendix~\ref{app:sessions}, then confirm that each task's starting state matches the brief. Use the same task instructions and limits. After both blocks, ask which interface the participant would choose for a similar connection and why. A useful follow-up asks the participant to identify a screen, term or action that shaped that choice. Explain that the travel values were supplied for the prototype and summarize what the study is testing. Offer a final chance to ask questions, then save the task log using the session code and handle recordings according to consent. Store any permitted recording separately from identity information and remove it after scoring and verification.
+
+\subsection{Facilitator script}
+\paragraph{Opening.} \emph{We are evaluating how the interfaces support decisions during an airport connection. The trip details are supplied for the study. Please say what you are looking for and give a final answer when you are ready. You can ask us to repeat the question, take a break, or stop.}
+
+\paragraph{Task prompts.} Read the same prompts in both blocks.
+\begin{enumerate}
+\item When do you need to leave your stop, and when should you reach the gate?
+\item Your gate has changed. What is the new gate and what would you do next?
+\item The caf\'e queue is longer. How does this affect your plan, and what would you do?
+\item Which steps do you still need to complete before boarding?
+\end{enumerate}
+
+\paragraph{After each task.} Ask \emph{How easy or difficult was this task?} (1 very difficult, 7 very easy) and \emph{How confident are you in your answer?} (1 very unsure, 7 completely confident).
+
+\paragraph{After each block.} Ask \emph{Which information helped you decide?}, \emph{What was unclear about the route or your plan?}, and \emph{What would you need before relying on this during a connection?}
+
+\paragraph{Closing.} \emph{Which interface would you choose for a connection like this, and why? What is one thing you would change?} Explain that the study uses controlled travel facts and offer time for questions.
+
+\subsection{Scoring and reporting decisions}
+\paragraph{Separate a correct value from a feasible decision.} The two primary outcomes answer related questions. H2 checks the interpretation of the initial time display. For a 17:05 planning target and a 12-minute walk, a participant can give 16:53 as the leave-by time and 17:05 as the gate-arrival target. Record the two components and the joint score. A participant who reads 17:25 as the target may correctly identify a time displayed by the app while assigning it the wrong meaning for this task. H1 instead requires a valid action after a changed assignment. Knowing the new gate by itself is insufficient. A participant must also say what they would do and leave enough time under the supplied travel and procedure assumptions. The scoring key distinguishes a missed gate suffix, an unsupported route assumption and a late action. This gives the designers different evidence about which part of the interaction failed.
+
+\paragraph{Account for declined edits and missing actions.} The queue task is a test of consequence awareness as well as of replanning. For the fixture in Table~\ref{tab:worked}, retaining the 28-minute lounge visit after the queue update projects arrival at 17:15. If the goal is the 17:05 target, a shortening to 18 minutes restores it. A traveler who suggests a different feasible action can receive credit according to the frozen case goal. A traveler who chooses to keep the plan and correctly explains that the target will be missed has demonstrated comprehension of the consequence. That record is distinct from an action that preserves the target. When a trial times out, the response sheet marks the stop reason and retains any partial answer. If the reset, capture or source failed and the task could not be delivered, mark the presentation as incomplete and give the reason. This prevents a technical failure from being treated as participant error.
+
+\paragraph{Reading evidence at the participant level.} For each primary task, report the number of eligible pairs, the AirBorder and Flighty success counts, the count succeeding only with each interface, and the count with the same outcome in both. The paired difference is driven by the discordant outcomes. With six paired observations, estimates can move substantially when one participant changes category. Report denominators and uncertainty alongside the result. A small apparent difference may help identify a design issue even if the study cannot establish a stable effect. Helped trials, timeouts, incomplete pairings and coverage gaps remain visible in the results. For timed tasks, show elapsed durations for comparable completed pairs and report where the cap censored observations. Avoid pooling a completed interactive task and a screen-comprehension task into a single elapsed-time result.
+
+\paragraph{Using the follow-up answers.} Review comments with the corresponding screen action. If a participant calls a task easy but names the departure time as the gate target, the trace shows a distinction between confidence and understanding. If the participant hesitates because the displayed gate and the route destination appear different, the distinction points to continuity between alert and guidance. If the participant understands the larger queue and searches successfully for how to shorten a stop, their response can help explain how the two designs differ in the effort required. Record examples of agreement and disagreement between ratings, final answers and observed actions. These examples support the interpretation of the planned comparison without treating a preference rating as an accuracy measure.
+
+\subsection{Checks before recruitment}
+\paragraph{Confirm that the two cases can support each task.} For each planned task, the pilot records the participant goal, where each necessary fact appears, whether it can be inspected during the task and the limits of the version of Flighty being tested. For a change-of-gate exercise, confirm the old and new identifiers, the starting position, the walk estimate and the target in both condition briefs. The brief tells the facilitator how to verify that the event was presented before reading the question. For the deadline task, confirm that the starting clock and brief distinguish target and closure, and that neither interface is effectively given the answer in its starting state through unequal facilitator instructions. The display may organize the facts differently. The task remains answerable using the case supplied to both conditions.
+
+The queue and checkpoint tasks check different aspects of the interface and require their own matching decisions. When one interface cannot show a revised wait as an interactive event, ask whether equivalent captures can still support an answer from the same information in both conditions. If so, treat that exercise as a comprehension task. Record the presentation mode in the case brief. When a fact is missing entirely, record the coverage gap and keep the task out of the paired comparison. This decision is made before enrollment. It prevents the analysis from deciding after a poor result that a comparison was unfair.
+
+\paragraph{Check the question, scoring key and session length together.} In the pilot, compare the facilitator's clock log with the task sequence. The start marker follows the task prompt, and the end marker reflects the committed answer or the time cap. Check that the participant understands when to respond and what kind of action the task requests. The facilitator and the second scorer both apply the draft key to sample trial notes. They look for ambiguous distinctions, such as a participant who says \emph{at five past} without naming which hour or deadline, or one who gives the right gate but keeps a stop that pushes arrival past the target. Resolve disagreements by clarifying the answer key and test instructions before freezing them. A completed study should report any later deviation from that key.
+
+\paragraph{Freeze the reproducibility record.} Before the first scored session, retain the exact build identifiers, case briefs, allowed prompts, task timing rule, display modes and scoring key together. Check that the second case opens from its clean starting state after the first block. A reset is successful when the expected gate, itinerary, stop order, progress and adjustment state match the brief. A study facilitator can use the six appendix assignments as the run order after those checks. Any uncovered physical-device issue that would affect the primary workflow requires a stable setup before that workflow enters the study. Document the technical reason if a task is held back. The resulting record makes it possible to trace a later finding to the version and procedure a participant actually saw.
+
+\subsection{Blank response record}
+Make one copy of this record per session. Record the code, facilitator, scheduled interface order, case versions, device and app versions, and any procedural deviations. Keep the consent record separately.
+
+\noindent Session code \rule{1.1cm}{.4pt} \quad Facilitator \rule{1.1cm}{.4pt}\\
+Block 1 interface and case \rule{2.8cm}{.4pt}\\
+Block 2 interface and case \rule{2.8cm}{.4pt}\\
+Device and app versions \rule{3cm}{.4pt}\\
+Deviations \rule{5cm}{.4pt}
+
+\begin{description}
+\item[Repeat for each task.] Record block, interface, case, task identifier, display mode, clock start and stop, elapsed time, final answer, help or repeats, and the outcome code (independent, assisted, partial, incorrect, timeout or presentation incomplete). Leave fields blank until the session produces evidence.
+\item[Record task components.] For leave-by, enter the stated leave-by time and gate target. For gate change, enter the gate given, the proposed action and its feasibility under the key. For the queue, enter the stated effect and response. For the checkpoint task, list the required steps named and omitted.
+\item[Record ratings and comments.] Enter ease (1--7), confidence (1--7) and any observed search or recovery event after each task. Record responses to the follow-up questions after each block and the final preference and reason at debrief.
+\item[Review and close.] Record independent scores, any reconciliation and its reason, and any missing or unusable pair. Check whether the recording or notes are accessible to the scorers under the participant's consent.
+\end{description}
+
+\section*{Declaration of Generative AI Use}
+OpenAI ChatGPT/Codex and Anthropic Claude assisted with literature discovery, drafting and revision, figure preparation and synthetic software-test scenarios. The authors selected the claims and are responsible for the report.
 
 \end{document}
