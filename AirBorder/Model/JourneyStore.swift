@@ -97,6 +97,8 @@ final class JourneyStore: ObservableObject {
     @Published private(set) var walkingSpeedKmh: Double?
     @Published private(set) var lastHealthSync: Date?
     @Published var routeStep = 1
+    /// The stop most recently added, so the Flight plan card can open it on arrival.
+    @Published var lastAddedStop: PlaceID?
 
     /// Airport local time the journey is shown at. The sample journey stays at 12:00.
     @Published private(set) var now: ClockTime = SampleJourney.now
@@ -299,6 +301,7 @@ final class JourneyStore: ObservableObject {
         clearUndo()
         plan.stops.append(stop)
         routeStep = 1 // every route now passes the new stop
+        lastAddedStop = stop.id
         refreshSuggestion()
         refreshAlerts()
     }
@@ -318,10 +321,36 @@ final class JourneyStore: ObservableObject {
     }
 
     // ponytail: arrive/leave live on the plan card only; the ordered Schedule (route, queue suggestion) still uses visit lengths.
+    /// Moving Arrive past the leave time pushes Leave along with it, up to the latest leave.
     func setTimes(_ id: PlaceID, arrive: ClockTime? = nil, leave: ClockTime? = nil) {
         guard let index = plan.index(of: id), let current = times(id) else { return }
-        plan.stops[index].arrive = arrive ?? current.arrive
-        plan.stops[index].leave = leave ?? current.leave
+        let newArrive = arrive ?? current.arrive
+        var newLeave = leave ?? current.leave
+        if newLeave < newArrive + StopTimes.minimumStay { newLeave = min(newArrive + StopTimes.minimumStay, current.latest) }
+        plan.stops[index].arrive = newArrive
+        plan.stops[index].leave = newLeave
+    }
+
+    /// Removes a stop and offers Undo, which puts it back with the same times.
+    func removeWithUndo(_ id: PlaceID) {
+        guard let stop = plan.stops.first(where: { $0.id == id }) else { return }
+        remove(id)
+        showToast(ToastMessage(text: "Removed \(stop.name)", action: "Undo")) { [weak self] in
+            self?.add(stop)
+            self?.lastAddedStop = nil
+        }
+    }
+
+    /// Minutes before the gate closes that no stop covers (overlapping stops count once).
+    var minutesToSpare: Int {
+        let closes = outbound.gateCloses ?? SampleJourney.gateArrivalTarget
+        let spans = plan.stops.compactMap { times($0.id) }.map { ($0.arrive.minutes, $0.leave.minutes) }.sorted { $0.0 < $1.0 }
+        var covered = 0, end = Int.min
+        for (start, finish) in spans {
+            covered += max(finish - max(start, end), 0)
+            end = max(end, finish)
+        }
+        return closes - now - covered
     }
 
     /// Other stops in the plan whose times overlap this one.

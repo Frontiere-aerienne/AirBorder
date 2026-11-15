@@ -44,6 +44,7 @@ final class AirBorderUITests: XCTestCase {
         app.tabBars.buttons["Flight"].tap()
         XCTAssertTrue(app.buttons["lane-cafe"].waitForExistence(timeout: 2))
         XCTAssertFalse(addStop.exists)
+        XCTAssertTrue(app.staticTexts["4 min to gate"].waitForExistence(timeout: 2), "The newest stop opens")
         app.buttons["lane-cafe"].tap()
         XCTAssertTrue(app.staticTexts["16:59"].waitForExistence(timeout: 2), "Leave defaults to the latest time")
         XCTAssertTrue(app.staticTexts["Overlaps with ANA LOUNGE"].exists)
@@ -56,9 +57,17 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["16:59"].exists, "Never past the latest leave")
         app.buttons["Leave earlier"].tap()
         XCTAssertTrue(app.staticTexts["16:45"].waitForExistence(timeout: 2))
+        app.buttons["fixOverlap-cafe"].tap()
+        XCTAssertTrue(app.staticTexts["16:30"].waitForExistence(timeout: 2), "Leaves when the lounge starts")
+        XCTAssertFalse(app.staticTexts["Overlaps with ANA LOUNGE"].waitForExistence(timeout: 1))
         app.buttons["remove-cafe"].tap()
         XCTAssertTrue(app.buttons["lane-cafe"].waitForNonExistence(timeout: 2))
         XCTAssertTrue(app.buttons["lane-anaLounge"].exists)
+        let undo = app.buttons["toast"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 2))
+        XCTAssertTrue(undo.label.contains("Removed Curacion Cafe"))
+        undo.tap()
+        XCTAssertTrue(app.buttons["lane-cafe"].waitForExistence(timeout: 2), "Undo brings the stop back")
     }
 
     func testRouteStepsEndReturnsToFlight() {

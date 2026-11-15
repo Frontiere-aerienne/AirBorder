@@ -144,6 +144,7 @@ struct TextLink: View {
                 Image("icArrowRightLink16").renderingMode(.template).resizable().foregroundStyle(color).frame(width: 16, height: 16)
             }
             .frame(minHeight: 44)
+            .padding(.horizontal, 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)

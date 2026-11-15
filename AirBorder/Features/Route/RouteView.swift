@@ -72,7 +72,7 @@ enum RouteSteps {
             if let stop = stopAt[i] {
                 let leave = store.times(stop.id)?.leave.description ?? ""
                 steps.append(RouteStep(distance: "Stop \(steps.filter { $0.turn == .stop }.count + 1)", text: "Stop at \(stop.name), leave by \(leave)",
-                                       turn: .stop, remaining: "\(minutes(i)) min", remainingDetail: "\(Int((metres(i) / 10).rounded()) * 10) m",
+                                       turn: .stop, remaining: "Leave by \(leave)", remainingDetail: "\(minutes(i)) min walk left",
                                        position: CGFloat(i)))
             }
             let leavingRoom = stopAt[i] != nil
@@ -215,7 +215,13 @@ struct RouteView: View {
     private var concourse: some View {
         let steps = RouteSteps.steps(for: store.routeChoice, store: store)
         let index = min(max(store.routeStep, 1), steps.count) - 1
-        return RouteMap(stops: RouteSteps.stopsInOrder(store), gate: store.gate, choice: store.routeChoice, position: steps[index].position)
+        return RouteMap(stops: RouteSteps.stopsInOrder(store), gate: store.gate, choice: store.routeChoice, position: steps[index].position) { id in
+            // Tapping a stop on the map jumps to that stop's step.
+            guard let name = store.plan.stops.first(where: { $0.id == id })?.name,
+                  let target = steps.firstIndex(where: { $0.turn == .stop && $0.text.hasPrefix("Stop at \(name),") }) else { return }
+            Haptics.tick()
+            withAnimation(.abOut) { store.routeStep = target + 1 }
+        }
             .contentShape(Rectangle())
             .onTapGesture { showsMapInfo = true }
             .accessibilityAddTraits(.isButton)
@@ -232,6 +238,7 @@ struct RouteMap: View {
     let gate: String
     let choice: RouteChoice
     let position: CGFloat
+    var select: (PlaceID) -> Void = { _ in }
 
     var body: some View {
         let route = Self.route(through: stops.map { Self.node(for: $0.id) }, choice: choice)
@@ -253,9 +260,9 @@ struct RouteMap: View {
                         .position(x: (100 + CGFloat(i) * 52) * scale, y: 204 * scale)
                 }
                 Text("Windows").outfitText(12, .medium, AB.sky).position(x: 52 * scale, y: 204 * scale)
-                room("Café", at: p(.cafe), color: PlanStripCard.color(.cafe), active: stops.contains { $0.id == .cafe })
-                room("4F LOUNGE", at: p(.lounge), color: PlanStripCard.color(.anaLounge), active: stops.contains { $0.id == .anaLounge })
-                room("SKY", at: p(.sky), color: PlanStripCard.color(.skyLounge), active: stops.contains { $0.id == .skyLounge })
+                room("Café", .cafe, at: p(.cafe))
+                room("4F LOUNGE", .anaLounge, at: p(.lounge))
+                room("SKY", .skyLounge, at: p(.sky))
                 icon("figure.stairs", at: CGPoint(x: (p(.junction).x + p(.east).x) / 2, y: p(.junction).y))
                 icon("arrow.up.arrow.down", at: p(.lift))
                 // Route: ahead dotted, walked solid
@@ -279,16 +286,25 @@ struct RouteMap: View {
         .animation(.spring(duration: 0.5, bounce: 0.12), value: position)
         .animation(.abOut, value: choice)
         .animation(.abOut, value: stops.map(\.id))
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .combine)
         .accessibilityLabel("Map of the \(choice.title.lowercased()) route\(stops.isEmpty ? "" : " via \(stops.map(\.name).joined(separator: ", "))") to Gate \(gate)")
     }
 
-    private func room(_ label: String, at point: CGPoint, color: Color, active: Bool) -> some View {
-        Text(label).outfitText(12, .bold, active ? (color == AB.sky ? AB.ticket : .white) : AB.secondary)
-            .padding(.horizontal, 7).padding(.vertical, 4)
-            .background(active ? color : .white, in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(active ? color : AB.border, lineWidth: 1.5))
-            .position(point)
+    /// A room on the map; rooms in the plan are filled in and jump to their step when tapped.
+    private func room(_ label: String, _ id: PlaceID, at point: CGPoint) -> some View {
+        let color = PlanStripCard.color(id)
+        let active = stops.contains { $0.id == id }
+        return Button { select(id) } label: {
+            Text(label).outfitText(12, .bold, active ? (color == AB.sky ? AB.ticket : .white) : AB.secondary)
+                .padding(.horizontal, 7).padding(.vertical, 4)
+                .background(active ? color : .white, in: RoundedRectangle(cornerRadius: 7))
+                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(active ? color : AB.border, lineWidth: 1.5))
+                .contentShape(Rectangle().inset(by: -8))
+        }
+        .buttonStyle(.pressable)
+        .allowsHitTesting(active)
+        .accessibilityIdentifier("mapStop-\(id.rawValue)")
+        .position(point)
     }
 
     private func icon(_ name: String, at point: CGPoint) -> some View {

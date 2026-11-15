@@ -99,7 +99,12 @@ struct PlanStripCard: View {
         VStack(alignment: .leading, spacing: 20) {
             header
             if stops.isEmpty {
-                addStopButton.transition(.opacity)
+                VStack(alignment: .leading, spacing: 10) {
+                    addStopButton
+                    Text("Add a café or lounge, then set your times").outfitText(15, .regular, AB.secondary)
+                        .frame(maxWidth: .infinity)
+                }
+                .transition(.opacity)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     if !hintSeen {
@@ -130,15 +135,25 @@ struct PlanStripCard: View {
         .animation(.abOut, value: hintSeen)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("planCard")
+        // A stop just added on Layover opens here, so its times are ready to set.
+        .onAppear(perform: openNewestStop)
+        .onChange(of: store.tab) { openNewestStop() }
+    }
+
+    private func openNewestStop() {
+        guard store.tab == .flight, let id = store.lastAddedStop else { return }
+        store.lastAddedStop = nil
+        openStop = id
     }
 
     private var header: some View {
-        let spare = (store.outbound.gateCloses ?? SampleJourney.gateArrivalTarget) - store.now
+        let spare = store.minutesToSpare
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Your plan").outfitText(22, .bold).accessibilityAddTraits(.isHeader)
                 HStack(spacing: 5) {
                     Text(durationText(spare)).outfitText(16, .semibold, AB.primary)
+                        .contentTransition(.numericText(value: Double(spare)))
                     Text("to spare").outfitText(16, .regular, AB.secondary)
                 }
                 .accessibilityElement(children: .combine)
@@ -272,12 +287,18 @@ private struct StopTimesEditor: View {
     var body: some View {
         if let times = store.times(stop.id) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
                     RoundedRectangle(cornerRadius: 2).fill(PlanStripCard.color(stop.id)).frame(width: 4)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(stop.name).outfitText(19, .bold)
-                        Text("Terminal 3, \(stop.id == .anaLounge ? "4F" : "3F"). \(store.venueToGateMinutes(stop.id)) min walk to the gate.")
-                            .outfitText(15, .regular, AB.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .center) {
+                            Text(stop.name).outfitText(19, .bold)
+                            Spacer(minLength: 8)
+                            removeButton
+                        }
+                        HStack(spacing: 6) {
+                            fact("building.2", "Terminal 3, \(stop.id == .anaLounge ? "4F" : "3F")")
+                            fact("figure.walk", "\(store.venueToGateMinutes(stop.id)) min to gate")
+                        }
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -285,34 +306,42 @@ private struct StopTimesEditor: View {
                 HStack(spacing: 12) {
                     stepper("Arrive", times.arrive, latest: false,
                             earlier: StopTimes.earlierArrive(times.arrive),
-                            later: StopTimes.laterArrive(times.arrive, leave: times.leave)) { store.setTimes(stop.id, arrive: $0) }
+                            later: StopTimes.laterArrive(times.arrive, leave: times.latest)) { store.setTimes(stop.id, arrive: $0) }
                     stepper("Leave", times.leave, latest: times.leave == times.latest,
                             earlier: StopTimes.earlierLeave(times.leave, arrive: times.arrive),
                             later: StopTimes.laterLeave(times.leave, latest: times.latest)) { store.setTimes(stop.id, leave: $0) }
                 }
                 .staggered(1)
                 ForEach(store.overlapping(stop.id)) { other in
-                    Text("Overlaps with \(other.name)").outfitText(15, .bold, AB.alert)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AB.alertBackground, in: RoundedRectangle(cornerRadius: 10))
-                        .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 14, weight: .bold)).foregroundStyle(AB.alert)
+                        Text("Overlaps \(other.id == .anaLounge ? "LOUNGE" : other.name)").outfitText(15, .bold, AB.alert)
+                            .lineLimit(1).minimumScaleFactor(0.85)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityLabel("Overlaps with \(other.name)")
+                        if let fix = fix(for: times, other: other) {
+                            Button {
+                                Haptics.tick()
+                                withAnimation(.abOut) { fix.apply() }
+                            } label: {
+                                Text(fix.title).outfitText(14, .bold, .white)
+                                    .padding(.horizontal, 12)
+                                    .frame(minHeight: 34)
+                                    .background(AB.alert, in: Capsule())
+                                    .contentShape(Capsule().inset(by: -5))
+                            }
+                            .buttonStyle(.pressable)
+                            .accessibilityIdentifier("fixOverlap-\(stop.id.rawValue)")
+                        }
+                    }
+                    .padding(.leading, 12)
+                    .padding(.trailing, 6)
+                    .padding(.vertical, 6)
+                    .frame(minHeight: 44)
+                    .background(AB.alertBackground, in: RoundedRectangle(cornerRadius: 12))
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
                 }
                 .staggered(2)
-                Button {
-                    Haptics.tap()
-                    withAnimation(.abOut) {
-                        close()
-                        store.remove(stop.id)
-                    }
-                } label: {
-                    Text("Remove").outfitText(16, .bold, AB.removeRed).frame(minWidth: 44, minHeight: 44, alignment: .leading)
-                }
-                .buttonStyle(.pressable)
-                .accessibilityLabel("Remove \(stop.name)")
-                .accessibilityIdentifier("remove-\(stop.id.rawValue)")
-                .staggered(3)
             }
             .padding(.top, 18)
             .padding(.bottom, 22)
@@ -320,9 +349,57 @@ private struct StopTimesEditor: View {
         }
     }
 
+    private var removeButton: some View {
+        Button {
+            Haptics.tap()
+            withAnimation(.abOut) {
+                close()
+                store.removeWithUndo(stop.id)
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "trash").font(.system(size: 13, weight: .semibold))
+                Text("Remove").outfitText(14, .semibold)
+            }
+            .foregroundStyle(AB.removeRed)
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .background(Color(hex: 0xFCEDED), in: Capsule())
+            .contentShape(Capsule().inset(by: -5))
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel("Remove \(stop.name)")
+        .accessibilityIdentifier("remove-\(stop.id.rawValue)")
+    }
+
+    private func fact(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 12, weight: .semibold))
+            Text(text).outfitText(14, .medium)
+        }
+        .foregroundStyle(AB.secondary)
+        .padding(.horizontal, 9)
+        .frame(height: 28)
+        .background(AB.screen, in: Capsule())
+    }
+
+    /// One tap to end the overlap: leave when the other stop starts, or arrive when it ends.
+    private func fix(for mine: (arrive: ClockTime, leave: ClockTime, latest: ClockTime), other: PlanStop) -> (title: String, apply: () -> Void)? {
+        guard let theirs = store.times(other.id) else { return nil }
+        if mine.arrive <= theirs.arrive, theirs.arrive >= mine.arrive + StopTimes.minimumStay {
+            return ("Leave \(theirs.arrive)", { store.setTimes(stop.id, leave: theirs.arrive) })
+        }
+        if mine.arrive > theirs.arrive, theirs.leave + StopTimes.minimumStay <= mine.latest {
+            return ("Arrive \(theirs.leave)", { store.setTimes(stop.id, arrive: theirs.leave) })
+        }
+        return nil
+    }
+
     private func stepper(_ title: String, _ time: ClockTime, latest: Bool, earlier: ClockTime?, later: ClockTime?, set: @escaping (ClockTime) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
+                Image(systemName: title == "Arrive" ? "figure.walk.arrival" : "figure.walk.departure")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(AB.secondary)
                 Text(title).outfitText(14, .bold, AB.secondary)
                 if latest {
                     Text("latest").outfitText(11, .bold, .white)

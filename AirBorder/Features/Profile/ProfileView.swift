@@ -49,8 +49,6 @@ struct ProfileView: View {
                             ProfileRow(icon: "icInfo", title: "About AirBorder") { sheet = .about }
                             RowDivider()
                             ProfileRow(icon: "icShield", title: "Privacy") { sheet = .privacy }
-                            RowDivider()
-                            ProfileRow(icon: "icGuide", title: "Replay tutorial") { open(.tutorial) }
                         }
                     }
                 }

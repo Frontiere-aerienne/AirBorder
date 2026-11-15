@@ -364,4 +364,20 @@ final class TerminalTwoTimingTests: XCTestCase {
             ])
         }
     }
+
+    @MainActor
+    func testArrivePushesLeaveAndSpareTimeCountsStops() {
+        let defaults = UserDefaults(suiteName: "planTimes")!
+        defaults.removePersistentDomain(forName: "planTimes")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        XCTAssertEqual(durationText(store.minutesToSpare), "5h 25m")
+        store.add(.cafe) // 16:00–16:59
+        store.add(.anaLounge) // 16:30–17:01, overlaps the café
+        XCTAssertEqual(durationText(store.minutesToSpare), "4h 24m", "16:00–17:01 is covered once")
+        store.setTimes(.cafe, leave: ClockTime(16, 15))
+        store.setTimes(.cafe, arrive: ClockTime(16, 15))
+        XCTAssertEqual(store.times(.cafe)?.leave.description, "16:30", "Leave moves with Arrive")
+        store.setTimes(.cafe, arrive: ClockTime(16, 59))
+        XCTAssertEqual(store.times(.cafe)?.leave.description, "16:59", "Never past the latest leave")
+    }
 }

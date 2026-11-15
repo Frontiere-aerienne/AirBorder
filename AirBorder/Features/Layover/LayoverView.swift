@@ -170,7 +170,7 @@ private struct VenueCard: View {
                     Button {
                         Haptics.tap()
                         withAnimation(.abOut) {
-                            if added { store.remove(venue.id) } else { store.add(venue.stop) }
+                            if added { store.removeWithUndo(venue.id) } else { store.add(venue.stop) }
                         }
                     } label: {
                         HStack(spacing: 5) {
@@ -210,6 +210,10 @@ private struct VenueCard: View {
             .padding(.bottom, 20)
             VStack(alignment: .leading, spacing: 10) {
                 FlowRow {
+                    if let times = store.times(venue.id) {
+                        Chip(text: "In your plan \(times.arrive)–\(times.leave)", tone: .leaveBy)
+                            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .leading)))
+                    }
                     if let status = venue.status { Chip(text: status, tone: .open) }
                     if venue.showsLeaveBy {
                         Chip(text: "Leave by \(SampleJourney.gateArrivalTarget - store.walkMinutes(venue.id, .gate))", tone: .leaveBy)
