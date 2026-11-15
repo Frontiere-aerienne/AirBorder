@@ -12,11 +12,11 @@ final class AirBorderUITests: XCTestCase {
 
     func testFourTabsShowTheirScreens() {
         XCTAssertTrue(app.staticTexts["Your flight"].waitForExistence(timeout: 5))
-        app.buttons["tab-layover"].tap()
+        app.tabBars.buttons["Layover"].tap()
         XCTAssertTrue(app.staticTexts["Layover & transit"].waitForExistence(timeout: 2))
-        app.buttons["tab-route"].tap()
+        app.tabBars.buttons["Route"].tap()
         XCTAssertTrue(app.staticTexts["Route to Gate 105"].waitForExistence(timeout: 2))
-        app.buttons["tab-profile"].tap()
+        app.tabBars.buttons["Profile"].tap()
         XCTAssertTrue(app.staticTexts["Your profile"].waitForExistence(timeout: 2))
     }
 
@@ -27,7 +27,7 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertEqual(progress.label, "Step 3 of 5, Security")
         app.buttons["checkpointLine"].tap()
         XCTAssertTrue(app.staticTexts["Journey steps"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Haneda connection · Step 3 of 5"].exists)
+        XCTAssertTrue(app.staticTexts["Haneda connection, Step 3 of 5"].exists)
         app.buttons["confirm-security"].tap()
         XCTAssertTrue(app.buttons["undo-security"].exists)
         XCTAssertTrue(app.buttons["skip-passport"].exists)
@@ -41,7 +41,7 @@ final class AirBorderUITests: XCTestCase {
         addStop.tap()
         app.buttons["add-cafe"].tap()
         app.buttons["add-anaLounge"].tap()
-        app.buttons["tab-flight"].tap()
+        app.tabBars.buttons["Flight"].tap()
         XCTAssertTrue(app.buttons["lane-cafe"].waitForExistence(timeout: 2))
         XCTAssertFalse(addStop.exists)
         app.buttons["lane-cafe"].tap()
@@ -61,7 +61,7 @@ final class AirBorderUITests: XCTestCase {
     }
 
     func testRouteStepsEndReturnsToFlight() {
-        app.buttons["tab-route"].tap()
+        app.tabBars.buttons["Route"].tap()
         XCTAssertTrue(app.staticTexts["Follow the Gates 105–109 sign"].waitForExistence(timeout: 2))
         for _ in 0 ..< 4 { app.buttons["nextStep"].tap() }
         XCTAssertTrue(app.staticTexts["Check NH 106 on the gate screen"].exists)
@@ -70,7 +70,7 @@ final class AirBorderUITests: XCTestCase {
     }
 
     func testRouteChoiceAndRouteThroughStops() {
-        app.buttons["tab-route"].tap()
+        app.tabBars.buttons["Route"].tap()
         XCTAssertTrue(app.staticTexts["Follow the Gates 105–109 sign"].waitForExistence(timeout: 2))
         snapshot("route-direct")
         app.buttons["routeChoice"].tap()
@@ -81,7 +81,7 @@ final class AirBorderUITests: XCTestCase {
         app.buttons["nextStep"].tap()
         XCTAssertTrue(app.staticTexts["Turn right to the lift"].waitForExistence(timeout: 2))
 
-        app.buttons["tab-layover"].tap()
+        app.tabBars.buttons["Layover"].tap()
         XCTAssertFalse(app.buttons["planBar"].exists, "No plan bar while the plan is empty")
         app.buttons["add-cafe"].tap()
         XCTAssertTrue(app.buttons["add-cafe"].label.contains("Remove"))
@@ -105,16 +105,16 @@ final class AirBorderUITests: XCTestCase {
     }
 
     func testAppleHealthRefinesWalkingPace() {
-        app.buttons["tab-profile"].tap()
+        app.tabBars.buttons["Profile"].tap()
         app.buttons["previousTripsRow"].tap()
         app.buttons["viewWalkingPace"].tap()
         XCTAssertTrue(app.staticTexts["4.2 km/h"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["From 3 airport walks · walking only"].exists)
+        XCTAssertTrue(app.staticTexts["From 3 airport walks, walking only"].exists)
         app.buttons["Connect walking data"].tap()
         app.buttons["Connect Apple Health"].tap()
         XCTAssertTrue(app.staticTexts["Walking speed and distance"].waitForExistence(timeout: 2))
         app.buttons["allowWalkingData"].tap()
-        XCTAssertTrue(app.staticTexts["Speed and distance · Synced just now"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Speed and distance, Synced just now"].waitForExistence(timeout: 3))
         app.buttons["back"].tap()
         XCTAssertTrue(app.staticTexts["4.9 km/h"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["From 3 airport walks and Apple Health"].exists)
@@ -140,7 +140,7 @@ final class AirBorderUITests: XCTestCase {
     }
 
     func testRouteEndShowsArrivalToast() {
-        app.buttons["tab-route"].tap()
+        app.tabBars.buttons["Route"].tap()
         for _ in 0 ..< 4 { app.buttons["nextStep"].tap() }
         app.buttons["endRoute"].tap()
         let toast = app.buttons["toast"]
@@ -167,7 +167,7 @@ final class AirBorderUITests: XCTestCase {
         app.buttons["saveEntered"].tap()
         let saved = app.descendants(matching: .any)["manualFlights"]
         XCTAssertTrue(saved.waitForExistence(timeout: 2))
-        XCTAssertTrue(saved.label.contains("JL 43 · 15 Oct 2026"))
+        XCTAssertTrue(saved.label.contains("JL 43, 15 Oct 2026"))
     }
 
     func testBaggageDeclarationAndReturnFlight() {
@@ -183,7 +183,7 @@ final class AirBorderUITests: XCTestCase {
     }
 
     func testEditFlightDateAndSave() {
-        app.buttons["tab-profile"].tap()
+        app.tabBars.buttons["Profile"].tap()
         app.buttons["Saved flights"].tap()
         app.buttons["Edit this flight"].tap()
         app.buttons.containing(NSPredicate(format: "label CONTAINS '15 Oct 2026'")).firstMatch.tap()
@@ -212,7 +212,7 @@ final class AirBorderUITests: XCTestCase {
     }
 
     func testTerminalTwoVisitAddsToPlanAndShowsRoute() {
-        app.buttons["tab-layover"].tap()
+        app.tabBars.buttons["Layover"].tap()
         app.buttons["area-Landside"].tap()
         let deck = app.buttons["View route & return"]
         app.swipeUp()
@@ -274,7 +274,7 @@ final class AirBorderUITests: XCTestCase {
     }
 
     func testChoosingNH6StartsTheNaritaTransfer() {
-        app.buttons["tab-profile"].tap()
+        app.tabBars.buttons["Profile"].tap()
         app.buttons["Saved flights"].tap()
         app.buttons["Edit this flight"].tap()
         app.buttons.containing(NSPredicate(format: "label CONTAINS 'NH 106'")).firstMatch.tap()
@@ -284,11 +284,11 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Flight saved"].waitForExistence(timeout: 2))
         app.buttons["View saved flights"].tap()
         app.buttons["back"].tap()
-        app.buttons["tab-flight"].tap()
+        app.tabBars.buttons["Flight"].tap()
         XCTAssertTrue(app.buttons["travelUpdate-flight"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["travelUpdate-flight"].label.contains("Change airports: Haneda → Narita"))
         XCTAssertTrue(app.descendants(matching: .any)["transferCountdown"].exists)
-        app.buttons["tab-route"].tap()
+        app.tabBars.buttons["Route"].tap()
         XCTAssertTrue(app.staticTexts["Route to Narita"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Follow Bus signs"].exists)
     }
@@ -297,7 +297,7 @@ final class AirBorderUITests: XCTestCase {
         app.terminate()
         app.resetAuthorizationStatus(for: .camera)
         app.launch()
-        app.buttons["tab-route"].tap()
+        app.tabBars.buttons["Route"].tap()
         app.buttons["mode-camera"].tap()
         XCTAssertTrue(app.staticTexts["Camera guidance"].waitForExistence(timeout: 2))
         app.buttons["useMapInstead"].tap()
@@ -328,7 +328,7 @@ final class AirBorderUITests: XCTestCase {
 
     func testTerminalTwoTooLateSendsTravellerToTheGate() {
         relaunch(["-gateUpdate", "off", "-now", "15:00"])
-        app.buttons["tab-layover"].tap()
+        app.tabBars.buttons["Layover"].tap()
         app.buttons["area-Landside"].tap()
         app.swipeUp()
         let deck = app.buttons["View route & return"]

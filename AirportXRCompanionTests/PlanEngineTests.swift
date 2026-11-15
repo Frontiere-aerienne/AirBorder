@@ -13,8 +13,8 @@ final class PlanEngineTests: XCTestCase {
 
     func testCafeThenLoungeMatchesMyPlan() {
         let schedule = PlanEngine.schedule(both, pace: .average)
-        XCTAssertEqual(PlanText.timing(schedule.stops[0]), "16:00–16:28 · 8 min wait + 20 min visit")
-        XCTAssertEqual(PlanText.timing(schedule.stops[1]), "16:33–17:01 · 28 min visit")
+        XCTAssertEqual(PlanText.timing(schedule.stops[0]), "16:00–16:28, 8 min wait + 20 min visit")
+        XCTAssertEqual(PlanText.timing(schedule.stops[1]), "16:33–17:01, 28 min visit")
         XCTAssertEqual(PlanText.walk(schedule.stops[1]), "5 min walk from the café")
         XCTAssertEqual(PlanText.arrivalTitle(schedule), "Arrive at your gate by 17:05")
         XCTAssertEqual(PlanText.arrivalDetail(schedule), "Leave ANA LOUNGE at 17:01. Gate closes at 17:25.")
@@ -40,8 +40,8 @@ final class PlanEngineTests: XCTestCase {
         XCTAssertEqual(suggestion.title, "Allow 10 more minutes for the café queue")
         XCTAssertEqual(suggestion.detail, "Shorten ANA LOUNGE to 18 min to still arrive by 17:05.")
         let applied = PlanEngine.schedule(suggestion.proposed, pace: .average)
-        XCTAssertEqual(PlanText.timing(applied.stops[0]), "16:00–16:38 · 18 min for the queue + 20 min visit")
-        XCTAssertEqual(PlanText.timing(applied.stops[1]), "16:43–17:01 · 18 min visit")
+        XCTAssertEqual(PlanText.timing(applied.stops[0]), "16:00–16:38, 18 min for the queue + 20 min visit")
+        XCTAssertEqual(PlanText.timing(applied.stops[1]), "16:43–17:01, 18 min visit")
         XCTAssertEqual(applied.arriveAtGate.description, "17:05")
         // The proposal never touches stops that were not in the selected plan.
         XCTAssertEqual(suggestion.proposed.stops.map(\.id), both.stops.map(\.id))

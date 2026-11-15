@@ -41,12 +41,12 @@ struct ConnectedAccountsView: View {
     private var healthDetail: String {
         switch store.health {
         case .connected:
-            guard store.walkingSpeedKmh != nil else { return "Speed and distance · No walks yet" }
+            guard store.walkingSpeedKmh != nil else { return "Speed and distance, No walks yet" }
             if let sync = store.lastHealthSync, Date().timeIntervalSince(sync) > 60 {
-                return "Speed and distance · Synced \(sync.formatted(date: .omitted, time: .shortened))"
+                return "Speed and distance, Synced \(sync.formatted(date: .omitted, time: .shortened))"
             }
-            return "Speed and distance · Synced just now"
-        case .removed: return "Removed · Using average times"
+            return "Speed and distance, Synced just now"
+        case .removed: return "Removed, Using average times"
         case .notConnected: return store.healthAvailable ? "Not connected" : "Not available on this device"
         }
     }
@@ -161,7 +161,7 @@ extension AirportWalkingView {
     private var source: String {
         let walks = SampleJourney.airportWalks.count
         if walks == 0 { return "From Apple Health" }
-        return healthUsed ? "From \(walks) airport walks and Apple Health" : "From \(walks) airport walks · walking only"
+        return healthUsed ? "From \(walks) airport walks and Apple Health" : "From \(walks) airport walks, walking only"
     }
 }
 
@@ -211,9 +211,9 @@ struct PreviousTripsView: View {
     }
 
     private let trips = [
-        Trip(date: "12 Aug 2026", gate: "105", gateDirection: .departure, flight: "NH 106 · HND → LAX", walk: "Haneda · 12 min walk · 840 m"),
-        Trip(date: "3 Jun 2026", gate: "108A", gateDirection: .departure, flight: "NH 106 · HND → LAX", walk: "Haneda · 9 min walk · 630 m"),
-        Trip(date: "21 Mar 2026", gate: nil, gateDirection: .arrival, flight: "NH 105 · LAX → HND", walk: "Haneda arrival · 15 min walk · 1.05 km"),
+        Trip(date: "12 Aug 2026", gate: "105", gateDirection: .departure, flight: "NH 106, HND → LAX", walk: "Haneda, 12 min walk, 840 m"),
+        Trip(date: "3 Jun 2026", gate: "108A", gateDirection: .departure, flight: "NH 106, HND → LAX", walk: "Haneda, 9 min walk, 630 m"),
+        Trip(date: "21 Mar 2026", gate: nil, gateDirection: .arrival, flight: "NH 105, LAX → HND", walk: "Haneda arrival, 15 min walk, 1.05 km"),
     ]
 
     var body: some View {

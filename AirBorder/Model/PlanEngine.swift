@@ -279,7 +279,7 @@ enum PlanText {
             parts.append(item.stop.queueUpdated ? "\(item.stop.waitMinutes) min for the queue" : "\(item.stop.waitMinutes) min wait")
         }
         parts.append("\(item.stop.visitMinutes) min visit")
-        return "\(item.start)–\(item.end) · " + parts.joined(separator: " + ")
+        return "\(item.start)–\(item.end), " + parts.joined(separator: " + ")
     }
 
     static func walk(_ item: ScheduledStop) -> String? {

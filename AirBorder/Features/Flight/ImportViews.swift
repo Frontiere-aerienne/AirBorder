@@ -149,7 +149,7 @@ struct CapturedReviewView: View {
     let ticket: ParsedTicket
 
     var body: some View {
-        let line = [ticket.number.replacingOccurrences(of: " ", with: ""), ticket.route].compactMap { $0 }.joined(separator: " · ")
+        let line = [ticket.number.replacingOccurrences(of: " ", with: ""), ticket.route].compactMap { $0 }.joined(separator: ", ")
         InfoStepScreen(
             title: "Review your flight",
             message: "From your ticket\n\(line)\nCheck the flight date, time and gate before saving.",

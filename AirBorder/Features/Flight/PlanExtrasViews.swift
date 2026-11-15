@@ -15,7 +15,7 @@ struct AddedPlanCard: View {
                     AirlineBadge(airline: .ana)
                     Text("LOUNGE").outfitText(17, .semibold)
                 } else {
-                    Text(stops.isEmpty ? "T2 Observation Deck" : stops.map(\.stop.name).joined(separator: " · "))
+                    Text(stops.isEmpty ? "T2 Observation Deck" : stops.map(\.stop.name).joined(separator: ", "))
                         .outfitText(17, .semibold).lineLimit(2)
                 }
                 Spacer()
