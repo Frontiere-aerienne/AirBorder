@@ -1,72 +1,5 @@
 import SwiftUI
 
-/// Figma "Add to my plan" (997:30942).
-struct AddToPlanView: View {
-    @EnvironmentObject private var store: JourneyStore
-    @Environment(\.openDestination) private var open
-    @Environment(\.popTo) private var popTo
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        SubScreen {
-            HeaderWithBack(title: "Add to my plan") { dismiss() }
-            GateChip()
-            Text("Terminal 3 · Near your gate").outfitText(15, .regular, AB.secondary)
-            stopCard(.cafe, detail: "Airside · \(WalkingTimes.minutes(average: 5, pace: store.pace)) min walk\nBusy · Estimated wait \(PlanStop.cafe.waitMinutes) min", extra: nil)
-            stopCard(.anaLounge, detail: "Terminal 3 · 4F · Check access with your ticket", extra: ("Lounge details", { open(.anaLounge) }))
-            CTAButton(title: "View my plan") { popTo(.myPlan) }
-            CTAButton(title: "Check café availability", style: .outline) { open(.cafeAvailability) }
-        }
-    }
-
-    private func stopCard(_ id: PlaceID, detail: String, extra: (String, () -> Void)?) -> some View {
-        let stop = id == .cafe ? PlanStop.cafe : PlanStop.anaLounge
-        let added = store.plan.contains(id)
-        return VStack(alignment: .leading, spacing: 6) {
-            Text(stop.name).outfitText(18, .bold)
-            Text(detail).outfitText(15, .regular, AB.secondary)
-            CTAButton(title: added ? "Remove \(stop.shortName)" : "Add \(stop.shortName)", style: .plain, height: 47) {
-                if added { store.remove(id) } else { store.add(stop) }
-            }
-            .accessibilityIdentifier("plan-\(id.rawValue)")
-            if let extra {
-                CTAButton(title: extra.0, style: .plain, height: 47, action: extra.1)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AB.card, in: RoundedRectangle(cornerRadius: 16))
-    }
-}
-
-/// Figma "Café availability" (997:31100).
-struct CafeAvailabilityView: View {
-    @EnvironmentObject private var store: JourneyStore
-    @Environment(\.popTo) private var popTo
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        SubScreen {
-            HeaderWithBack(title: "Café availability") { dismiss() }
-            GateChip()
-            Text("Curacion Cafe · Terminal 3").outfitText(15, .regular, AB.secondary)
-            NavyCard(title: "Busy now", detail: "Estimated wait \(PlanStop.cafe.waitMinutes) min")
-            InfoCard(padding: 16, radius: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Check your plan timing").outfitText(18, .bold)
-                    Text("Allow \(PlanStop.cafe.waitMinutes) min waiting and a \(PlanStop.cafe.visitMinutes)-minute visit, plus walking time. Review your gate-arrival time before adding this stop.")
-                        .outfitText(15, .regular, AB.secondary)
-                }
-            }
-            CTAButton(title: store.plan.contains(.cafe) ? "Café is in your plan" : "Add café to plan") {
-                store.add(.cafe)
-                popTo(.myPlan)
-            }
-            CTAButton(title: "Check another option", style: .outline) { dismiss() }
-        }
-    }
-}
-
 /// Figma "Route through your stops" (997:30967), "Route via Curacion Cafe" (997:30988), "Route via ANA LOUNGE" (997:31009).
 struct RouteThroughStopsView: View {
     @EnvironmentObject private var store: JourneyStore
@@ -99,7 +32,7 @@ struct RouteThroughStopsView: View {
                 store.tab = .route
             }
             CTAButton(title: "Compare routes", style: .outline) { open(.routeOptions) }
-            CTAButton(title: "My plan", style: .plain) { dismiss() }
+            CTAButton(title: "Your plan", style: .plain) { popToRoot() }
         }
     }
 }
@@ -138,7 +71,10 @@ struct RouteDetailView: View {
                 store.tab = .route
             }
             CTAButton(title: "Compare routes", style: .outline) { dismiss() }
-            CTAButton(title: "My plan", style: .plain) { open(.myPlan) }
+            CTAButton(title: "Your plan", style: .plain) {
+                popToRoot()
+                store.tab = .flight
+            }
         }
     }
 }
@@ -167,7 +103,10 @@ struct OpenAnotherMapView: View {
                 popToRoot()
                 store.tab = .route
             }
-            CTAButton(title: "My plan", style: .plain) { open(.myPlan) }
+            CTAButton(title: "Your plan", style: .plain) {
+                popToRoot()
+                store.tab = .flight
+            }
         }
     }
 }
@@ -191,7 +130,6 @@ struct AddedPlanCard: View {
                         .outfitText(17, .semibold).lineLimit(2)
                 }
                 Spacer()
-                circle(image: nil, label: "Edit plan") { open(.myPlan) }
                 circle(image: "icClosePlan", label: "Remove plan") {
                     for item in stops { store.remove(item.stop.id) }
                     store.t2VisitPlanned = false

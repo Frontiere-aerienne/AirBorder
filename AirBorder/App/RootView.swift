@@ -2,11 +2,11 @@ import SwiftUI
 
 /// Screens pushed on top of a tab.
 enum Destination: Hashable {
-    case journeyDetails, journeySteps, myPlan, editStop(PlaceID), addFlight, importFlight, manualEntry
+    case journeyDetails, journeySteps, addFlight, importFlight, manualEntry
     case reviewEntered(ManualFlight), manualFlights, editFlight, chooseFlight, chooseDate, choosePurpose
     case checkFlight, flightSaved, baggage, declareBaggage, returnFlight
     case cameraPermission, ticketCamera, cameraUnavailable, unreadableTicket, capturedReview(ParsedTicket), ticketSaved
-    case addToPlan, cafeAvailability, routeThroughStops, routeDetail(RouteChoice), openAnotherMap, returnToGate(PlaceID)
+    case routeThroughStops, routeDetail(RouteChoice), openAnotherMap, returnToGate(PlaceID)
     case anaLounge, loungeMap, landsideRoute(Bool), facilityGuide, t2Deck, t2NotEnoughTime, toTerminal2, atTerminal2, returnFromT2, shuttleFull
     case choosePDF, importWallet, connectGmail, connectCalendar, reviewImported(ParsedTicket), flightUpdated, reviewFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
@@ -96,8 +96,6 @@ struct RootView: View {
         switch destination {
         case .journeyDetails: JourneyDetailsView()
         case .journeySteps: JourneyStepsView()
-        case .myPlan: MyPlanView()
-        case let .editStop(id): EditStopView(stopID: id)
         case .addFlight: AddFlightSummaryView()
         case .importFlight: AddFlightView()
         case .manualEntry: ManualEntryView()
@@ -125,8 +123,6 @@ struct RootView: View {
         case let .reviewImported(ticket): ReviewImportedView(ticket: ticket)
         case .flightUpdated: FlightUpdatedView()
         case .reviewFlight: ReviewFlightView()
-        case .addToPlan: AddToPlanView()
-        case .cafeAvailability: CafeAvailabilityView()
         case .routeThroughStops: RouteThroughStopsView()
         case let .routeDetail(choice): RouteDetailView(choice: choice)
         case .openAnotherMap: OpenAnotherMapView()

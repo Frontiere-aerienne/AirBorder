@@ -35,21 +35,29 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertEqual(app.descendants(matching: .any)["journeyProgress"].label, "Step 4 of 5, Passport control")
     }
 
-    func testAddStopsApplySuggestionAndUndo() {
-        app.buttons["tab-layover"].tap()
+    func testPlanCardAddsStopsAndEditsTimes() {
+        let addStop = app.buttons["addStop"]
+        XCTAssertTrue(addStop.waitForExistence(timeout: 5))
+        addStop.tap()
         app.buttons["add-cafe"].tap()
         app.buttons["add-anaLounge"].tap()
         app.buttons["tab-flight"].tap()
-        app.buttons["myPlanLink"].tap()
-        let suggestion = app.descendants(matching: .any)["suggestion"]
-        XCTAssertTrue(suggestion.waitForExistence(timeout: 2))
-        XCTAssertTrue(suggestion.label.contains("Allow 10 more minutes for the café queue"))
-        XCTAssertTrue(app.buttons["stop-anaLounge"].label.contains("28 min visit"), "Nothing changes before Apply")
-        app.buttons["applySuggestion"].tap()
-        XCTAssertTrue(app.buttons["undoToast"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["stop-anaLounge"].label.contains("16:43–17:01 · 18 min visit"))
-        app.buttons["undoToast"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["suggestion"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["lane-cafe"].waitForExistence(timeout: 2))
+        XCTAssertFalse(addStop.exists)
+        app.buttons["lane-cafe"].tap()
+        XCTAssertTrue(app.staticTexts["16:59"].waitForExistence(timeout: 2), "Leave defaults to the latest time")
+        XCTAssertTrue(app.staticTexts["Overlaps with ANA LOUNGE"].exists)
+        app.swipeUp()
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "plan-card-open"
+        shot.lifetime = .keepAlways
+        add(shot)
+        XCTAssertFalse(app.buttons["Leave later"].isEnabled, "Never past the latest leave")
+        app.buttons["Leave earlier"].tap()
+        XCTAssertTrue(app.staticTexts["16:45"].waitForExistence(timeout: 2))
+        app.buttons["remove-cafe"].tap()
+        XCTAssertTrue(app.buttons["lane-cafe"].waitForNonExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["lane-anaLounge"].exists)
     }
 
     func testRouteStepsEndReturnsToFlight() {
@@ -168,24 +176,6 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Connect Gmail"].waitForExistence(timeout: 2))
         app.buttons["Continue with Google"].tap()
         XCTAssertTrue(app.alerts["Google sign-in isn't available yet"].waitForExistence(timeout: 2))
-    }
-
-    func testAddToMyPlanShowsAddedPlanOnFlight() {
-        app.buttons["myPlanLink"].tap()
-        XCTAssertTrue(app.staticTexts["No stops added yet"].waitForExistence(timeout: 2))
-        app.buttons["Add a stop"].tap()
-        XCTAssertTrue(app.staticTexts["Add to my plan"].waitForExistence(timeout: 2))
-        app.buttons["plan-cafe"].tap()
-        app.buttons["View my plan"].tap()
-        XCTAssertTrue(app.buttons["stop-cafe"].waitForExistence(timeout: 2))
-        app.buttons["View route through stops"].tap()
-        XCTAssertTrue(app.staticTexts["Route via Curacion Cafe"].waitForExistence(timeout: 2))
-        app.buttons["back"].tap()
-        app.buttons["back"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["addedPlanCard"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.buttons["addStop"].exists)
-        app.buttons["Remove plan"].tap()
-        XCTAssertTrue(app.buttons["addStop"].waitForExistence(timeout: 2))
     }
 
     func testTerminalTwoVisitAddsToPlanAndShowsRoute() {

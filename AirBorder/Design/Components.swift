@@ -356,3 +356,28 @@ struct SubScreen<Content: View>: View {
         .toolbar(.hidden, for: .navigationBar)
     }
 }
+
+struct GateChip: View {
+    @EnvironmentObject private var store: JourneyStore
+    var body: some View {
+        Text("Gate \(store.gate)").outfitText(18, .semibold, AB.gateText)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct NavyCard: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        InfoCard(padding: 16, radius: 16, background: AB.ticket) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).outfitText(18, .bold, AB.card)
+                Text(detail).outfitText(15, .regular, AB.card)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}

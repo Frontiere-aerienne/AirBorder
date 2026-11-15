@@ -24,7 +24,6 @@
 		57CC2BBE1D10A29071CF895A /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11BF6BFD48C8B1D6D05919BE /* ProfileView.swift */; };
 		607F87E330693D0755C3E1C8 /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 9F73FBCBE2B5EAE2DFF18757 /* OFL.txt */; };
 		6582436B9DF058E38ABD7EEB /* JourneyDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A248953DD47963CEC8591259 /* JourneyDetailsView.swift */; };
-		65B3166905FF234A1CD060FA /* MyPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 770CEFD3F6BDCBEF83461528 /* MyPlanView.swift */; };
 		6B303D7D228CBEF65E4C0572 /* WalkingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5DDEF82303233576B3C6A2B /* WalkingViews.swift */; };
 		6EE78EB791D865C045BB0092 /* InfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998FBF528BDDFFD99A97AC4F /* InfoSheet.swift */; };
 		73BA941E46BFD35D6717AA55 /* ImportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A073F11675156DF67200492F /* ImportViews.swift */; };
@@ -79,9 +78,8 @@
 		3B2419B78F1D71A8ECA1BAB1 /* AirportXRCompanionUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AirportXRCompanionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4B9672B292408F58FA2DF30D /* PlaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceViews.swift; sourceTree = "<group>"; };
 		5090071A59E95C9D6209297D /* PlanExtrasViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanExtrasViews.swift; sourceTree = "<group>"; };
-		515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		69EFAEA6D6A322BD89886D57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
-		770CEFD3F6BDCBEF83461528 /* MyPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPlanView.swift; sourceTree = "<group>"; };
 		780C31AB5EB373B7FECE9184 /* PlanEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEngineTests.swift; sourceTree = "<group>"; };
 		7E8D6B107D284C2971B25AA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97B20A0264BDE33D0498E7DD /* ScenarioViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioViews.swift; sourceTree = "<group>"; };
@@ -92,7 +90,7 @@
 		A248953DD47963CEC8591259 /* JourneyDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyDetailsView.swift; sourceTree = "<group>"; };
 		AC9E6B26198D4AF3E207D0EB /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
 		B236BD847C0EBAB4E5B5CB6D /* AirBorderUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBorderUITests.swift; sourceTree = "<group>"; };
-		B295EE1DB9471DAA4B19FC3B /* AirBorder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AirBorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B295EE1DB9471DAA4B19FC3B /* AirBorder.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AirBorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B772C8BD27CEBE135ED10D44 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		BF1C49F70E935C66E48A524C /* AirBorderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBorderApp.swift; sourceTree = "<group>"; };
 		CA44710E401393BF38EC76EE /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -133,7 +131,6 @@
 				A073F11675156DF67200492F /* ImportViews.swift */,
 				A248953DD47963CEC8591259 /* JourneyDetailsView.swift */,
 				039240FB336A17A5B64CE0A1 /* JourneyStepsView.swift */,
-				770CEFD3F6BDCBEF83461528 /* MyPlanView.swift */,
 				5090071A59E95C9D6209297D /* PlanExtrasViews.swift */,
 				97B20A0264BDE33D0498E7DD /* ScenarioViews.swift */,
 				30F32830129F626BD0E9528C /* TicketCard.swift */,
@@ -417,7 +414,6 @@
 				B5DF28BD298F03F89728F5C4 /* JourneyStepsView.swift in Sources */,
 				3DB5393532B0BCC5D2C17EB5 /* JourneyStore.swift in Sources */,
 				9F96B738899CF4BCFBBD2E75 /* LayoverView.swift in Sources */,
-				65B3166905FF234A1CD060FA /* MyPlanView.swift in Sources */,
 				33AD7F0E132A7BF113A76331 /* OnboardingView.swift in Sources */,
 				ADD5C5066BCBB25A7AAE6EAE /* PlaceViews.swift in Sources */,
 				BBB3D8B442EB5DC2EE7078FC /* PlanEngine.swift in Sources */,
@@ -641,7 +637,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 77FCC765M8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AirBorder;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
@@ -650,7 +645,9 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
+					UIInterfaceOrientationPortrait,
+				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -685,7 +682,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 77FCC765M8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AirBorder;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
@@ -694,7 +690,9 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
+					UIInterfaceOrientationPortrait,
+				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

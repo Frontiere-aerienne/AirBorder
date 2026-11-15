@@ -609,7 +609,10 @@ struct ShuttleFullView: View {
                         .outfitText(15, .regular, AB.secondary)
                 }
             }
-            CTAButton(title: "Review my plan") { open(.myPlan) }
+            CTAButton(title: "Review your plan") {
+                popToRoot()
+                store.tab = .flight
+            }
             CTAButton(title: "Terminal transfer route", style: .outline) { dismiss() }
             CTAButton(title: "Go to gate", style: .plain) {
                 popToRoot()
