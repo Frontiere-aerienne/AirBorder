@@ -10,6 +10,7 @@ must not present study results.
 
 - ACM full-paper template, **double column** (`acmart` with `sigconf`).
 - **5–10 pages**, excluding the appendix and the references.
+- Check the required Evaluation Plan section in the body or the appendix. Apply the same evaluation criteria in either location.
 
 ## Citations (project rule, set by the authors)
 
