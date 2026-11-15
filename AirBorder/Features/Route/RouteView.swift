@@ -329,6 +329,7 @@ struct RouteCard<Map: View>: View {
                 .buttonStyle(.pressable)
                 .accessibilityAddTraits(store.routeChoice.resolved(for: store.plan) == choice ? .isSelected : [])
                 .accessibilityIdentifier("use-\(choice.rawValue)")
+                .staggered(i)
             }
         }
         .padding(.horizontal, 15)

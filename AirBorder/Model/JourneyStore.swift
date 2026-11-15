@@ -123,10 +123,16 @@ final class JourneyStore: ObservableObject {
     private let defaults: UserDefaults
     private static let stateKey = "journeyState.v1"
 
+    /// Shared with the plan card's one-time hint ("Tap a stop to change its times").
+    static let planHintKey = "planHintSeen"
+
     init(walkingData: WalkingDataSource, defaults: UserDefaults = .standard, reset: Bool = false) {
         self.walkingData = walkingData
         self.defaults = defaults
-        if reset { defaults.removeObject(forKey: Self.stateKey) }
+        if reset {
+            defaults.removeObject(forKey: Self.stateKey)
+            defaults.removeObject(forKey: Self.planHintKey)
+        }
         let saved = defaults.data(forKey: Self.stateKey).flatMap { try? JSONDecoder().decode(SavedState.self, from: $0) }
         plan = saved?.plan ?? Plan()
         checklist = saved?.checklist ?? .haneda
@@ -391,6 +397,7 @@ final class JourneyStore: ObservableObject {
         checklist = isAirportTransfer ? .narita : .haneda
         queueUpdateHandled = false
         routeStep = 1
+        UserDefaults.standard.removeObject(forKey: Self.planHintKey)
         refreshSuggestion()
         refreshAlerts()
         showToast(ToastMessage(text: "Trip preferences reset"))

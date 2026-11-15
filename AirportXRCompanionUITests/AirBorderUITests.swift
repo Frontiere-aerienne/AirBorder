@@ -52,7 +52,8 @@ final class AirBorderUITests: XCTestCase {
         shot.name = "plan-card-open"
         shot.lifetime = .keepAlways
         add(shot)
-        XCTAssertFalse(app.buttons["Leave later"].isEnabled, "Never past the latest leave")
+        app.buttons["Leave later"].tap()
+        XCTAssertTrue(app.staticTexts["16:59"].exists, "Never past the latest leave")
         app.buttons["Leave earlier"].tap()
         XCTAssertTrue(app.staticTexts["16:45"].waitForExistence(timeout: 2))
         app.buttons["remove-cafe"].tap()

@@ -86,38 +86,48 @@ struct TimeChip: View {
 struct PlanStripCard: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
-    @State private var openStop: PlaceID?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var openStop: PlaceID?
+    /// The hint teaches the rows once; it goes away after the first stop is opened.
+    @AppStorage(JourneyStore.planHintKey) private var hintSeen = false
 
     static let stripStart = ClockTime(15, 0)
     static let stripMinutes = 150
 
     var body: some View {
         let stops = PlaceID.allCases.compactMap { id in store.plan.stops.first { $0.id == id } }
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 20) {
             header
             if stops.isEmpty {
-                addStopButton
+                addStopButton.transition(.opacity)
             } else {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !hintSeen {
+                        Text("Tap a stop to change its times").outfitText(15, .regular, AB.secondary)
+                            .transition(.opacity.combined(with: .offset(y: -4)))
+                    }
                     hours
                     ForEach(stops) { stop in
                         lane(stop)
+                            .transition(.opacity.combined(with: .offset(y: -8)))
                         if openStop == stop.id {
                             StopTimesEditor(stop: stop) { openStop = nil }
-                                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: -6)))
+                                .transition(reduceMotion ? .opacity : .asymmetric(
+                                    insertion: .opacity.combined(with: .offset(y: -10)),
+                                    removal: .opacity.animation(.easeOut(duration: 0.12))))
                         }
                     }
+                    legend.padding(.top, 4)
                 }
-                .padding(.bottom, 4)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white, in: RoundedRectangle(cornerRadius: 22))
-        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(duration: 0.3, bounce: 0), value: openStop)
+        .background(.white, in: RoundedRectangle(cornerRadius: 24))
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(duration: 0.38, bounce: 0.12), value: openStop)
         .animation(.abOut, value: stops.map(\.id))
+        .animation(.abOut, value: hintSeen)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("planCard")
     }
@@ -163,18 +173,37 @@ struct PlanStripCard: View {
     private var hours: some View {
         GeometryReader { proxy in
             ForEach([0, 60, 120], id: \.self) { offset in
-                Text((Self.stripStart + offset).description).outfitText(12, .medium, AB.secondary)
+                Text((Self.stripStart + offset).description).outfitText(13, .medium, AB.secondary)
                     .offset(x: proxy.size.width * CGFloat(offset) / CGFloat(Self.stripMinutes))
             }
         }
-        .frame(height: 16)
+        .frame(height: 18)
         .accessibilityHidden(true)
+    }
+
+    /// Figma "Legend": what the yellow and red lines mean.
+    private var legend: some View {
+        HStack(spacing: 16) {
+            legendItem(AB.gateYellow, "Be at gate \(SampleJourney.gateArrivalTarget)")
+            legendItem(AB.alert, "Gate closes \(store.outbound.gateCloses ?? SampleJourney.gateArrivalTarget)")
+        }
+    }
+
+    private func legendItem(_ color: Color, _ text: String) -> some View {
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 3, height: 14)
+            Text(text).outfitText(14, .medium, AB.secondary)
+        }
     }
 
     private func lane(_ stop: PlanStop) -> some View {
         let times = store.times(stop.id)
         let isOpen = openStop == stop.id
-        return Button { openStop = isOpen ? nil : stop.id } label: {
+        return Button {
+            Haptics.tick()
+            openStop = isOpen ? nil : stop.id
+            hintSeen = true
+        } label: {
             GeometryReader { proxy in
                 let width = proxy.size.width
                 let x = { (time: ClockTime) in width * CGFloat(time - Self.stripStart) / CGFloat(Self.stripMinutes) }
@@ -182,9 +211,10 @@ struct PlanStripCard: View {
                     if let times {
                         Text(stop.id == .anaLounge ? "LOUNGE" : stop.name).outfitText(13, .bold, Self.textColor(stop.id))
                             .lineLimit(1)
-                            .padding(.horizontal, 7)
+                            .padding(.horizontal, 5)
                             .frame(width: max(x(times.leave) - x(times.arrive), 0), height: proxy.size.height, alignment: .leading)
-                            .background(Self.color(stop.id), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Self.color(stop.id), in: RoundedRectangle(cornerRadius: 10))
+                            .shadow(color: Self.color(stop.id).opacity(isOpen ? 0.35 : 0), radius: 6, y: 2)
                             .offset(x: x(times.arrive))
                     }
                     Rectangle().fill(AB.gateYellow).frame(width: 2).offset(x: x(SampleJourney.gateArrivalTarget))
@@ -193,20 +223,19 @@ struct PlanStripCard: View {
                         .font(.system(size: 12, weight: .bold))
                         .rotationEffect(.degrees(isOpen ? 180 : 0))
                         .foregroundStyle(AB.primary)
-                        .frame(width: 18, height: 18)
-                        .background(AB.screen, in: RoundedRectangle(cornerRadius: 4))
+                        .frame(width: 20, height: 20)
+                        .background(AB.screen, in: RoundedRectangle(cornerRadius: 5))
                         .frame(maxWidth: .infinity, alignment: .trailing)
-                        .padding(.trailing, 3)
+                        .padding(.trailing, 4)
                 }
             }
-            .frame(height: 28)
+            .frame(height: 36)
             .animation(.abOut, value: times.map { [$0.arrive.minutes, $0.leave.minutes] })
-            .background(AB.screen, in: RoundedRectangle(cornerRadius: 8))
+            .background(AB.screen, in: RoundedRectangle(cornerRadius: 10))
             .overlay {
-                if isOpen { RoundedRectangle(cornerRadius: 8).strokeBorder(AB.primary, lineWidth: 2) }
+                RoundedRectangle(cornerRadius: 10).strokeBorder(AB.primary, lineWidth: 2).opacity(isOpen ? 1 : 0)
             }
-            // ponytail: 28pt row like Figma; the hit area reaches into the 4pt gaps, not a full 44pt.
-            .contentShape(Rectangle().inset(by: -4))
+            .contentShape(Rectangle().inset(by: -5))
         }
         .buttonStyle(.pressable)
         .accessibilityLabel("\(stop.name), \(times.map { "\($0.arrive) to \($0.leave)" } ?? "")")
@@ -239,10 +268,11 @@ private struct StopTimesEditor: View {
     @EnvironmentObject private var store: JourneyStore
     let stop: PlanStop
     let close: () -> Void
+    @State private var shakes: [String: CGFloat] = [:]
 
     var body: some View {
         if let times = store.times(stop.id) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 10) {
                     RoundedRectangle(cornerRadius: 2).fill(PlanStripCard.color(stop.id)).frame(width: 4)
                     VStack(alignment: .leading, spacing: 2) {
@@ -252,7 +282,8 @@ private struct StopTimesEditor: View {
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 10) {
+                .staggered(0)
+                HStack(spacing: 12) {
                     stepper("Arrive", times.arrive, latest: false,
                             earlier: StopTimes.earlierArrive(times.arrive),
                             later: StopTimes.laterArrive(times.arrive, leave: times.leave)) { store.setTimes(stop.id, arrive: $0) }
@@ -260,13 +291,16 @@ private struct StopTimesEditor: View {
                             earlier: StopTimes.earlierLeave(times.leave, arrive: times.arrive),
                             later: StopTimes.laterLeave(times.leave, latest: times.latest)) { store.setTimes(stop.id, leave: $0) }
                 }
+                .staggered(1)
                 ForEach(store.overlapping(stop.id)) { other in
                     Text("Overlaps with \(other.name)").outfitText(15, .bold, AB.alert)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(AB.alertBackground, in: RoundedRectangle(cornerRadius: 10))
+                        .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
                 }
+                .staggered(2)
                 Button {
                     Haptics.tap()
                     withAnimation(.abOut) {
@@ -274,20 +308,21 @@ private struct StopTimesEditor: View {
                         store.remove(stop.id)
                     }
                 } label: {
-                    Text("Remove").outfitText(16, .bold, AB.secondary).frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                    Text("Remove").outfitText(16, .bold, AB.removeRed).frame(minWidth: 44, minHeight: 44, alignment: .leading)
                 }
                 .buttonStyle(.pressable)
                 .accessibilityLabel("Remove \(stop.name)")
                 .accessibilityIdentifier("remove-\(stop.id.rawValue)")
+                .staggered(3)
             }
-            .padding(.top, 8)
-            .padding(.bottom, 12)
-            .transition(.opacity)
+            .padding(.top, 18)
+            .padding(.bottom, 22)
+            .overlay(alignment: .top) { Rectangle().fill(AB.screen).frame(height: 1).padding(.top, 8) }
         }
     }
 
     private func stepper(_ title: String, _ time: ClockTime, latest: Bool, earlier: ClockTime?, later: ClockTime?, set: @escaping (ClockTime) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Text(title).outfitText(14, .bold, AB.secondary)
                 if latest {
@@ -295,39 +330,47 @@ private struct StopTimesEditor: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
                         .background(AB.alert, in: RoundedRectangle(cornerRadius: 6))
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
             }
             .padding(.leading, 4)
-            HStack {
-                stepButton("−", "\(title) earlier", earlier, set)
-                Spacer()
+            HStack(spacing: 0) {
+                stepButton("−", "\(title) earlier", earlier, key: title, set)
+                Spacer(minLength: 2)
                 Text(time.description).outfitText(22, .semibold).monospacedDigit().lineLimit(1).fixedSize()
                     .contentTransition(.numericText(value: Double(time.minutes)))
-                Spacer()
-                stepButton("+", "\(title) later", later, set)
+                    .modifier(Shake(shakes: shakes[title] ?? 0))
+                Spacer(minLength: 2)
+                stepButton("+", "\(title) later", later, key: title, set)
             }
         }
-        .padding(10)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AB.screen, in: RoundedRectangle(cornerRadius: 16))
+        .background(AB.screen, in: RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("\(title.lowercased())-\(stop.id.rawValue)")
     }
 
-    private func stepButton(_ symbol: String, _ label: String, _ target: ClockTime?, _ set: @escaping (ClockTime) -> Void) -> some View {
+    /// At a limit the button stays tappable: the time shakes and a firm tap explains why nothing changed.
+    private func stepButton(_ symbol: String, _ label: String, _ target: ClockTime?, key: String, _ set: @escaping (ClockTime) -> Void) -> some View {
         Button {
-            guard let target else { return }
+            guard let target else {
+                Haptics.limit()
+                withAnimation(.linear(duration: 0.35)) { shakes[key, default: 0] += 1 }
+                return
+            }
             Haptics.tick()
             withAnimation(.abOut) { set(target) }
         } label: {
             Text(symbol).outfitText(22, .medium)
-                .frame(width: 34, height: 34)
+                .frame(width: 38, height: 38)
                 .background(.white, in: Circle())
                 .contentShape(Circle().inset(by: -5))
         }
         .buttonStyle(.pressable)
-        .disabled(target == nil)
         .opacity(target == nil ? 0.35 : 1)
         .accessibilityLabel(label)
+        .accessibilityValue(target == nil ? "Not available" : "")
     }
 }

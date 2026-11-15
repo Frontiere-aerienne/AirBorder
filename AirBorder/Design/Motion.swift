@@ -29,4 +29,37 @@ enum Haptics {
     static func tap() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
     static func warning() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
+    /// A firm, short bump when a control is already at its limit.
+    static func limit() { UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.7) }
+}
+
+/// A short horizontal shake; bump `shakes` by 1 inside an animation to play it once.
+struct Shake: GeometryEffect {
+    var shakes: CGFloat
+    var animatableData: CGFloat {
+        get { shakes }
+        set { shakes = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: 5 * sin(shakes * .pi * 4), y: 0))
+    }
+}
+
+/// Children of a newly shown group arrive one after another, 40 ms apart.
+private struct StaggeredAppear: ViewModifier {
+    let index: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 8)
+            .onAppear { withAnimation(.abOut.delay(Double(index) * 0.04)) { shown = true } }
+    }
+}
+
+extension View {
+    func staggered(_ index: Int) -> some View { modifier(StaggeredAppear(index: index)) }
 }
