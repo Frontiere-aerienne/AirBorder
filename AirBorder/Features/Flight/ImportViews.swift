@@ -1,3 +1,5 @@
+// SUBSTANTIVE: Implements flight import and ticket review flows.
+
 import AVFoundation
 import SwiftUI
 import UniformTypeIdentifiers
@@ -44,6 +46,7 @@ extension InfoStepScreen where Extra == EmptyView {
 /// Figma "Camera permission" (997:31885).
 struct CameraPermissionView: View {
     @Environment(\.openDestination) private var open
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         InfoStepScreen(
@@ -56,7 +59,7 @@ struct CameraPermissionView: View {
                     open(granted && hasCamera ? .ticketCamera : .cameraUnavailable)
                 }
             }),
-            secondary: [("Not now", { open(.cameraUnavailable) })]
+            secondary: [("Not now", { dismiss() })]
         )
     }
 }
@@ -243,20 +246,18 @@ struct ImportWalletView: View {
             StackedHeader(title: "Import from Wallet") { dismiss() }
             VStack(alignment: .leading, spacing: 0) {
                 step(1, "Open your boarding pass in Wallet", line: true)
-                step(2, "Tap Share", line: true)
-                step(3, "Choose AirBorder", line: false)
+                step(2, "Tap Share", line: false)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AB.card, in: RoundedRectangle(cornerRadius: 18))
-            Text("No share button? Use the airline PDF instead.").outfitText(13, .regular, AB.muted)
-            CenteredButton(title: "Choose shared pass") { noPass = true }
-            CenteredButton(title: "Use a PDF instead", filled: false) { open(.choosePDF) }
+            CenteredButton(title: "Select pass") { noPass = true }
         }
-        .alert("No boarding pass shared yet", isPresented: $noPass) {
-            Button("OK", role: .cancel) {}
+        .alert("No boarding pass available", isPresented: $noPass) {
+            Button("Use PDF") { open(.choosePDF) }
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("AirBorder can't receive Wallet passes yet. Use the airline PDF instead.")
+            Text("Wallet import is unavailable. Use the airline PDF instead.")
         }
     }
 

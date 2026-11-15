@@ -1,3 +1,5 @@
+// PROCEDURAL: Verifies native interface behavior with scripted journeys.
+
 import XCTest
 
 final class AirBorderUITests: XCTestCase {
@@ -161,13 +163,63 @@ final class AirBorderUITests: XCTestCase {
         app.buttons["import-Camera"].tap()
         XCTAssertTrue(app.staticTexts["Scan your ticket"].waitForExistence(timeout: 2))
         app.buttons["Not now"].tap()
-        XCTAssertTrue(app.staticTexts["Camera unavailable"].waitForExistence(timeout: 2))
-        app.buttons["Other import options"].tap()
         XCTAssertTrue(app.staticTexts["Where is your ticket?"].waitForExistence(timeout: 2))
-        app.buttons["import-Gmail"].tap()
-        XCTAssertTrue(app.staticTexts["Connect Gmail"].waitForExistence(timeout: 2))
-        app.buttons["Continue with Google"].tap()
-        XCTAssertTrue(app.alerts["Google sign-in isn't available yet"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.staticTexts["Camera unavailable"].exists)
+        for (source, title) in [("Gmail", "Connect Gmail"), ("Google Calendar", "Connect Calendar")] {
+            app.buttons["import-\(source)"].tap()
+            XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 2))
+            let unavailable = app.alerts["Google sign-in isn't available yet"]
+            XCTAssertFalse(unavailable.exists)
+            app.buttons["Continue with Google"].tap()
+            XCTAssertTrue(unavailable.waitForExistence(timeout: 2))
+            unavailable.buttons["OK"].tap()
+            app.buttons["back"].tap()
+            XCTAssertTrue(app.staticTexts["Where is your ticket?"].waitForExistence(timeout: 2))
+        }
+    }
+
+    func testWalletImportShowsPDFFallbackOnlyAfterSelection() {
+        app.buttons["addFlight"].tap()
+        app.buttons["importTicket"].tap()
+
+        for provider in ["Apple Wallet", "Google Wallet"] {
+            app.buttons["import-\(provider)"].tap()
+            let selectPass = app.buttons["Select pass"]
+            let noPass = app.alerts["No boarding pass available"]
+            XCTAssertTrue(selectPass.waitForExistence(timeout: 2))
+            XCTAssertTrue(app.staticTexts["Open your boarding pass in Wallet"].exists)
+            XCTAssertTrue(app.staticTexts["Tap Share"].exists)
+            XCTAssertFalse(app.staticTexts["Choose AirBorder"].exists)
+            XCTAssertFalse(app.staticTexts["No share button? Use the airline PDF instead."].exists)
+            XCTAssertFalse(app.buttons["Use a PDF instead"].exists)
+            XCTAssertFalse(noPass.exists)
+            let entryScreenshot = XCTAttachment(screenshot: app.screenshot())
+            entryScreenshot.name = "\(provider) import on entry"
+            entryScreenshot.lifetime = .keepAlways
+            add(entryScreenshot)
+
+            selectPass.tap()
+            XCTAssertTrue(noPass.waitForExistence(timeout: 2))
+            XCTAssertTrue(noPass.staticTexts["Wallet import is unavailable. Use the airline PDF instead."].exists)
+            let fallbackScreenshot = XCTAttachment(screenshot: app.screenshot())
+            fallbackScreenshot.name = "\(provider) PDF fallback after selection"
+            fallbackScreenshot.lifetime = .keepAlways
+            add(fallbackScreenshot)
+            noPass.buttons["Cancel"].tap()
+            XCTAssertTrue(noPass.waitForNonExistence(timeout: 2))
+            XCTAssertTrue(selectPass.isHittable)
+
+            selectPass.tap()
+            XCTAssertTrue(noPass.waitForExistence(timeout: 2))
+            noPass.buttons["Use PDF"].tap()
+            XCTAssertTrue(app.staticTexts["Choose a PDF"].waitForExistence(timeout: 2))
+            XCTAssertTrue(app.buttons["pickPDF"].exists)
+
+            app.buttons["back"].tap()
+            XCTAssertTrue(selectPass.waitForExistence(timeout: 2))
+            app.buttons["back"].tap()
+            XCTAssertTrue(app.staticTexts["Where is your ticket?"].waitForExistence(timeout: 2))
+        }
     }
 
     func testAddToMyPlanShowsAddedPlanOnFlight() {
