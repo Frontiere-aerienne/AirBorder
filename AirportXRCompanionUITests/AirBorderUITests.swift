@@ -231,14 +231,18 @@ final class AirBorderUITests: XCTestCase {
 
     func testGateUpdateArrivesAsAnAlertAndChangesTheGate() {
         relaunch(["-gateUpdate", "1"])
-        XCTAssertTrue(app.descendants(matching: .any)["alertCard"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Gate 105 → 108A"].exists)
+        let alert = app.descendants(matching: .any)["gateAlert"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["NH 106 now departs from Gate 108A. It’s a 12 min walk."].exists)
+        snapshot("gate-alert")
+        app.buttons["alertDismiss"].tap()
+        XCTAssertTrue(alert.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["travelUpdate-flight"].label.contains("108A"))
+        snapshot("gate-strip")
+        app.buttons["travelUpdate-flight"].tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 2), "The strip shows the change again")
         app.buttons["alertRoute"].tap()
         XCTAssertTrue(app.staticTexts["Route to Gate 108A"].waitForExistence(timeout: 2))
-        app.buttons["tab-flight"].tap()
-        XCTAssertTrue(app.buttons["travelUpdate-flight"].label.contains("108A"))
-        app.buttons["travelUpdateAction-flight"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["alertCard"].waitForExistence(timeout: 2))
     }
 
     func testReturnNowShowsCountdownInsteadOfThePlan() {

@@ -17,6 +17,7 @@ enum Destination: Hashable {
 struct RootView: View {
     @EnvironmentObject private var store: JourneyStore
     @State private var paths: [AppTab: [Destination]] = [:]
+    @State private var showsGateAlert = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -38,8 +39,14 @@ struct RootView: View {
             if showsTabBar {
                 TabBar(selection: $store.tab).offset(y: 10)
             }
+            if showsGateAlert {
+                GateChangeAlert { showsGateAlert = false }
+                    .transition(.opacity)
+                    .zIndex(3)
+            }
         }
         .background(AB.screen.ignoresSafeArea())
+        .animation(.easeOut(duration: 0.2), value: showsGateAlert)
         .environment(\.openDestination, OpenDestinationAction { destination in
             paths[store.tab, default: []].append(destination)
         })
@@ -61,10 +68,14 @@ struct RootView: View {
         }
     }
 
-    /// A new alert opens the Alerts screen on the Flight tab, as the Figma gate update does.
+    /// A gate change shows the Figma alert over the current screen; other alerts open the Alerts screen on Flight.
     private func presentAlert() {
         guard let kind = store.alertToPresent, store.onboardingSeen else { return }
         store.alertToPresent = nil
+        if kind == .gateChange {
+            showsGateAlert = true
+            return
+        }
         store.tab = .flight
         if paths[.flight]?.last != .alerts(kind) {
             paths[.flight, default: []].append(.alerts(kind))

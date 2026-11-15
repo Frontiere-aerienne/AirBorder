@@ -68,9 +68,19 @@ struct TravelUpdateBanner: View {
     private var title: some View {
         switch condition {
         case let .gateChanged(from, to):
-            (Text(from).strikethrough(color: AB.removeRed) + Text(" \(to)  Gate changed"))
-                .outfitText(14, .bold, AB.ticket)
-                .accessibilityLabel("Gate changed from \(from) to \(to)")
+            HStack(spacing: 6) {
+                Text("Gate changed").outfitText(14, .bold, AB.ticket)
+                Spacer(minLength: 4)
+                Text(from).outfitText(14, .bold, AB.secondary).strikethrough(color: AB.secondary)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(AB.chip, in: RoundedRectangle(cornerRadius: 6))
+                Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold)).foregroundStyle(AB.ticket)
+                Text(to).outfitText(14, .bold, AB.gateText)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 6))
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Gate changed from \(from) to \(to)")
         case let .returnNow(closesIn, _):
             Text(place == .flight ? "Time to return to Gate \(store.gate)" : "Gate \(store.gate) closes in \(closesIn) min")
                 .outfitText(14, .semibold, tone)
@@ -118,8 +128,6 @@ struct TravelUpdateBanner: View {
         let route = ("Route", { store.tab = .route })
         let call = ("Call ANA", { if let url = ANAHelp.url { openURL(url) } })
         switch (condition, place) {
-        case (.gateChanged, .flight): return ("Alerts", { open(.alerts(.gateChange)) })
-        case (.gateChanged, .details), (.gateChanged, .layover): return route
         case (.returnNow, .details), (.returnNow, .layover): return route
         case (.boardingAtRisk, .flight), (.boardingAtRisk, .route): return call
         case (.boardingAtRisk, _): return route
@@ -129,6 +137,8 @@ struct TravelUpdateBanner: View {
     }
 
     private var tapAction: (() -> Void)? {
+        // Figma "Gate change strip": tapping it anywhere shows the gate change again.
+        if case .gateChanged = condition { return { store.alertToPresent = .gateChange } }
         guard place == .flight else { return nil }
         if let kind = condition.alertKind { return { open(.alerts(kind)) } }
         if case .arrivesAfterClosure = condition { return { showsAssistance = true } }
@@ -136,6 +146,73 @@ struct TravelUpdateBanner: View {
     }
 
     private func tap() { tapAction?() }
+}
+
+/// Figma "Gate change alert" (1157:17460): an iPhone-style alert over the Flight screen.
+struct GateChangeAlert: View {
+    @EnvironmentObject private var store: JourneyStore
+    let dismiss: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea().onTapGesture(perform: dismiss)
+            VStack(spacing: 0) {
+                VStack(spacing: 14) {
+                    Text("Gate changed").outfitText(17, .bold).accessibilityAddTraits(.isHeader)
+                    HStack(spacing: 10) {
+                        gate(store.outbound.departureGate, old: true)
+                        Image(systemName: "arrow.right").font(.system(size: 16, weight: .bold)).foregroundStyle(AB.ticket)
+                        gate(store.gate, old: false)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Gate \(store.outbound.departureGate) changed to \(store.gate)")
+                    Text("\(store.outbound.number) now departs from Gate \(store.gate). It’s a \(store.gateWalkMinutes) min walk.")
+                        .outfitText(15, .regular, AB.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 20)
+                Rectangle().fill(AB.border).frame(height: 1)
+                HStack(spacing: 0) {
+                    action("Dismiss", .regular, id: "alertDismiss", perform: dismiss)
+                    Rectangle().fill(AB.border).frame(width: 1)
+                    action("View route", .bold, id: "alertRoute") {
+                        store.acknowledge(.gateChange)
+                        store.routeStep = 1
+                        dismiss()
+                        store.tab = .route
+                    }
+                }
+                .frame(height: 52)
+            }
+            .frame(width: 300)
+            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("gateAlert")
+            .accessibilityAddTraits(.isModal)
+        }
+        .onAppear { store.alertSeen(.gateChange) }
+    }
+
+    private func gate(_ gate: String, old: Bool) -> some View {
+        VStack(spacing: 0) {
+            Text("Gate").outfitText(12, .medium, old ? AB.secondary : AB.gateText)
+            Text(gate).outfitText(old ? 22 : 30, .bold, old ? AB.secondary : AB.gateText)
+                .strikethrough(old, color: AB.secondary)
+        }
+        .frame(minWidth: old ? 64 : 104, minHeight: 64)
+        .padding(.horizontal, 6)
+        .background(old ? AB.screen : AB.gateYellow, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func action(_ title: String, _ weight: OutfitWeight, id: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            Text(title).outfitText(17, weight, AB.primary).frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
+    }
 }
 
 /// Figma "Alerts" (858:10770 gate change, 858:10824 return now, 858:10878 boarding at risk) and their reminders.
