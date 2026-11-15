@@ -105,6 +105,28 @@ final class AirBorderUITests: XCTestCase {
         add(shot)
     }
 
+    func testRouteTabFollowsThePlanInArriveOrder() {
+        app.tabBars.buttons["Layover"].tap()
+        app.buttons["add-cafe"].tap()
+        app.swipeUp()
+        let sky = app.buttons["add-skyLounge"]
+        XCTAssertTrue(sky.waitForExistence(timeout: 2))
+        sky.tap()
+        app.tabBars.buttons["Route"].tap()
+        XCTAssertTrue(app.staticTexts["Follow the signs to SKY LOUNGE"].waitForExistence(timeout: 2), "SKY LOUNGE arrives first, at 15:30")
+        app.buttons["nextStep"].tap()
+        XCTAssertTrue(app.staticTexts["Stop at SKY LOUNGE, leave by 16:57"].waitForExistence(timeout: 2))
+        app.buttons["nextStep"].tap()
+        XCTAssertTrue(app.staticTexts["Follow the signs to Curacion Cafe"].waitForExistence(timeout: 2))
+        snapshot("route-via-plan")
+        for _ in 0 ..< 2 { app.buttons["nextStep"].tap() }
+        XCTAssertTrue(app.staticTexts["Follow the Gates 105–109 sign"].waitForExistence(timeout: 2))
+        for _ in 0 ..< 2 { app.buttons["nextStep"].tap() }
+        XCTAssertTrue(app.staticTexts["Turn left at the Gate 105 sign"].waitForExistence(timeout: 2))
+        app.buttons["nextStep"].tap()
+        XCTAssertTrue(app.buttons["endRoute"].waitForExistence(timeout: 2))
+    }
+
     func testAppleHealthRefinesWalkingPace() {
         app.tabBars.buttons["Profile"].tap()
         app.buttons["previousTripsRow"].tap()

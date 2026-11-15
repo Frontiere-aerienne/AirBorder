@@ -29,9 +29,9 @@ enum AppTab: String, CaseIterable, Identifiable {
 enum RouteChoice: String, CaseIterable, Codable {
     case viaStops, direct, stepFree, lessCrowded
 
-    /// Via your stops needs the café or ANA LOUNGE in the plan; otherwise it is the direct route.
+    /// Via your stops needs at least one stop in the plan; otherwise it is the direct route.
     func resolved(for plan: Plan) -> RouteChoice {
-        self == .viaStops && !plan.contains(.cafe) && !plan.contains(.anaLounge) ? .direct : self
+        self == .viaStops && plan.stops.isEmpty ? .direct : self
     }
 
     /// Shown on the route card's choice button (Figma "Direct route", "Via your stops").
@@ -306,6 +306,11 @@ final class JourneyStore: ObservableObject {
         guard !plan.contains(stop.id) else { return }
         clearUndo()
         plan.stops.append(stop)
+        // A new stop puts the route through it, unless the traveller chose step-free or less crowded.
+        if routeChoice == .direct || routeChoice == .viaStops {
+            routeChoice = .viaStops
+            routeStep = 1
+        }
         refreshSuggestion()
         refreshAlerts()
     }

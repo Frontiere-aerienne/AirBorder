@@ -40,27 +40,49 @@ enum RouteSteps {
                     step("10 m", "Turn left onto the outer concourse", .left, "14 min", "660 m"),
                     step("300 m", "Walk along the windows past Gates 101–104", .straight, "13 min", "650 m"),
                     step("50 m", "Turn left at the Gate \(gate) sign", .left, "3 min", "50 m"), last]
-        case .viaStops where store.plan.contains(.cafe) && store.plan.contains(.anaLounge):
-            return [step("150 m", "Follow the signs to Curacion Cafe", .straight, "14 min", ""),
-                    step("Stop 1", "Stop at Curacion Cafe, leave by \(cafeLeave)", .stop, "9 min", ""),
-                    step("60 m", "Take the lift to ANA LOUNGE, 4F", .lift, "9 min", ""),
-                    step("250 m", "Leave the lounge by \(loungeLeave), follow the Gates 105–109 sign", .straight, "4 min", ""), last]
-        case .viaStops where store.plan.contains(.cafe):
-            return [step("150 m", "Follow the signs to Curacion Cafe", .straight, "13 min", ""),
-                    step("Stop 1", "Stop at Curacion Cafe, leave by \(cafeLeave)", .stop, "8 min", ""),
-                    step("300 m", "Continue past Gate 104", .straight, "8 min", ""),
-                    step("30 m", "Turn left at the Gate \(gate) sign", .left, "1 min", ""), last]
         case .viaStops:
-            return [step("120 m", "Follow the signs to the lift", .straight, "14 min", ""),
-                    step("Stop 1", "Take the lift to ANA LOUNGE, 4F", .lift, "4 min", ""),
-                    step("4F to 3F", "Leave the lounge by \(loungeLeave), take the lift down", .lift, "4 min", ""),
-                    step("120 m", "Follow the Gates 105–109 sign", .straight, "2 min", ""), last]
+            return viaStops(store: store, last: last)
         case .direct:
             return [step("300 m", "Follow the Gates 105–109 sign", .straight, "12 min", "570 m"),
                     step("40 m", "Take the stairs at the junction", .stairs, "6 min", "270 m"),
                     step("200 m", "Go straight past Gate 104", .straight, "5 min", "230 m"),
                     step("30 m", "Turn left at the Gate \(gate) sign", .left, "1 min", "30 m"), last]
         }
+    }
+
+    /// The route through every stop in the plan, in the order of their arrive times:
+    /// walk to each stop, stay until its leave time, then the same last stretch as the direct route.
+    static func viaStops(store: JourneyStore, last: RouteStep) -> [RouteStep] {
+        let stops = store.plan.stops.sorted { StopTimes.arrive($0) < StopTimes.arrive($1) }
+        let places = [PlaceID.start] + stops.map(\.id) + [.gate]
+        let legs = zip(places, places.dropFirst()).map { store.walkMinutes($0, $1) }
+        let left = { (leg: Int) in "\(legs[leg...].reduce(0, +)) min" }
+        let gate = store.gate
+        var steps: [RouteStep] = []
+        /// ANA LOUNGE is on 4F; leaving it starts with the lift back down.
+        func liftDown(after previous: PlaceID, leg: Int) {
+            guard previous == .anaLounge else { return }
+            steps.append(RouteStep(distance: "4F to 3F", text: "Take the lift down to 3F", turn: .lift, remaining: left(leg), remainingDetail: ""))
+        }
+        for (i, stop) in stops.enumerated() {
+            liftDown(after: places[i], leg: i)
+            let walk = legs[i] > 0 ? "\(legs[i]) min walk" : "Nearby"
+            let byLift = stop.id == .anaLounge
+            steps.append(RouteStep(distance: walk, text: byLift ? "Take the lift to ANA LOUNGE, 4F" : "Follow the signs to \(stop.name)",
+                                   turn: byLift ? .lift : .straight, remaining: left(i), remainingDetail: ""))
+            let leave = store.times(stop.id)?.leave.description ?? ""
+            steps.append(RouteStep(distance: "Stop \(i + 1)", text: "Stop at \(stop.name), leave by \(leave)", turn: .stop, remaining: left(i + 1), remainingDetail: ""))
+        }
+        let toGate = legs.count - 1
+        liftDown(after: places[toGate], leg: toGate)
+        let lastLeg = legs[toGate]
+        // ponytail: the last stretch reuses the direct route's Figma steps; its minutes split the final walk.
+        steps += [
+            RouteStep(distance: "\(lastLeg) min walk", text: "Follow the Gates 105–109 sign", turn: .straight, remaining: left(toGate), remainingDetail: ""),
+            RouteStep(distance: "200 m", text: "Go straight past Gate 104", turn: .straight, remaining: "\(max(lastLeg / 2, 2)) min", remainingDetail: ""),
+            RouteStep(distance: "30 m", text: "Turn left at the Gate \(gate) sign", turn: .left, remaining: "1 min", remainingDetail: ""),
+        ]
+        return steps + [last]
     }
 
     static func transfer() -> [RouteStep] {
