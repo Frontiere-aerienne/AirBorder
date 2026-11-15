@@ -243,11 +243,10 @@ struct PlanStripCard: View {
         .accessibilityIdentifier("lane-\(stop.id.rawValue)")
     }
 
-    /// Figma home Route: the route through your stops when the plan has some, otherwise the direct route.
+    /// Figma home Route: opens the route, which passes every stop in the plan.
     private func route() {
         if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
         if store.plan.stops.isEmpty && store.t2VisitPlanned { return open(.t2Deck) }
-        store.routeChoice = RouteChoice.viaStops.resolved(for: store.plan)
         store.routeStep = 1
         store.tab = .route
     }

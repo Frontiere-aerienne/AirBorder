@@ -76,7 +76,6 @@ final class AirBorderUITests: XCTestCase {
         snapshot("route-direct")
         app.buttons["routeChoice"].tap()
         XCTAssertTrue(app.buttons["use-stepFree"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.buttons["use-viaStops"].exists, "No stops, no via route")
         snapshot("route-menu")
         app.buttons["use-stepFree"].tap()
         app.buttons["nextStep"].tap()
@@ -121,6 +120,8 @@ final class AirBorderUITests: XCTestCase {
         snapshot("route-via-plan")
         for _ in 0 ..< 2 { app.buttons["nextStep"].tap() }
         XCTAssertTrue(app.staticTexts["Follow the Gates 105–109 sign"].waitForExistence(timeout: 2))
+        app.buttons["nextStep"].tap()
+        XCTAssertTrue(app.staticTexts["Take the stairs at the junction"].waitForExistence(timeout: 2), "The direct route keeps its own way to the gate")
         for _ in 0 ..< 2 { app.buttons["nextStep"].tap() }
         XCTAssertTrue(app.staticTexts["Turn left at the Gate 105 sign"].waitForExistence(timeout: 2))
         app.buttons["nextStep"].tap()

@@ -27,19 +27,13 @@ enum AppTab: String, CaseIterable, Identifiable {
 
 /// Figma "Choose a route" options. Minutes are the average walking times for each route.
 enum RouteChoice: String, CaseIterable, Codable {
-    case viaStops, direct, stepFree, lessCrowded
+    case direct, stepFree, lessCrowded
 
-    /// Via your stops needs at least one stop in the plan; otherwise it is the direct route.
-    func resolved(for plan: Plan) -> RouteChoice {
-        self == .viaStops && plan.stops.isEmpty ? .direct : self
-    }
-
-    /// Shown on the route card's choice button (Figma "Direct route", "Via your stops").
-    var menuTitle: String { self == .viaStops ? title : "\(title) route" }
+    /// Shown on the route card's choice button (Figma "Direct route").
+    var menuTitle: String { "\(title) route" }
 
     var title: String {
         switch self {
-        case .viaStops: return "Via your stops"
         case .direct: return "Direct"
         case .stepFree: return "Step-free"
         case .lessCrowded: return "Less crowded"
@@ -48,7 +42,6 @@ enum RouteChoice: String, CaseIterable, Codable {
 
     var detail: String {
         switch self {
-        case .viaStops: return "Through the stops in your plan"
         case .direct: return "Shortest walk, one set of stairs"
         case .stepFree: return "Lift beside the stairs"
         case .lessCrowded: return "Outer concourse by the windows"
@@ -57,7 +50,6 @@ enum RouteChoice: String, CaseIterable, Codable {
 
     var averageMinutes: Int {
         switch self {
-        case .viaStops: return 14
         case .direct: return 12
         case .stepFree: return 16
         case .lessCrowded: return 15
@@ -306,11 +298,7 @@ final class JourneyStore: ObservableObject {
         guard !plan.contains(stop.id) else { return }
         clearUndo()
         plan.stops.append(stop)
-        // A new stop puts the route through it, unless the traveller chose step-free or less crowded.
-        if routeChoice == .direct || routeChoice == .viaStops {
-            routeChoice = .viaStops
-            routeStep = 1
-        }
+        routeStep = 1 // every route now passes the new stop
         refreshSuggestion()
         refreshAlerts()
     }
