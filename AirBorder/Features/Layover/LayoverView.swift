@@ -30,7 +30,7 @@ struct LayoverView: View {
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .bottom) {
-            if !store.plan.stops.isEmpty { planBar.padding(.bottom, 80) }
+            if !store.plan.stops.isEmpty { planBar.padding(.bottom, 8) }
         }
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)

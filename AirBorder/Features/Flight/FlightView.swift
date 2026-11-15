@@ -29,7 +29,7 @@ struct FlightView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 49)
-            .padding(.bottom, 112)
+            .padding(.bottom, tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())

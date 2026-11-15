@@ -21,23 +21,27 @@ struct RootView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            ForEach(AppTab.allCases) { tab in
-                NavigationStack(path: binding(for: tab)) {
-                    root(for: tab)
-                        .navigationDestination(for: Destination.self) { destination(for: $0) }
+            // Apple's tab bar: Liquid Glass on iOS 26 and later, the standard bar on iOS 18.
+            TabView(selection: $store.tab) {
+                ForEach(AppTab.allCases) { tab in
+                    NavigationStack(path: binding(for: tab)) {
+                        root(for: tab)
+                            .navigationDestination(for: Destination.self) { destination in
+                                self.destination(for: destination)
+                                    .toolbar(destination == .journeyDetails ? .visible : .hidden, for: .tabBar)
+                            }
+                    }
+                    .tabItem { Label(tab.title, systemImage: tab.symbol) }
+                    .accessibilityIdentifier("tab-\(tab.rawValue)")
+                    .tag(tab)
                 }
-                .opacity(store.tab == tab ? 1 : 0)
-                .allowsHitTesting(store.tab == tab)
-                .accessibilityHidden(store.tab != tab)
             }
+            .tint(AB.primary)
             if let toast = store.toast {
                 ToastView(toast: toast, perform: toast.action == nil ? nil : { store.performToastAction() })
-                    .padding(.bottom, showsTabBar ? 104 : 24)
+                    .padding(.bottom, showsTabBar ? 96 : 24)
                     .transition(.opacity)
                     .zIndex(2)
-            }
-            if showsTabBar {
-                TabBar(selection: $store.tab).offset(y: 10)
             }
             if showsGateAlert {
                 GateChangeAlert { showsGateAlert = false }
@@ -207,55 +211,8 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Tab bar (Figma "Tab Bar")
-
-struct TabBar: View {
-    @Binding var selection: AppTab
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(AppTab.allCases) { tab in
-                let selected = selection == tab
-                Button { selection = tab } label: {
-                    VStack(spacing: tab == .profile ? 4 : 3) {
-                        icon(for: tab, selected: selected)
-                        Text(tab.title).outfitText(12, selected ? .bold : .regular, selected ? AB.primary : AB.secondary)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 49)
-                    .padding(.vertical, 7)
-                    .background(selected ? AB.primary.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 26))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("tab-\(tab.rawValue)")
-                .accessibilityAddTraits(selected ? .isSelected : [])
-            }
-        }
-        .padding(6)
-        .frame(width: 378)
-        .background(.white, in: RoundedRectangle(cornerRadius: 32))
-        .overlay(RoundedRectangle(cornerRadius: 32).strokeBorder(AB.border, lineWidth: 1))
-        .shadow(color: AB.navy.opacity(0.14), radius: 7.5, x: 0, y: 10)
-    }
-
-    @ViewBuilder
-    private func icon(for tab: AppTab, selected: Bool) -> some View {
-        let name: String = switch tab {
-        case .flight: selected ? "tabFlightOn" : "tabFlightOff"
-        case .layover: selected ? "tabLayoverOn" : "tabLayoverOff"
-        case .route: selected ? "tabRouteOn" : "tabRouteOff"
-        case .profile: selected ? "tabProfileOn" : "tabProfileOff"
-        }
-        if tab == .profile {
-            Image(name).resizable().frame(width: 26.25, height: 26.25).offset(y: 1).frame(width: 21, height: 21)
-        } else {
-            Image(name).resizable().frame(width: 21, height: 21)
-        }
-    }
-}
-
-/// Bottom space so scroll content clears the floating tab bar.
-let tabBarClearance: CGFloat = 110
+/// Extra space under scroll content; the system tab bar already insets it.
+let tabBarClearance: CGFloat = 24
 
 /// Profile › Replay tutorial (Figma link to Onboarding 1).
 private struct TutorialReplay: View {

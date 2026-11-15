@@ -14,6 +14,15 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .profile: return "Profile"
         }
     }
+
+    var symbol: String {
+        switch self {
+        case .flight: "airplane"
+        case .layover: "safari"
+        case .route: "map"
+        case .profile: "person.crop.circle"
+        }
+    }
 }
 
 /// Figma "Choose a route" options. Minutes are the average walking times for each route.
