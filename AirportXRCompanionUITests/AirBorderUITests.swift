@@ -82,8 +82,14 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Turn right to the lift"].waitForExistence(timeout: 2))
 
         app.buttons["tab-layover"].tap()
+        XCTAssertFalse(app.buttons["planBar"].exists, "No plan bar while the plan is empty")
         app.buttons["add-cafe"].tap()
-        app.buttons["tab-flight"].tap()
+        XCTAssertTrue(app.buttons["add-cafe"].label.contains("Remove"))
+        let bar = app.buttons["planBar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 2))
+        XCTAssertTrue(bar.label.contains("1 stop"))
+        snapshot("layover-plan")
+        bar.tap()
         app.buttons["routeButton"].tap()
         XCTAssertTrue(app.staticTexts["Follow the signs to Curacion Cafe"].waitForExistence(timeout: 2))
         app.buttons["nextStep"].tap()

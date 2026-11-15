@@ -29,9 +29,42 @@ struct LayoverView: View {
             .padding(.bottom, tabBarClearance)
         }
         .scrollIndicators(.hidden)
+        .safeAreaInset(edge: .bottom) {
+            if !store.plan.stops.isEmpty { planBar.padding(.bottom, 80) }
+        }
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showsAirsideInfo) { Sheets.whyAirside() }
+    }
+
+    /// Figma "Plan bar" (1172:17715): pinned above the tab bar once the plan has stops.
+    private var planBar: some View {
+        Button { store.tab = .flight } label: {
+            HStack {
+                HStack(spacing: 8) {
+                    Text("Your plan").outfitText(15, .bold, .white)
+                    Text("\(store.plan.stops.count)").outfitText(14, .bold, AB.gateText)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 1)
+                        .background(AB.gateYellow, in: Capsule())
+                }
+                Spacer()
+                HStack(spacing: 6) {
+                    Text("View plan").outfitText(15, .bold, AB.gateYellow)
+                    Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold)).foregroundStyle(AB.gateYellow)
+                }
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 48)
+            .background(AB.ticket, in: RoundedRectangle(cornerRadius: 16))
+            .shadow(color: AB.navy.opacity(0.2), radius: 8, y: 4)
+            .padding(.horizontal, 12)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Your plan, \(store.plan.stops.count) \(store.plan.stops.count == 1 ? "stop" : "stops"). View plan")
+        .accessibilityIdentifier("planBar")
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .animation(.easeOut(duration: 0.2), value: store.plan.stops.isEmpty)
     }
 
     private var areaTabs: some View {
@@ -132,23 +165,23 @@ private struct VenueCard: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.plain)
-                    .disabled(venue.id != .anaLounge)
+                    .allowsHitTesting(venue.id == .anaLounge)
+                    // Figma Place Card "Show add" / "Show remove": the plan bar below shows what was added.
                     Button {
-                        if added {
-                            store.remove(venue.id)
-                        } else {
-                            store.add(venue.stop)
-                            store.showToast(ToastMessage(text: "Added to your plan", action: "View on Flight")) { store.tab = .flight }
-                        }
+                        if added { store.remove(venue.id) } else { store.add(venue.stop) }
                     } label: {
                         HStack(spacing: 5) {
-                            Image(added ? "icCheckSmall" : "icPlusNavy").resizable().frame(width: 21, height: 21)
-                            Text(added ? "In your plan" : "Add to plan").outfitText(14, .semibold, AB.ticket)
+                            if added {
+                                Image(systemName: "minus").font(.system(size: 14, weight: .bold)).foregroundStyle(AB.removeRed).frame(width: 21, height: 21)
+                            } else {
+                                Image("icPlusNavy").resizable().frame(width: 21, height: 21)
+                            }
+                            Text(added ? "Remove" : "Add to plan").outfitText(14, .semibold, added ? AB.removeRed : AB.ticket)
                         }
                         .padding(.leading, 10)
                         .padding(.trailing, 13)
                         .frame(minHeight: 47)
-                        .background(AB.ice, in: Capsule())
+                        .background(added ? Color(hex: 0xFCEDED) : AB.ice, in: Capsule())
                     }
                     .buttonStyle(.plain)
                     .fixedSize()
