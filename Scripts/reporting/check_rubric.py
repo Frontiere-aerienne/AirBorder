@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# PROCEDURAL: Check report structure and compiled pagination.
 """Deterministic rubric compliance check for the AirBorder ACM report.
 
 Checks Report/main.tex (and, when present, main.aux / main.log from a compile) against the
@@ -93,8 +94,9 @@ def page_info(aux: Path, log: Path) -> dict:
 def check(tex_path: Path) -> list[Result]:
     raw = tex_path.read_text(errors="ignore")
     tex = strip_comments(raw)
-    body = re.split(r"\\appendix\b", tex, maxsplit=1)[0]
-    body = re.split(r"\\begin\{thebibliography\}|\\bibliography\{", body, maxsplit=1)[0]
+    main_text, *appendices = re.split(r"\\appendix\b", tex, maxsplit=1)
+    body = re.split(r"\\begin\{thebibliography\}|\\bibliography\{", main_text, maxsplit=1)[0]
+    appendix = appendices[0] if appendices else ""
     pages = page_info(tex_path.with_suffix(".aux"), tex_path.with_suffix(".log"))
     r: list[Result] = []
 
@@ -170,21 +172,27 @@ def check(tex_path: Path) -> list[Result]:
         ("% complete estimate", r"\d{1,3}\s*\\?%|percent"),
     ])
 
-    ev_found = find_heading(body, r"evaluation plan|^evaluation|study design|user study")
+    evaluation_title = r"evaluation plan|^evaluation|study design|user study"
+    ev_found = find_heading(body, evaluation_title)
+    appendix_ev = find_heading(appendix, evaluation_title)
+    evaluation_scope, location = body, "body"
+    if appendix_ev and (not ev_found or (ev_found[0] != "section" and appendix_ev[0] == "section")):
+        ev_found = appendix_ev
+        evaluation_scope, location = appendix, "appendix"
     if ev_found:
         level, title, ev_text = ev_found
         st = PASS if level == "section" else WARN
         note = "" if level == "section" else " (subsection only; rubric expects a section)"
-        r.append(Result("R-EVAL", "Evaluation Plan section", "—", st, f"{level} “{title}”{note}"))
+        r.append(Result("R-EVAL", "Evaluation Plan section", "—", st, f"{level} “{title}” in {location}{note}"))
         # Population/hypotheses/method/metrics may live in sibling subsections, so include the
         # whole enclosing section when the match was a subsection.
         if level == "subsection":
-            ev_text = body[body.find(title):]
+            ev_text = evaluation_scope[evaluation_scope.find(title):]
             nxt = re.search(r"\\section\*?\{", ev_text)
             ev_text = ev_text[: nxt.start()] if nxt else ev_text
     else:
-        r.append(Result("R-EVAL", "Evaluation Plan section", "—", FAIL, "no evaluation section; scanning whole body"))
-        ev_text = body
+        r.append(Result("R-EVAL", "Evaluation Plan section", "—", FAIL, "no evaluation section in the body or appendix"))
+        ev_text = ""
 
     def items(rid, crit, pts, checks):
         """The first check is the core element: if it is missing the criterion fails."""
