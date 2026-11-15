@@ -14,6 +14,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    uses: ./.github/workflows/report-change-scope.yml
+
   engine:
     name: HCI engine
     runs-on: ubuntu-latest
@@ -44,6 +47,8 @@ jobs:
       - run: node --test Web/backend/test/*.test.mjs
   browser:
     name: HCI browser
+    needs: scope
+    if: ${{ !cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.report_only != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -75,16 +80,22 @@ jobs:
   required:
     name: HCI required tests
     if: always()
-    needs: [engine, backend, browser]
+    needs: [scope, engine, backend, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Require every suite to succeed
+      - name: Require applicable suites to succeed
         env:
           ENGINE_RESULT: ${{ needs.engine.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          REPORT_ONLY: ${{ needs.scope.outputs.report_only }}
         run: |
           test "$ENGINE_RESULT" = success
           test "$BACKEND_RESULT" = success
-          test "$BROWSER_RESULT" = success
+          if [[ "$SCOPE_RESULT" == success && "$REPORT_ONLY" == true ]]; then
+            test "$BROWSER_RESULT" = skipped || test "$BROWSER_RESULT" = success
+          else
+            test "$BROWSER_RESULT" = success
+          fi

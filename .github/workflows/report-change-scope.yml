@@ -1,0 +1,52 @@
+name: Report change scope
+
+# PROCEDURAL: classify pull requests before scheduling app checks.
+
+on:
+  workflow_call:
+    outputs:
+      report_only:
+        description: All changed paths belong to the report or its checks
+        value: ${{ jobs.paths.outputs.report_only }}
+
+permissions:
+  contents: read
+
+jobs:
+  paths:
+    name: Classify changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      report_only: ${{ steps.classify.outputs.report_only }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify report-only pull requests
+        id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          report_only=false
+          if [[ "$EVENT" == pull_request ]]; then
+            changed_paths=$(mktemp)
+            # Treat renames as a deletion and addition so both paths count.
+            git diff --no-renames --name-only -z "$BASE_SHA...$HEAD_SHA" -- > "$changed_paths"
+            if [[ -s "$changed_paths" ]]; then
+              report_only=true
+              while IFS= read -r -d '' path; do
+                case "$path" in
+                  Report/*|Scripts/reporting/*|.github/report-review/*) ;;
+                  *) report_only=false; break ;;
+                esac
+              done < "$changed_paths"
+            fi
+          fi
+          printf 'report_only=%s\n' "$report_only" >> "$GITHUB_OUTPUT"
