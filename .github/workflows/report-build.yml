@@ -11,11 +11,11 @@ name: ACM report
 #                         undefined refs/cites/TODOs). Scripts/reporting/check_rubric.py --strict.
 # Both run on every PR so the required checks always report. A PR that does not touch the
 # report, the rubric or the checker passes immediately without compiling.
-# Pushes to main also refresh the rolling "report-latest" GitHub release.
+# Pushes to main refresh "report-latest". The report branch publishes "report-draft".
 
 on:
   push:
-    branches: [main]
+    branches: [main, docs/implementation-evaluation-draft]
     paths:
       - 'Report/**'
       - '.github/report-review/RUBRIC.md'
@@ -150,9 +150,12 @@ jobs:
           if-no-files-found: warn
 
   release:
-    name: Publish report-latest release
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Publish report PDF
+    needs: [build, rubric, citations]
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/docs/implementation-evaluation-draft')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -166,14 +169,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/heads/main)
+              tag=report-latest
+              title="AirBorder report (latest build)"
+              ;;
+            refs/heads/docs/implementation-evaluation-draft)
+              tag=report-draft
+              title="AirBorder report (draft build)"
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
           mv main.pdf AirBorder-Report.pdf
-          notes="Automatically compiled from ${GITHUB_SHA::7} on $(date -u +%Y-%m-%dT%H:%MZ)."
-          if gh release view report-latest >/dev/null 2>&1; then
-            gh release upload report-latest AirBorder-Report.pdf --clobber
-            gh release edit report-latest --notes "$notes"
+          notes="Compiled from ${GITHUB_REF#refs/heads/} at $GITHUB_SHA after the rubric and citation checks passed."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" AirBorder-Report.pdf --clobber
+            gh release edit "$tag" --notes "$notes"
           else
-            gh release create report-latest AirBorder-Report.pdf \
-              --title "AirBorder report (latest build)" --notes "$notes" \
+            gh release create "$tag" AirBorder-Report.pdf \
+              --title "$title" --notes "$notes" \
               --target "$GITHUB_SHA" --prerelease
           fi
 
