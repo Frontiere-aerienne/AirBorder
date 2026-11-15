@@ -65,7 +65,11 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-Pull requests run [iOS CI](.github/workflows/ios-ci.yml) and [HCI quality checks](.github/workflows/hci-quality.yml). Deterministic interaction, layout, and accessibility assertions complement AI code review. Screenshots and traces support inspection; there is no comprehensive approved pixel-comparison baseline. Passing tests do not establish the absence of every functional or visual defect.
+App and workflow pull requests run [iOS CI](.github/workflows/ios-ci.yml) and [HCI quality checks](.github/workflows/hci-quality.yml). Report-only pull requests skip the Xcode and UI jobs. Deterministic interaction, layout, and accessibility assertions complement AI code review. Screenshots and traces support inspection; there is no comprehensive approved pixel-comparison baseline. Passing tests do not establish the absence of every functional or visual defect.
+
+## Publish the course report PDF
+
+Edit [the LaTeX report](Report/main.tex) on `docs/implementation-evaluation-draft` and push that branch. GitHub Actions compiles the PDF and applies the rubric and citation checks before updating the [draft PDF](https://github.com/Frontiere-aerienne/AirBorder/releases/download/report-draft/AirBorder-Report.pdf). Publishing a draft needs no pull request or merge. The [main-branch PDF](https://github.com/Frontiere-aerienne/AirBorder/releases/download/report-latest/AirBorder-Report.pdf) is published separately.
 
 ## Backend configuration
 
