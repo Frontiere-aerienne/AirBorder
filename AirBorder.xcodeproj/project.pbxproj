@@ -13,6 +13,7 @@
 		0E128501DE17973C18734F71 /* ScenarioViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B20A0264BDE33D0498E7DD /* ScenarioViews.swift */; };
 		15C14D83166459D45575B7BA /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D0E684FB8E26A6D99380E /* RootView.swift */; };
 		1779DB0CE93258609A1107DB /* AirBorderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1C49F70E935C66E48A524C /* AirBorderApp.swift */; };
+		1E22B1B61102371DE6A02DFD /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55D99B0F84774035FC9ED7B2 /* Motion.swift */; };
 		1EFA4704AEA810D15E41B4E9 /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9E6B26198D4AF3E207D0EB /* TransferViews.swift */; };
 		1F968042E2EF93687BF7F29F /* FlightSetupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176D00FDA71936FB2CFB2C7B /* FlightSetupViews.swift */; };
 		202A5D8E334B6F090E07F28A /* PlanEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 780C31AB5EB373B7FECE9184 /* PlanEngineTests.swift */; };
@@ -79,6 +80,7 @@
 		4B9672B292408F58FA2DF30D /* PlaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceViews.swift; sourceTree = "<group>"; };
 		5090071A59E95C9D6209297D /* PlanExtrasViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanExtrasViews.swift; sourceTree = "<group>"; };
 		515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		55D99B0F84774035FC9ED7B2 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motion.swift; sourceTree = "<group>"; };
 		69EFAEA6D6A322BD89886D57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		780C31AB5EB373B7FECE9184 /* PlanEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEngineTests.swift; sourceTree = "<group>"; };
 		7E8D6B107D284C2971B25AA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -162,6 +164,7 @@
 			children = (
 				B772C8BD27CEBE135ED10D44 /* Components.swift */,
 				998FBF528BDDFFD99A97AC4F /* InfoSheet.swift */,
+				55D99B0F84774035FC9ED7B2 /* Motion.swift */,
 				CA44710E401393BF38EC76EE /* Theme.swift */,
 			);
 			path = Design;
@@ -414,6 +417,7 @@
 				B5DF28BD298F03F89728F5C4 /* JourneyStepsView.swift in Sources */,
 				3DB5393532B0BCC5D2C17EB5 /* JourneyStore.swift in Sources */,
 				9F96B738899CF4BCFBBD2E75 /* LayoverView.swift in Sources */,
+				1E22B1B61102371DE6A02DFD /* Motion.swift in Sources */,
 				33AD7F0E132A7BF113A76331 /* OnboardingView.swift in Sources */,
 				ADD5C5066BCBB25A7AAE6EAE /* PlaceViews.swift in Sources */,
 				BBB3D8B442EB5DC2EE7078FC /* PlanEngine.swift in Sources */,

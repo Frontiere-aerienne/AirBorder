@@ -123,6 +123,7 @@ struct RouteView: View {
             store.routeStep = 1
             mode = .map
             store.tab = .flight
+            Haptics.success()
             guard !store.isAirportTransfer else { return }
             if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
             store.showToast(ToastMessage(text: "Arrived, Gate \(store.gate), \(store.outbound.number), boarding \(SampleJourney.boarding)."))
@@ -146,7 +147,7 @@ struct RouteView: View {
                 .background(selected ? AB.primary : .clear, in: Capsule())
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("mode-\(title.lowercased())")
     }
@@ -197,13 +198,14 @@ struct RouteCard<Map: View>: View {
     @ViewBuilder let map: Map
     let end: () -> Void
     @State private var choosing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let index = min(max(step, 1), steps.count) - 1
         let current = steps[index]
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(current.remaining).outfitText(20, .semibold)
+                Text(current.remaining).outfitText(20, .semibold).contentTransition(.numericText())
                 Text(current.remainingDetail).outfitText(15, .regular, AB.secondary)
                 Spacer()
                 if showsChoice { choiceButton }
@@ -220,6 +222,7 @@ struct RouteCard<Map: View>: View {
             .accessibilityIdentifier("routeProgress")
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: Self.symbol(current.turn))
+                    .contentTransition(.symbolEffect(.replace))
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(AB.ice)
                     .frame(width: 52, height: 52)
@@ -233,14 +236,16 @@ struct RouteCard<Map: View>: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("routeInstruction")
                 }
+                .id(index)
+                .transition(reduceMotion ? AnyTransition.opacity : AnyTransition(.blurReplace))
             }
             map
             HStack(spacing: 8) {
                 if index > 0 {
-                    button("Back", fill: AB.screen, text: AB.ticket, id: "previousStep") { step = index }
+                    button("Back", fill: AB.screen, text: AB.ticket, id: "previousStep") { go(to: index) }
                 }
                 if index < steps.count - 1 {
-                    button("Next", fill: AB.ticket, text: .white, arrow: true, id: "nextStep") { step = index + 2 }
+                    button("Next", fill: AB.ticket, text: .white, arrow: true, id: "nextStep") { go(to: index + 2) }
                 } else {
                     button("End", fill: AB.primary, text: .white, id: "endRoute", action: end)
                 }
@@ -249,17 +254,26 @@ struct RouteCard<Map: View>: View {
         .padding(20)
         .background(.white, in: RoundedRectangle(cornerRadius: 18))
         .overlay(alignment: .topTrailing) {
-            if choosing { menu.padding(.top, 62).padding(.trailing, 12) }
+            if choosing {
+                menu.padding(.top, 62).padding(.trailing, 12)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity))
+            }
         }
-        .animation(.easeOut(duration: 0.15), value: choosing)
+        .animation(.abOut, value: choosing)
+    }
+
+    private func go(to newStep: Int) {
+        Haptics.tick()
+        withAnimation(.abOut) { step = newStep }
     }
 
     private var choiceButton: some View {
         Button { choosing.toggle() } label: {
             HStack(spacing: 8) {
                 Text(store.routeChoice.resolved(for: store.plan).menuTitle).outfitText(15, .semibold)
-                Image(systemName: choosing ? "chevron.up" : "chevron.down")
+                Image(systemName: "chevron.down")
                     .font(.system(size: 11, weight: .bold))
+                    .rotationEffect(.degrees(choosing ? 180 : 0))
                     .foregroundStyle(AB.navy)
                     .frame(width: 26, height: 26)
                     .background(.white, in: Circle())
@@ -271,7 +285,7 @@ struct RouteCard<Map: View>: View {
             .frame(minHeight: 44)
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel("Route, \(store.routeChoice.resolved(for: store.plan).menuTitle)")
         .accessibilityHint("Choose another route")
         .accessibilityIdentifier("routeChoice")
@@ -283,9 +297,12 @@ struct RouteCard<Map: View>: View {
             ForEach(Array(choices.enumerated()), id: \.element) { i, choice in
                 if i > 0 { Rectangle().fill(Color(hex: 0xDFE7EA)).frame(height: 1) }
                 Button {
-                    store.routeChoice = choice
-                    step = 1
-                    choosing = false
+                    Haptics.tick()
+                    withAnimation(.abOut) {
+                        store.routeChoice = choice
+                        step = 1
+                        choosing = false
+                    }
                 } label: {
                     HStack(spacing: 12) {
                         let selected = store.routeChoice.resolved(for: store.plan) == choice
@@ -309,7 +326,7 @@ struct RouteCard<Map: View>: View {
                     .padding(.vertical, 12)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityAddTraits(store.routeChoice.resolved(for: store.plan) == choice ? .isSelected : [])
                 .accessibilityIdentifier("use-\(choice.rawValue)")
             }
@@ -331,7 +348,7 @@ struct RouteCard<Map: View>: View {
             .background(fill, in: Capsule())
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityIdentifier(id)
     }
 

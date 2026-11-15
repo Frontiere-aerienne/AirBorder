@@ -44,6 +44,7 @@ struct LayoverView: View {
                 HStack(spacing: 8) {
                     Text("Your plan").outfitText(15, .bold, .white)
                     Text("\(store.plan.stops.count)").outfitText(14, .bold, AB.gateText)
+                        .contentTransition(.numericText(value: Double(store.plan.stops.count)))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 1)
                         .background(AB.gateYellow, in: Capsule())
@@ -60,11 +61,10 @@ struct LayoverView: View {
             .shadow(color: AB.navy.opacity(0.2), radius: 8, y: 4)
             .padding(.horizontal, 12)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel("Your plan, \(store.plan.stops.count) \(store.plan.stops.count == 1 ? "stop" : "stops"). View plan")
         .accessibilityIdentifier("planBar")
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-        .animation(.easeOut(duration: 0.2), value: store.plan.stops.isEmpty)
+        .transition(.offset(y: 16).combined(with: .opacity))
     }
 
     private var areaTabs: some View {
@@ -79,7 +79,7 @@ struct LayoverView: View {
                         }
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityAddTraits(selected ? .isSelected : [])
                 .accessibilityIdentifier("area-\(item.rawValue)")
             }
@@ -90,7 +90,7 @@ struct LayoverView: View {
                 Button { showsAirsideInfo = true } label: {
                     Image("icInfoWhy").resizable().frame(width: 16, height: 16).frame(width: 44, height: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityLabel("About airside")
                 .offset(x: proxy.size.width / 3 * 0.5 + 18, y: -1)
             }
@@ -109,7 +109,7 @@ struct LayoverView: View {
                             .background(selected ? AB.primary : .white, in: Capsule())
                             .overlay(Capsule().strokeBorder(selected ? AB.primary : AB.border, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
@@ -164,11 +164,14 @@ private struct VenueCard: View {
                         Text(venue.name).outfitText(20, .bold, AB.ice).tracking(-0.2)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .allowsHitTesting(venue.id == .anaLounge)
                     // Figma Place Card "Show add" / "Show remove": the plan bar below shows what was added.
                     Button {
-                        if added { store.remove(venue.id) } else { store.add(venue.stop) }
+                        Haptics.tap()
+                        withAnimation(.abOut) {
+                            if added { store.remove(venue.id) } else { store.add(venue.stop) }
+                        }
                     } label: {
                         HStack(spacing: 5) {
                             if added {
@@ -183,7 +186,7 @@ private struct VenueCard: View {
                         .frame(minHeight: 47)
                         .background(added ? Color(hex: 0xFCEDED) : AB.ice, in: Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .fixedSize()
                     .accessibilityIdentifier("add-\(venue.id.rawValue)")
                 }
@@ -274,7 +277,7 @@ private struct LandsideList: View {
                 Button { openURL(URL(string: "tel:+81355797790")!) } label: {
                     Text("Call Air BicCamera, +81 3 5579 7790").outfitText(13, .bold, AB.sky).underline()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 CTAButton(title: "View access & return", height: 47) { open(.landsideRoute(false)) }
             }
             LandsideCard {
@@ -329,7 +332,7 @@ private struct LandsideList: View {
         Button { openURL(URL(string: url)!) } label: {
             Text(title).outfitText(14, .semibold, AB.sky).underline()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
@@ -386,7 +389,7 @@ private struct CityList: View {
             Button { openURL(URL(string: link.1)!) } label: {
                 Text(link.0).outfitText(14, .semibold).underline()
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)

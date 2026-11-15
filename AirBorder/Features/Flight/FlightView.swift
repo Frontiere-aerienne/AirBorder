@@ -45,7 +45,7 @@ struct FlightView: View {
                     .frame(width: 44, height: 44)
                     .background(AB.chip, in: Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .accessibilityLabel("Add a flight")
             .accessibilityIdentifier("addFlight")
         }
@@ -87,6 +87,7 @@ struct PlanStripCard: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     @State private var openStop: PlaceID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let stripStart = ClockTime(15, 0)
     static let stripMinutes = 150
@@ -102,7 +103,10 @@ struct PlanStripCard: View {
                     hours
                     ForEach(stops) { stop in
                         lane(stop)
-                        if openStop == stop.id { StopTimesEditor(stop: stop) { openStop = nil } }
+                        if openStop == stop.id {
+                            StopTimesEditor(stop: stop) { openStop = nil }
+                                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: -6)))
+                        }
                     }
                 }
                 .padding(.bottom, 4)
@@ -112,7 +116,8 @@ struct PlanStripCard: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white, in: RoundedRectangle(cornerRadius: 22))
-        .animation(.easeOut(duration: 0.2), value: openStop)
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(duration: 0.3, bounce: 0), value: openStop)
+        .animation(.abOut, value: stops.map(\.id))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("planCard")
     }
@@ -138,7 +143,7 @@ struct PlanStripCard: View {
                 .frame(height: 48)
                 .background(AB.primary, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .accessibilityIdentifier("routeButton")
         }
     }
@@ -151,7 +156,7 @@ struct PlanStripCard: View {
                 .overlay(Capsule().strokeBorder(AB.primary.opacity(0.35), lineWidth: 1.5))
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityIdentifier("addStop")
     }
 
@@ -184,8 +189,9 @@ struct PlanStripCard: View {
                     }
                     Rectangle().fill(AB.gateYellow).frame(width: 2).offset(x: x(SampleJourney.gateArrivalTarget))
                     Rectangle().fill(AB.alert).frame(width: 2).offset(x: x(store.outbound.gateCloses ?? SampleJourney.gateArrivalTarget))
-                    Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                    Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .bold))
+                        .rotationEffect(.degrees(isOpen ? 180 : 0))
                         .foregroundStyle(AB.primary)
                         .frame(width: 18, height: 18)
                         .background(AB.screen, in: RoundedRectangle(cornerRadius: 4))
@@ -194,6 +200,7 @@ struct PlanStripCard: View {
                 }
             }
             .frame(height: 28)
+            .animation(.abOut, value: times.map { [$0.arrive.minutes, $0.leave.minutes] })
             .background(AB.screen, in: RoundedRectangle(cornerRadius: 8))
             .overlay {
                 if isOpen { RoundedRectangle(cornerRadius: 8).strokeBorder(AB.primary, lineWidth: 2) }
@@ -201,7 +208,7 @@ struct PlanStripCard: View {
             // ponytail: 28pt row like Figma; the hit area reaches into the 4pt gaps, not a full 44pt.
             .contentShape(Rectangle().inset(by: -4))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel("\(stop.name), \(times.map { "\($0.arrive) to \($0.leave)" } ?? "")")
         .accessibilityHint(isOpen ? "Hide times" : "Change times")
         .accessibilityIdentifier("lane-\(stop.id.rawValue)")
@@ -261,12 +268,15 @@ private struct StopTimesEditor: View {
                         .background(AB.alertBackground, in: RoundedRectangle(cornerRadius: 10))
                 }
                 Button {
-                    close()
-                    store.remove(stop.id)
+                    Haptics.tap()
+                    withAnimation(.abOut) {
+                        close()
+                        store.remove(stop.id)
+                    }
                 } label: {
                     Text("Remove").outfitText(16, .bold, AB.secondary).frame(minWidth: 44, minHeight: 44, alignment: .leading)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityLabel("Remove \(stop.name)")
                 .accessibilityIdentifier("remove-\(stop.id.rawValue)")
             }
@@ -292,6 +302,7 @@ private struct StopTimesEditor: View {
                 stepButton("−", "\(title) earlier", earlier, set)
                 Spacer()
                 Text(time.description).outfitText(22, .semibold).monospacedDigit().lineLimit(1).fixedSize()
+                    .contentTransition(.numericText(value: Double(time.minutes)))
                 Spacer()
                 stepButton("+", "\(title) later", later, set)
             }
@@ -304,13 +315,17 @@ private struct StopTimesEditor: View {
     }
 
     private func stepButton(_ symbol: String, _ label: String, _ target: ClockTime?, _ set: @escaping (ClockTime) -> Void) -> some View {
-        Button { if let target { set(target) } } label: {
+        Button {
+            guard let target else { return }
+            Haptics.tick()
+            withAnimation(.abOut) { set(target) }
+        } label: {
             Text(symbol).outfitText(22, .medium)
                 .frame(width: 34, height: 34)
                 .background(.white, in: Circle())
                 .contentShape(Circle().inset(by: -5))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(target == nil)
         .opacity(target == nil ? 0.35 : 1)
         .accessibilityLabel(label)

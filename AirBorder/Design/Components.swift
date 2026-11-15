@@ -107,7 +107,7 @@ struct CTAButton: View {
                 }
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var foreground: Color {
@@ -146,7 +146,7 @@ struct TextLink: View {
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
@@ -160,7 +160,7 @@ struct BackButton: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel("Back")
         .accessibilityIdentifier("back")
     }
@@ -331,7 +331,7 @@ struct UndoToast: View {
             .padding(.vertical, 12)
             .background(AB.ticket, in: RoundedRectangle(cornerRadius: 14))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel("\(message). Undo")
         .accessibilityIdentifier("undoToast")
     }

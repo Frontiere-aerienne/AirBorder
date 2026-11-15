@@ -45,7 +45,7 @@ struct TravelUpdateBanner: View {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .allowsHitTesting(tapAction != nil)
             .accessibilityAddTraits(tapAction == nil ? .isStaticText : .isButton)
             .accessibilityIdentifier("travelUpdate-\(place)")
@@ -151,7 +151,9 @@ struct TravelUpdateBanner: View {
 /// Figma "Gate change alert" (1157:17460): an iPhone-style alert over the Flight screen.
 struct GateChangeAlert: View {
     @EnvironmentObject private var store: JourneyStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let dismiss: () -> Void
+    @State private var shown = false
 
     var body: some View {
         ZStack {
@@ -188,11 +190,16 @@ struct GateChangeAlert: View {
             }
             .frame(width: 300)
             .background(.white, in: RoundedRectangle(cornerRadius: 16))
+            .scaleEffect(shown || reduceMotion ? 1 : 0.95)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("gateAlert")
             .accessibilityAddTraits(.isModal)
         }
-        .onAppear { store.alertSeen(.gateChange) }
+        .onAppear {
+            store.alertSeen(.gateChange)
+            Haptics.warning()
+            withAnimation(.abOut) { shown = true }
+        }
     }
 
     private func gate(_ gate: String, old: Bool) -> some View {
@@ -210,7 +217,7 @@ struct GateChangeAlert: View {
         Button(action: perform) {
             Text(title).outfitText(17, weight, AB.primary).frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityIdentifier(id)
     }
 }
@@ -244,7 +251,7 @@ struct AlertsView: View {
                     .frame(width: 200, height: 52)
                     .background(AB.primary, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityIdentifier("alertRoute")
                 Spacer()
             }
@@ -401,7 +408,7 @@ struct ScenarioPlanSection: View {
             .frame(width: 222, height: 47)
             .background(color, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("routeButton")
     }
