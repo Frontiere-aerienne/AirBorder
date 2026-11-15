@@ -63,11 +63,39 @@ final class AirBorderUITests: XCTestCase {
     func testRouteStepsEndReturnsToFlight() {
         app.buttons["tab-route"].tap()
         XCTAssertTrue(app.staticTexts["Follow the Gates 105–109 sign"].waitForExistence(timeout: 2))
-        app.buttons["nextStep"].tap()
-        app.buttons["nextStep"].tap()
-        XCTAssertTrue(app.staticTexts["Check your flight"].exists)
+        for _ in 0 ..< 4 { app.buttons["nextStep"].tap() }
+        XCTAssertTrue(app.staticTexts["Check NH 106 on the gate screen"].exists)
         app.buttons["endRoute"].tap()
         XCTAssertTrue(app.staticTexts["Your flight"].waitForExistence(timeout: 2))
+    }
+
+    func testRouteChoiceAndRouteThroughStops() {
+        app.buttons["tab-route"].tap()
+        XCTAssertTrue(app.staticTexts["Follow the Gates 105–109 sign"].waitForExistence(timeout: 2))
+        snapshot("route-direct")
+        app.buttons["routeChoice"].tap()
+        XCTAssertTrue(app.buttons["use-stepFree"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["use-viaStops"].exists, "No stops, no via route")
+        snapshot("route-menu")
+        app.buttons["use-stepFree"].tap()
+        app.buttons["nextStep"].tap()
+        XCTAssertTrue(app.staticTexts["Turn right to the lift"].waitForExistence(timeout: 2))
+
+        app.buttons["tab-layover"].tap()
+        app.buttons["add-cafe"].tap()
+        app.buttons["tab-flight"].tap()
+        app.buttons["routeButton"].tap()
+        XCTAssertTrue(app.staticTexts["Follow the signs to Curacion Cafe"].waitForExistence(timeout: 2))
+        app.buttons["nextStep"].tap()
+        XCTAssertTrue(app.staticTexts["Stop at Curacion Cafe, leave by 16:59"].exists, "Uses the leave time from the plan")
+        snapshot("route-via-cafe")
+    }
+
+    private func snapshot(_ name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
     }
 
     func testAppleHealthRefinesWalkingPace() {
@@ -107,8 +135,7 @@ final class AirBorderUITests: XCTestCase {
 
     func testRouteEndShowsArrivalToast() {
         app.buttons["tab-route"].tap()
-        app.buttons["nextStep"].tap()
-        app.buttons["nextStep"].tap()
+        for _ in 0 ..< 4 { app.buttons["nextStep"].tap() }
         app.buttons["endRoute"].tap()
         let toast = app.buttons["toast"]
         XCTAssertTrue(toast.waitForExistence(timeout: 2))
@@ -271,13 +298,13 @@ final class AirBorderUITests: XCTestCase {
         let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow"]
         if allow.waitForExistence(timeout: 3) { allow.tap() }
         XCTAssertTrue(app.buttons["readSignAgain"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Gate 105 ahead"].exists, "Camera keeps the current step")
+        XCTAssertTrue(app.staticTexts["Take the stairs at the junction"].exists, "Camera keeps the current step")
         app.buttons["readSignAgain"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["scanningSign"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Can't read the sign"].waitForExistence(timeout: 15))
         app.buttons["useMap"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["routeSummary"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Gate 105 ahead"].exists)
+        XCTAssertTrue(app.staticTexts["Take the stairs at the junction"].exists)
     }
 
     func testFlightOneOpensInJourneyDetails() {

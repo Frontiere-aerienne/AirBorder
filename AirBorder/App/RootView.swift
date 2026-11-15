@@ -6,11 +6,11 @@ enum Destination: Hashable {
     case reviewEntered(ManualFlight), manualFlights, editFlight, chooseFlight, chooseDate, choosePurpose
     case checkFlight, flightSaved, baggage, declareBaggage, returnFlight
     case cameraPermission, ticketCamera, cameraUnavailable, unreadableTicket, capturedReview(ParsedTicket), ticketSaved
-    case routeThroughStops, routeDetail(RouteChoice), openAnotherMap, returnToGate(PlaceID)
+    case returnToGate(PlaceID)
     case anaLounge, loungeMap, landsideRoute(Bool), facilityGuide, t2Deck, t2NotEnoughTime, toTerminal2, atTerminal2, returnFromT2, shuttleFull
     case choosePDF, importWallet, connectGmail, connectCalendar, reviewImported(ParsedTicket), flightUpdated, reviewFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
-    case language, about, help, editProfile, tutorial, routeOptions
+    case language, about, help, editProfile, tutorial
     case alerts(AlertKind)
 }
 
@@ -123,9 +123,6 @@ struct RootView: View {
         case let .reviewImported(ticket): ReviewImportedView(ticket: ticket)
         case .flightUpdated: FlightUpdatedView()
         case .reviewFlight: ReviewFlightView()
-        case .routeThroughStops: RouteThroughStopsView()
-        case let .routeDetail(choice): RouteDetailView(choice: choice)
-        case .openAnotherMap: OpenAnotherMapView()
         case let .returnToGate(place): ReturnToGateView(place: place)
         case .anaLounge: ANALoungeView()
         case .loungeMap: LoungeMapView()
@@ -148,7 +145,6 @@ struct RootView: View {
         case .help: AboutView()
         case .editProfile: EditProfileView()
         case .tutorial: TutorialReplay()
-        case .routeOptions: RouteOptionsView()
         case let .alerts(kind): AlertsView(kind: kind)
         }
     }
