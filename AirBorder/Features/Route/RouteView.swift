@@ -10,51 +10,98 @@ struct RouteStep: Equatable {
     /// Header for this step: time left and the distance or boarding line under it.
     let remaining: String
     let remainingDetail: String
-    /// Where this step sits on the route map, from 0 (where you are) to 1 (the gate).
+    /// Where this step starts on the route map: an index into the map route's points.
     var position: CGFloat = 0
 }
 
-/// Figma route content per route choice (variable collection "Route choice", 1116:8282).
-/// Every route passes the stops in the plan, in arrive order, then takes its own way to the gate.
+/// Route steps for each route choice, generated from the walk drawn on the Terminal 3 map:
+/// one step per maneuver, plus "Stop at …" for each stop in the plan, in arrive order.
 @MainActor
 enum RouteSteps {
+    /// Map units to metres, so the direct route measures the Figma 570 m.
+    static let metresPerUnit: CGFloat = 570 / RouteMap.length(of: RouteMap.route(through: [], choice: .direct).nodes)
+    static let metresPerMinute: CGFloat = 47.5
+
     static func steps(for choice: RouteChoice, store: JourneyStore) -> [RouteStep] {
         let gate = store.gate
         let board = "Board at \(SampleJourney.boarding)"
-        let last = RouteStep(distance: "At Gate \(gate)", text: "Check \(store.outbound.number) on the gate screen", turn: .gate, remaining: "Arrived", remainingDetail: board, position: 1)
-        guard gate == SampleJourney.outbound.departureGate else {
-            return spread([
-                RouteStep(distance: "", text: "Follow the Gates 105–109 sign", turn: .straight, remaining: "\(store.gateWalkMinutes) min", remainingDetail: ""),
-                RouteStep(distance: "", text: "Follow signs for 108–149", turn: .straight, remaining: "", remainingDetail: ""),
-                RouteStep(distance: "At Gate \(gate)", text: "Gate \(gate)", turn: .gate, remaining: "Arrived", remainingDetail: board),
-            ], from: 0)
-        }
-        let toGate = gateStretch(choice, gate: gate)
         let stops = stopsInOrder(store)
-        guard !stops.isEmpty else { return spread(toGate, from: 0) + [last] }
-
-        let places = [PlaceID.start] + stops.map(\.id)
-        let legs = zip(places, places.dropFirst()).map { store.walkMinutes($0, $1) }
-        let routeMinutes = store.gateWalkMinutes(for: choice)
-        let left = { (leg: Int) in "\(legs[leg...].reduce(0, +) + routeMinutes) min" }
-        var steps: [RouteStep] = []
-        for (i, stop) in stops.enumerated() {
-            let at = mapPosition(of: i, count: stops.count)
-            let before = i == 0 ? 0 : mapPosition(of: i - 1, count: stops.count)
-            if places[i] == .anaLounge { steps.append(liftDown(left(i), at: before)) }
-            let byLift = stop.id == .anaLounge
-            steps.append(RouteStep(distance: legs[i] > 0 ? "\(legs[i]) min walk" : "Nearby",
-                                   text: byLift ? "Take the lift to ANA LOUNGE, 4F" : "Follow the signs to \(stop.name)",
-                                   turn: byLift ? .lift : .straight, remaining: left(i), remainingDetail: "", position: (before + at) / 2))
-            let leave = store.times(stop.id)?.leave.description ?? ""
-            steps.append(RouteStep(distance: "Stop \(i + 1)", text: "Stop at \(stop.name), leave by \(leave)", turn: .stop,
-                                   remaining: "\(routeMinutes + (legs.dropFirst(i + 1).reduce(0, +))) min", remainingDetail: "", position: at))
+        let route = RouteMap.route(through: stops.map { RouteMap.node(for: $0.id) }, choice: choice)
+        let nodes = route.nodes
+        let last = RouteStep(distance: "At Gate \(gate)", text: "Check \(store.outbound.number) on the gate screen", turn: .gate,
+                             remaining: "Arrived", remainingDetail: board, position: CGFloat(nodes.count - 1))
+        guard gate == SampleJourney.outbound.departureGate else {
+            return [
+                RouteStep(distance: "", text: "Follow the Gates 105–109 sign", turn: .straight, remaining: "\(store.gateWalkMinutes) min", remainingDetail: "", position: 0),
+                RouteStep(distance: "", text: "Follow signs for 108–149", turn: .straight, remaining: "", remainingDetail: "", position: CGFloat(nodes.count / 2)),
+                RouteStep(distance: "At Gate \(gate)", text: "Gate \(gate)", turn: .gate, remaining: "Arrived", remainingDetail: board, position: CGFloat(nodes.count - 1)),
+            ]
         }
-        let lastStop = mapPosition(of: stops.count - 1, count: stops.count)
-        if stops.last?.id == .anaLounge { steps.append(liftDown("\(routeMinutes) min", at: lastStop)) }
-        // Distances are measured from the terminal entrance, so they only show on a route without stops.
-        let stretch = toGate.map { RouteStep(distance: $0.distance, text: $0.text, turn: $0.turn, remaining: $0.remaining, remainingDetail: "") }
-        return steps + spread(stretch, from: lastStop) + [last]
+
+        let stopAt = Dictionary(uniqueKeysWithValues: zip(route.stopIndices, stops))
+        let edges = zip(nodes, nodes.dropFirst()).map { RouteMap.edge($0, $1) }
+        let metres = { (from: Int) in RouteMap.length(of: Array(nodes[from...])) * metresPerUnit }
+        let minutes = { (from: Int) in
+            WalkingTimes.minutes(average: max(Int((metres(from) / metresPerMinute).rounded(.up)), 1), pace: store.pace)
+        }
+        var steps: [RouteStep] = []
+        var group: [Int] = [] // edge indices walked as one step
+
+        /// The next stop after edge `i`, so the first step of each leg can point to it.
+        let nextStop = { (i: Int) in stopAt.keys.filter { $0 > i }.min().flatMap { stopAt[$0] } }
+        var legStarts = true
+
+        func flush(into stop: PlanStop? = nil) {
+            guard let first = group.first else { return }
+            let a = nodes[first], b = nodes[first + 1]
+            defer { legStarts = stop != nil }
+            let length = group.map { RouteMap.length(of: [nodes[$0], nodes[$0 + 1]]) }.reduce(0, +) * metresPerUnit
+            let (text, turn): (String, RouteStep.Turn) = {
+                if let stop {
+                    if stop.id == .anaLounge { return ("Take the lift to ANA LOUNGE, 4F", .lift) }
+                    return legStarts ? ("Follow the signs to \(stop.name)", .straight) : ("Turn into \(stop.name)", .right)
+                }
+                if a == .lounge { return ("Take the lift down to 3F", .lift) }
+                let (text, turn) = phrase(a, b, gate: gate)
+                if legStarts, turn != .stairs, turn != .lift, let target = nextStop(first) {
+                    return ("Follow the signs to \(target.name)", .straight)
+                }
+                // Just came down from the lounge: no second lift.
+                if a == .lift, b == .southLink, steps.last?.text == "Take the lift down to 3F" { return ("Go straight along the level corridor", .straight) }
+                return (text, turn)
+            }()
+            let distance = a == .lounge ? "4F to 3F" : "\(Int((length / 10).rounded()) * 10) m"
+            steps.append(RouteStep(distance: distance, text: text, turn: turn, remaining: "\(minutes(first)) min",
+                                   remainingDetail: "\(Int((metres(first) / 10).rounded()) * 10) m", position: CGFloat(first)))
+            group = []
+        }
+
+        for (i, edge) in edges.enumerated() {
+            if let stop = stopAt[i] {
+                let leave = store.times(stop.id)?.leave.description ?? ""
+                steps.append(RouteStep(distance: "Stop \(steps.filter { $0.turn == .stop }.count + 1)", text: "Stop at \(stop.name), leave by \(leave)",
+                                       turn: .stop, remaining: "\(minutes(i)) min", remainingDetail: "\(Int((metres(i) / 10).rounded()) * 10) m",
+                                       position: CGFloat(i)))
+            }
+            let leavingRoom = stopAt[i] != nil
+            if leavingRoom && nodes[i] == .lounge {
+                group = [i]
+                flush()
+                legStarts = true
+                continue
+            }
+            if let open = group.last {
+                let previous = edges[open]
+                let onlyLeavingDoor = group.count == 1 && stopAt[group[0]] != nil
+                let sameWay = RouteMap.heading(nodes[open], nodes[open + 1]) == RouteMap.heading(nodes[i], nodes[i + 1])
+                let flows = previous.kind != .stairs && edge.kind != .stairs && previous.kind != .lift && edge.kind != .lift
+                if !(edge.kind == .door || onlyLeavingDoor || (sameWay && flows)) { flush() }
+            }
+            group.append(i)
+            if let stop = stopAt[i + 1] { flush(into: stop) }
+        }
+        flush()
+        return steps + [last]
     }
 
     /// Plan stops in the order the traveller will reach them.
@@ -62,53 +109,31 @@ enum RouteSteps {
         store.plan.stops.sorted { StopTimes.arrive($0) < StopTimes.arrive($1) }
     }
 
-    /// Stops sit evenly along the map between where you are (0) and the gate (1).
-    static func mapPosition(of index: Int, count: Int) -> CGFloat {
-        CGFloat(index + 1) / CGFloat(count + 1)
-    }
-
-    /// Steps after `start` share the rest of the map evenly; the gate step is added at 1.
-    private static func spread(_ steps: [RouteStep], from start: CGFloat) -> [RouteStep] {
-        steps.enumerated().map { i, step in
-            var step = step
-            step.position = start + (1 - start) * CGFloat(i + (start == 0 ? 0 : 1)) / CGFloat(steps.count + (start == 0 ? 0 : 1))
-            return step
-        }
-    }
-
-    /// ANA LOUNGE is on 4F; leaving it starts with the lift back down.
-    private static func liftDown(_ remaining: String, at position: CGFloat) -> RouteStep {
-        RouteStep(distance: "4F to 3F", text: "Take the lift down to 3F", turn: .lift, remaining: remaining, remainingDetail: "", position: position)
-    }
-
-    /// The Figma steps from the terminal to the gate for each route choice.
-    private static func gateStretch(_ choice: RouteChoice, gate: String) -> [RouteStep] {
-        let step = { (distance: String, text: String, turn: RouteStep.Turn, remaining: String, detail: String) in
-            RouteStep(distance: distance, text: text, turn: turn, remaining: remaining, remainingDetail: detail)
-        }
-        switch choice {
-        case .stepFree:
-            return [step("260 m", "Follow the Gates 105–109 sign", .straight, "16 min", "600 m"),
-                    step("15 m", "Turn right to the lift", .right, "10 min", "340 m"),
-                    step("230 m", "Take the lift, then go straight", .lift, "9 min", "325 m"),
-                    step("30 m", "Turn left at the Gate \(gate) sign", .left, "2 min", "30 m")]
-        case .lessCrowded:
-            return [step("40 m", "Keep right toward the windows", .right, "15 min", "700 m"),
-                    step("10 m", "Turn left onto the outer concourse", .left, "14 min", "660 m"),
-                    step("300 m", "Walk along the windows past Gates 101–104", .straight, "13 min", "650 m"),
-                    step("50 m", "Turn left at the Gate \(gate) sign", .left, "3 min", "50 m")]
-        case .direct:
-            return [step("300 m", "Follow the Gates 105–109 sign", .straight, "12 min", "570 m"),
-                    step("40 m", "Take the stairs at the junction", .stairs, "6 min", "270 m"),
-                    step("200 m", "Go straight past Gate 104", .straight, "5 min", "230 m"),
-                    step("30 m", "Turn left at the Gate \(gate) sign", .left, "1 min", "30 m")]
+    /// What to do on a stretch of the map, worded like the Figma route steps.
+    private static func phrase(_ a: RouteMap.Node, _ b: RouteMap.Node, gate: String) -> (String, RouteStep.Turn) {
+        switch (a, b) {
+        case (.start, .cafeDoor): ("Follow the Gates 105–109 sign", .straight)
+        case (.cafeDoor, .junction), (.cafe, .cafeDoor): ("Continue to the junction", .straight)
+        case (.junction, .east): ("Take the stairs at the junction", .stairs)
+        case (.east, .approach): ("Go straight past Gate 104", .straight)
+        case (.approach, .gate), (.windowsGate, .approach), (.windowsEast, .windowsGate): ("Turn left at the Gate \(gate) sign", .left)
+        case (.junction, .lift): ("Turn right to the lift", .right)
+        case (.lift, .junction): ("Go back to the central concourse", .straight)
+        case (.lift, .southLink): ("Take the lift, then go straight", .lift)
+        case (.southLink, .liftLane), (.liftLane, .windowsGate), (.sky, .liftLane): ("Continue along the level corridor", .straight)
+        case (.liftLane, .southLink): ("Head back along the level corridor", .straight)
+        case (.southLink, .windowsSouth): ("Turn right toward the windows", .right)
+        case (.windowsSouth, .southLink): ("Turn left off the windows", .left)
+        case (.start, .windowsWest): ("Keep right toward the windows", .right)
+        case (.windowsWest, .windowsSouth), (.windowsSouth, .windowsEast): ("Walk along the windows past Gates 101–104", .straight)
+        default: ("Continue toward Gate \(gate)", .straight)
         }
     }
 
     static func transfer() -> [RouteStep] {
-        spread(TransferRouteContent.steps.enumerated().map { index, text in
+        TransferRouteContent.steps.enumerated().map { index, text in
             RouteStep(distance: "", text: text, turn: index == 2 ? .stop : .straight, remaining: index == 0 ? "\(NaritaTransfer.busMinutes) min" : "", remainingDetail: "")
-        }, from: 0)
+        }
     }
 }
 
@@ -197,7 +222,7 @@ struct RouteView: View {
     private var concourse: some View {
         let steps = RouteSteps.steps(for: store.routeChoice, store: store)
         let index = min(max(store.routeStep, 1), steps.count) - 1
-        return RouteMap(stops: RouteSteps.stopsInOrder(store), gate: store.gate, position: steps[index].position)
+        return RouteMap(stops: RouteSteps.stopsInOrder(store), gate: store.gate, choice: store.routeChoice, position: steps[index].position)
             .contentShape(Rectangle())
             .onTapGesture { showsMapInfo = true }
             .accessibilityAddTraits(.isButton)
@@ -207,72 +232,217 @@ struct RouteView: View {
     }
 }
 
-/// Route map: where you are, a pin for each stop in your plan and the gate, with a marker that moves per step.
+/// Terminal 3, 3F floor plan with the walking route drawn on it. Each route choice takes its own corridors;
+/// stops in the plan are rooms the route detours into, in arrive order. The walked part fills in as you go.
 struct RouteMap: View {
     let stops: [PlanStop]
     let gate: String
+    let choice: RouteChoice
     let position: CGFloat
 
     var body: some View {
+        let route = Self.route(through: stops.map { Self.node(for: $0.id) }, choice: choice)
         GeometryReader { proxy in
-            let inset: CGFloat = 22
-            let width = proxy.size.width - inset * 2
-            let x = { (p: CGFloat) in inset + width * p }
-            let trackY: CGFloat = 30
+            let scale = proxy.size.width / Self.size.width
+            let p = { (n: Node) in CGPoint(x: Self.points[n]!.x * scale, y: Self.points[n]!.y * scale) }
+            let line = RouteLine(points: route.nodes.map(p))
+            let walked = line.share(upToPoint: position)
             ZStack(alignment: .topLeading) {
-                Capsule().fill(AB.screen).frame(width: width, height: 6).offset(x: inset, y: trackY - 3)
-                Capsule().fill(AB.ticket).frame(width: max(width * position, 6), height: 6).offset(x: inset, y: trackY - 3)
-                pin(icon: nil, label: "Start", color: AB.ticket, filled: false).position(x: x(0), y: trackY + 14)
-                ForEach(Array(stops.enumerated()), id: \.element.id) { i, stop in
-                    let at = RouteSteps.mapPosition(of: i, count: stops.count)
-                    pin(icon: Self.icon(stop.id), label: Self.label(stop.id), color: PlanStripCard.color(stop.id), filled: position >= at)
-                        .position(x: x(at), y: trackY + 14)
+                // Corridors
+                ForEach(Self.edges.indices, id: \.self) { i in
+                    let edge = Self.edges[i]
+                    Path { path in path.move(to: p(edge.0)); path.addLine(to: p(edge.1)) }
+                        .stroke(AB.screen, style: StrokeStyle(lineWidth: 18 * scale, lineCap: .round))
                 }
-                VStack(spacing: 2) {
-                    Text(gate).outfitText(13, .bold, AB.gateText)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 6))
-                    Text("Gate").outfitText(13, .semibold, AB.secondary)
+                // Gates 101–104 along the windows
+                ForEach(Array(["101", "102", "103", "104"].enumerated()), id: \.offset) { i, number in
+                    Text(number).outfitText(12, .semibold, AB.secondary)
+                        .position(x: (100 + CGFloat(i) * 52) * scale, y: 204 * scale)
                 }
-                .position(x: x(1), y: trackY + 14)
+                Text("Windows").outfitText(12, .medium, AB.sky).position(x: 52 * scale, y: 204 * scale)
+                room("Café", at: p(.cafe), color: PlanStripCard.color(.cafe), active: stops.contains { $0.id == .cafe })
+                room("4F LOUNGE", at: p(.lounge), color: PlanStripCard.color(.anaLounge), active: stops.contains { $0.id == .anaLounge })
+                room("SKY", at: p(.sky), color: PlanStripCard.color(.skyLounge), active: stops.contains { $0.id == .skyLounge })
+                icon("figure.stairs", at: CGPoint(x: (p(.junction).x + p(.east).x) / 2, y: p(.junction).y))
+                icon("arrow.up.arrow.down", at: p(.lift))
+                // Route: ahead dotted, walked solid
+                line.stroke(AB.primary.opacity(0.45), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [2, 6]))
+                line.trim(from: 0, to: walked)
+                    .stroke(AB.ticket, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                Text("Start").outfitText(12, .bold, AB.secondary).position(x: p(.start).x + 2, y: p(.start).y - 20 * scale)
+                Circle().fill(AB.ticket).frame(width: 10, height: 10).position(p(.start))
+                Text(gate).outfitText(14, .bold, AB.gateText)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 7))
+                    .position(p(.gate))
                 Circle().fill(AB.primary)
                     .overlay(Circle().strokeBorder(.white, lineWidth: 3))
                     .frame(width: 20, height: 20)
-                    .shadow(color: AB.primary.opacity(0.4), radius: 6)
-                    .position(x: x(position), y: trackY)
+                    .shadow(color: AB.primary.opacity(0.45), radius: 6)
+                    .position(line.point(atDistance: walked))
             }
         }
-        .frame(height: 74)
-        .animation(.spring(duration: 0.45, bounce: 0.15), value: position)
+        .aspectRatio(Self.size.width / Self.size.height, contentMode: .fit)
+        .animation(.spring(duration: 0.5, bounce: 0.12), value: position)
+        .animation(.abOut, value: choice)
         .animation(.abOut, value: stops.map(\.id))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(stops.isEmpty ? "Route map to Gate \(gate)" : "Route map: \(stops.map(\.name).joined(separator: ", ")), then Gate \(gate)")
+        .accessibilityLabel("Map of the \(choice.title.lowercased()) route\(stops.isEmpty ? "" : " via \(stops.map(\.name).joined(separator: ", "))") to Gate \(gate)")
     }
 
-    private func pin(icon: String?, label: String, color: Color, filled: Bool) -> some View {
-        VStack(spacing: 4) {
-            ZStack {
-                Circle().fill(filled ? color : .white).overlay(Circle().strokeBorder(color, lineWidth: 2))
-                if let icon {
-                    Image(systemName: icon).font(.system(size: 11, weight: .bold)).foregroundStyle(filled ? (color == AB.sky ? AB.ticket : .white) : color)
+    private func room(_ label: String, at point: CGPoint, color: Color, active: Bool) -> some View {
+        Text(label).outfitText(12, .bold, active ? (color == AB.sky ? AB.ticket : .white) : AB.secondary)
+            .padding(.horizontal, 7).padding(.vertical, 4)
+            .background(active ? color : .white, in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(active ? color : AB.border, lineWidth: 1.5))
+            .position(point)
+    }
+
+    private func icon(_ name: String, at point: CGPoint) -> some View {
+        Image(systemName: name).font(.system(size: 10, weight: .bold)).foregroundStyle(AB.secondary)
+            .frame(width: 20, height: 20)
+            .background(.white, in: Circle())
+            .overlay(Circle().strokeBorder(AB.border, lineWidth: 1))
+            .position(point)
+    }
+
+    // MARK: Floor plan (map units; scaled to the card width)
+
+    enum Node: Hashable {
+        case start, cafeDoor, cafe, junction, east, approach, gate, lift, lounge, southLink, liftLane, sky
+        case windowsWest, windowsSouth, windowsEast, windowsGate
+    }
+    /// corridor: busy central concourse; level: step-free corridors on the lift side; windows: outer concourse.
+    enum Kind { case corridor, stairs, lift, level, windows, door }
+
+    static let size = CGSize(width: 340, height: 216)
+    static let points: [Node: CGPoint] = [
+        .start: CGPoint(x: 20, y: 84), .cafeDoor: CGPoint(x: 70, y: 84), .cafe: CGPoint(x: 70, y: 46),
+        .junction: CGPoint(x: 140, y: 84), .east: CGPoint(x: 230, y: 84), .approach: CGPoint(x: 305, y: 84),
+        .gate: CGPoint(x: 305, y: 26), .lift: CGPoint(x: 140, y: 128), .lounge: CGPoint(x: 78, y: 128),
+        .southLink: CGPoint(x: 185, y: 128), .liftLane: CGPoint(x: 230, y: 128), .sky: CGPoint(x: 230, y: 158),
+        .windowsWest: CGPoint(x: 20, y: 182), .windowsSouth: CGPoint(x: 185, y: 182),
+        .windowsEast: CGPoint(x: 305, y: 182), .windowsGate: CGPoint(x: 305, y: 128),
+    ]
+    static let edges: [(Node, Node, Kind)] = [
+        (.start, .cafeDoor, .corridor), (.cafeDoor, .cafe, .door), (.cafeDoor, .junction, .corridor),
+        (.junction, .east, .stairs), (.east, .approach, .corridor), (.approach, .gate, .corridor),
+        (.junction, .lift, .lift), (.lift, .lounge, .door), (.lift, .southLink, .level), (.southLink, .liftLane, .level),
+        (.liftLane, .sky, .door), (.liftLane, .windowsGate, .level), (.windowsGate, .approach, .level),
+        (.southLink, .windowsSouth, .level),
+        (.start, .windowsWest, .windows), (.windowsWest, .windowsSouth, .windows), (.windowsSouth, .windowsEast, .windows),
+        (.windowsEast, .windowsGate, .windows),
+    ]
+
+    static func node(for id: PlaceID) -> Node {
+        switch id {
+        case .cafe: .cafe
+        case .anaLounge: .lounge
+        default: .sky
+        }
+    }
+
+    /// How each route choice weighs the corridors: direct keeps to the centre and the stairs,
+    /// step-free never takes the stairs, less crowded prefers the windows over the busy centre.
+    private static func cost(_ kind: Kind, _ choice: RouteChoice) -> CGFloat {
+        switch (choice, kind) {
+        case (_, .door): 1
+        case (.direct, .corridor), (.direct, .stairs): 1
+        case (.direct, _): 3
+        case (.stepFree, .stairs): 100
+        case (.stepFree, .windows): 1.5
+        case (.stepFree, _): 1
+        case (.lessCrowded, .windows): 0.5
+        case (.lessCrowded, .level), (.lessCrowded, .lift): 1.5
+        case (.lessCrowded, .corridor): 2.5
+        case (.lessCrowded, .stairs): 4
+        }
+    }
+
+    /// Shortest walk start → each stop → gate on the floor plan for this choice.
+    static func route(through stops: [Node], choice: RouteChoice) -> (nodes: [Node], stopIndices: [Int]) {
+        var nodes: [Node] = [.start]
+        var stopIndices: [Int] = []
+        for target in stops + [.gate] {
+            let leg = shortestPath(from: nodes.last!, to: target, choice: choice)
+            nodes += leg.dropFirst()
+            if target != .gate { stopIndices.append(nodes.count - 1) }
+        }
+        return (nodes, stopIndices)
+    }
+
+    private static func shortestPath(from start: Node, to goal: Node, choice: RouteChoice) -> [Node] {
+        var distance: [Node: CGFloat] = [start: 0]
+        var previous: [Node: Node] = [:]
+        var open: Set<Node> = [start]
+        while let current = open.min(by: { distance[$0, default: .infinity] < distance[$1, default: .infinity] }) {
+            open.remove(current)
+            if current == goal { break }
+            for (a, b, kind) in edges where a == current || b == current {
+                let next = a == current ? b : a
+                let length = hypot(points[a]!.x - points[b]!.x, points[a]!.y - points[b]!.y) * cost(kind, choice)
+                let candidate = distance[current, default: .infinity] + length
+                if candidate < distance[next, default: .infinity] {
+                    distance[next] = candidate
+                    previous[next] = current
+                    open.insert(next)
                 }
             }
-            .frame(width: icon == nil ? 14 : 26, height: icon == nil ? 14 : 26)
-            .offset(y: icon == nil ? -14 : -14)
-            Text(label).outfitText(13, .semibold, AB.secondary).fixedSize().offset(y: -10)
         }
+        var path = [goal]
+        while let back = previous[path[0]] { path.insert(back, at: 0) }
+        return path
     }
 
-    static func icon(_ id: PlaceID) -> String {
-        id == .cafe ? "cup.and.saucer.fill" : "sofa.fill"
+    static func edge(_ a: Node, _ b: Node) -> (from: Node, to: Node, kind: Kind) {
+        let match = edges.first { ($0.0 == a && $0.1 == b) || ($0.0 == b && $0.1 == a) }!
+        return (a, b, match.2)
     }
 
-    static func label(_ id: PlaceID) -> String {
-        switch id {
-        case .cafe: "Café"
-        case .anaLounge: "LOUNGE"
-        default: "SKY"
+    static func length(of nodes: [Node]) -> CGFloat {
+        zip(nodes, nodes.dropFirst()).map { hypot(points[$1]!.x - points[$0]!.x, points[$1]!.y - points[$0]!.y) }.reduce(0, +)
+    }
+
+    /// Compass heading of a corridor stretch (corridors are straight and axis-aligned).
+    static func heading(_ a: Node, _ b: Node) -> Int {
+        let dx = points[b]!.x - points[a]!.x, dy = points[b]!.y - points[a]!.y
+        return abs(dx) >= abs(dy) ? (dx > 0 ? 0 : 2) : (dy > 0 ? 1 : 3)
+    }
+}
+
+/// The route as a polyline through floor-plan points.
+struct RouteLine: Shape {
+    let points: [CGPoint]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addLines(points)
+        return path
+    }
+
+    private var lengths: [CGFloat] { zip(points, points.dropFirst()).map { hypot($1.x - $0.x, $1.y - $0.y) } }
+    private var total: CGFloat { lengths.reduce(0, +) }
+
+    /// Share of the path walked when standing at point `index` (fractional indices fall between points).
+    func share(upToPoint index: CGFloat) -> CGFloat {
+        guard total > 0 else { return 0 }
+        let whole = min(max(Int(index), 0), lengths.count)
+        var walked = lengths.prefix(whole).reduce(0, +)
+        if whole < lengths.count { walked += lengths[whole] * (index - CGFloat(whole)) }
+        return walked / total
+    }
+
+    /// The point a given share of the way along the path.
+    func point(atDistance share: CGFloat) -> CGPoint {
+        var remaining = share * total
+        for (i, length) in lengths.enumerated() {
+            if remaining <= length || i == lengths.count - 1 {
+                let f = length > 0 ? min(remaining / length, 1) : 0
+                return CGPoint(x: points[i].x + (points[i + 1].x - points[i].x) * f, y: points[i].y + (points[i + 1].y - points[i].y) * f)
+            }
+            remaining -= length
         }
+        return points.last ?? .zero
     }
 }
 

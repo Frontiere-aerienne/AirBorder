@@ -113,19 +113,35 @@ final class AirBorderUITests: XCTestCase {
         sky.tap()
         app.tabBars.buttons["Route"].tap()
         XCTAssertTrue(app.staticTexts["Follow the signs to SKY LOUNGE"].waitForExistence(timeout: 2), "SKY LOUNGE arrives first, at 15:30")
-        app.buttons["nextStep"].tap()
-        XCTAssertTrue(app.staticTexts["Stop at SKY LOUNGE, leave by 16:57"].waitForExistence(timeout: 2))
-        app.buttons["nextStep"].tap()
-        XCTAssertTrue(app.staticTexts["Follow the signs to Curacion Cafe"].waitForExistence(timeout: 2))
         snapshot("route-via-plan")
-        for _ in 0 ..< 2 { app.buttons["nextStep"].tap() }
-        XCTAssertTrue(app.staticTexts["Follow the Gates 105–109 sign"].waitForExistence(timeout: 2))
-        app.buttons["nextStep"].tap()
-        XCTAssertTrue(app.staticTexts["Take the stairs at the junction"].waitForExistence(timeout: 2), "The direct route keeps its own way to the gate")
-        for _ in 0 ..< 2 { app.buttons["nextStep"].tap() }
-        XCTAssertTrue(app.staticTexts["Turn left at the Gate 105 sign"].waitForExistence(timeout: 2))
-        app.buttons["nextStep"].tap()
-        XCTAssertTrue(app.buttons["endRoute"].waitForExistence(timeout: 2))
+        var instructions: [String] = []
+        while !app.buttons["endRoute"].exists {
+            instructions.append(app.staticTexts["routeInstruction"].label)
+            app.buttons["nextStep"].tap()
+        }
+        instructions.append(app.staticTexts["routeInstruction"].label)
+        let order = ["Stop at SKY LOUNGE, leave by 16:57", "Follow the signs to Curacion Cafe", "Stop at Curacion Cafe, leave by 16:59",
+                     "Take the stairs at the junction", "Turn left at the Gate 105 sign", "Check NH 106 on the gate screen"]
+        let positions = order.compactMap { instructions.firstIndex(of: $0) }
+        XCTAssertEqual(positions.count, order.count, "Missing steps in \(instructions)")
+        XCTAssertEqual(positions, positions.sorted(), "Steps out of order: \(instructions)")
+    }
+
+    func testRouteMapFollowsEachRouteChoice() {
+        app.tabBars.buttons["Layover"].tap()
+        app.buttons["add-cafe"].tap()
+        app.buttons["add-anaLounge"].tap()
+        app.tabBars.buttons["Route"].tap()
+        let map = app.descendants(matching: .any)["routeSummary"]
+        XCTAssertTrue(map.waitForExistence(timeout: 2))
+        XCTAssertTrue(map.label.contains("direct route via Curacion Cafe, ANA LOUNGE"))
+        snapshot("map-direct")
+        for (choice, title) in [("stepFree", "step-free"), ("lessCrowded", "less crowded")] {
+            app.buttons["routeChoice"].tap()
+            app.buttons["use-\(choice)"].tap()
+            XCTAssertTrue(map.label.contains("\(title) route"))
+            snapshot("map-\(choice)")
+        }
     }
 
     func testAppleHealthRefinesWalkingPace() {

@@ -343,4 +343,25 @@ final class TerminalTwoTimingTests: XCTestCase {
         XCTAssertTrue(StopTimes.overlaps((ClockTime(16, 0), ClockTime(16, 59)), (ClockTime(16, 30), ClockTime(17, 1))))
         XCTAssertFalse(StopTimes.overlaps((ClockTime(15, 30), ClockTime(16, 0)), (ClockTime(16, 0), ClockTime(16, 59))))
     }
+
+    @MainActor
+    func testRouteStepsFollowTheMap() {
+        let defaults = UserDefaults(suiteName: "routeSteps")!
+        defaults.removePersistentDomain(forName: "routeSteps")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        XCTAssertEqual(RouteSteps.steps(for: .direct, store: store).map(\.text), [
+            "Follow the Gates 105–109 sign", "Take the stairs at the junction", "Go straight past Gate 104",
+            "Turn left at the Gate 105 sign", "Check NH 106 on the gate screen",
+        ], "No stops: the Figma direct route")
+        XCTAssertEqual(RouteSteps.steps(for: .direct, store: store).first?.remaining, "12 min")
+        store.add(.cafe)
+        store.add(.anaLounge)
+        for choice in RouteChoice.allCases {
+            let steps = RouteSteps.steps(for: choice, store: store)
+            print("ROUTE \(choice):", steps.map { "[\($0.distance)] \($0.text) (\($0.remaining))" }.joined(separator: " | "))
+            XCTAssertEqual(steps.filter { $0.turn == .stop }.map(\.text), [
+                "Stop at Curacion Cafe, leave by 16:59", "Stop at ANA LOUNGE, leave by 17:01",
+            ])
+        }
+    }
 }
