@@ -97,8 +97,6 @@ final class JourneyStore: ObservableObject {
     @Published private(set) var walkingSpeedKmh: Double?
     @Published private(set) var lastHealthSync: Date?
     @Published var routeStep = 1
-    /// The stop most recently added, so the Flight plan card can open it on arrival.
-    @Published var lastAddedStop: PlaceID?
 
     /// Airport local time the journey is shown at. The sample journey stays at 12:00.
     @Published private(set) var now: ClockTime = SampleJourney.now
@@ -301,7 +299,6 @@ final class JourneyStore: ObservableObject {
         clearUndo()
         plan.stops.append(stop)
         routeStep = 1 // every route now passes the new stop
-        lastAddedStop = stop.id
         refreshSuggestion()
         refreshAlerts()
     }
@@ -337,7 +334,6 @@ final class JourneyStore: ObservableObject {
         remove(id)
         showToast(ToastMessage(text: "Removed \(stop.name)", action: "Undo")) { [weak self] in
             self?.add(stop)
-            self?.lastAddedStop = nil
         }
     }
 

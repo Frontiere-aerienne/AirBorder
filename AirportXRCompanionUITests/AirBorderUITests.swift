@@ -44,7 +44,7 @@ final class AirBorderUITests: XCTestCase {
         app.tabBars.buttons["Flight"].tap()
         XCTAssertTrue(app.buttons["lane-cafe"].waitForExistence(timeout: 2))
         XCTAssertFalse(addStop.exists)
-        XCTAssertTrue(app.staticTexts["4 min to gate"].waitForExistence(timeout: 2), "The newest stop opens")
+        XCTAssertFalse(app.staticTexts["4 min to gate"].exists, "Stops stay closed until tapped")
         app.buttons["lane-cafe"].tap()
         XCTAssertTrue(app.staticTexts["16:59"].waitForExistence(timeout: 2), "Leave defaults to the latest time")
         XCTAssertTrue(app.staticTexts["Overlaps with ANA LOUNGE"].exists)

@@ -135,15 +135,6 @@ struct PlanStripCard: View {
         .animation(.abOut, value: hintSeen)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("planCard")
-        // A stop just added on Layover opens here, so its times are ready to set.
-        .onAppear(perform: openNewestStop)
-        .onChange(of: store.tab) { openNewestStop() }
-    }
-
-    private func openNewestStop() {
-        guard store.tab == .flight, let id = store.lastAddedStop else { return }
-        store.lastAddedStop = nil
-        openStop = id
     }
 
     private var header: some View {
