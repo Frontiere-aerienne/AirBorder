@@ -30,14 +30,6 @@ enum RouteSteps {
         let nodes = route.nodes
         let last = RouteStep(distance: "At Gate \(gate)", text: "Check \(store.outbound.number) on the gate screen", turn: .gate,
                              remaining: "Arrived", remainingDetail: board, position: CGFloat(nodes.count - 1))
-        guard gate == SampleJourney.outbound.departureGate else {
-            return [
-                RouteStep(distance: "", text: "Follow the Gates 105–109 sign", turn: .straight, remaining: "\(store.gateWalkMinutes) min", remainingDetail: "", position: 0),
-                RouteStep(distance: "", text: "Follow signs for 108–149", turn: .straight, remaining: "", remainingDetail: "", position: CGFloat(nodes.count / 2)),
-                RouteStep(distance: "At Gate \(gate)", text: "Gate \(gate)", turn: .gate, remaining: "Arrived", remainingDetail: board, position: CGFloat(nodes.count - 1)),
-            ]
-        }
-
         let stopAt = Dictionary(uniqueKeysWithValues: zip(route.stopIndices, stops))
         let edges = zip(nodes, nodes.dropFirst()).map { RouteMap.edge($0, $1) }
         let metres = { (from: Int) in RouteMap.length(of: Array(nodes[from...])) * metresPerUnit }
@@ -115,7 +107,8 @@ enum RouteSteps {
         case (.start, .cafeDoor): ("Follow the Gates 105–109 sign", .straight)
         case (.cafeDoor, .junction), (.cafe, .cafeDoor): ("Continue to the junction", .straight)
         case (.junction, .east): ("Take the stairs at the junction", .stairs)
-        case (.east, .approach): ("Go straight past Gate 104", .straight)
+        // ponytail: a changed gate (108A) shares the map; only the gate-area sign differs.
+        case (.east, .approach): gate == SampleJourney.outbound.departureGate ? ("Go straight past Gate 104", .straight) : ("Follow signs for 108–149", .straight)
         case (.approach, .gate), (.windowsGate, .approach), (.windowsEast, .windowsGate): ("Turn left at the Gate \(gate) sign", .left)
         case (.junction, .lift): ("Turn right to the lift", .right)
         case (.lift, .junction): ("Go back to the central concourse", .straight)

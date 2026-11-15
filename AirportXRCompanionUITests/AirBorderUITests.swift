@@ -289,6 +289,10 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 2), "The strip shows the change again")
         app.buttons["alertRoute"].tap()
         XCTAssertTrue(app.staticTexts["Route to Gate 108A"].waitForExistence(timeout: 2))
+        for _ in 0 ..< 2 { app.buttons["nextStep"].tap() }
+        XCTAssertTrue(app.staticTexts["Follow signs for 108–149"].waitForExistence(timeout: 2), "108A uses the same map route")
+        app.buttons["nextStep"].tap()
+        XCTAssertTrue(app.staticTexts["Turn left at the Gate 108A sign"].exists)
     }
 
     func testReturnNowShowsCountdownInsteadOfThePlan() {
