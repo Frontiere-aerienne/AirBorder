@@ -126,7 +126,7 @@ struct TravelUpdateBanner: View {
     }
 
     private var action: (title: String, perform: () -> Void)? {
-        let route = ("Route", { store.tab = .route })
+        let route = ("Route", { store.openRoute(directToGate: true) })
         let call = ("Call ANA", { if let url = ANAHelp.url { openURL(url) } })
         switch (condition, place) {
         case (.returnNow, .details), (.returnNow, .layover): return route
@@ -215,9 +215,8 @@ struct GateChangeAlert: View {
             secondary: ("Dismiss", "alertDismiss", dismiss),
             primary: ("View route", "alertRoute", {
                 store.acknowledge(.gateChange)
-                store.routeStep = 1
                 dismiss()
-                store.tab = .route
+                store.openRoute(directToGate: store.hasTimingSituation)
             })
         ) {
             HStack(spacing: 10) {
@@ -293,7 +292,7 @@ struct AlertsView: View {
                 Button {
                     store.acknowledge(kind)
                     dismiss()
-                    store.tab = .route
+                    store.openRoute(directToGate: kind != .gateChange || store.hasTimingSituation)
                 } label: {
                     HStack(spacing: 9) {
                         Image("icWalkWhite").resizable().frame(width: 21, height: 21)
@@ -426,7 +425,7 @@ struct ScenarioPlanSection: View {
                 timeRow("Gate closes", store.outbound.gateCloses?.description ?? "–")
             }
             .accessibilityIdentifier("arrivalAfterClosure")
-            TextLink(title: "Route") { store.tab = .route }
+            TextLink(title: "Route") { store.openRoute(directToGate: true) }
         default:
             EmptyView()
         }
@@ -450,7 +449,7 @@ struct ScenarioPlanSection: View {
     private func routeButton(color: Color) -> some View {
         Button {
             if let kind = condition.alertKind { store.acknowledge(kind) }
-            store.tab = .route
+            store.openRoute(directToGate: true)
         } label: {
             HStack(spacing: 8) {
                 Image("icWalkWhite").resizable().frame(width: 21, height: 21)

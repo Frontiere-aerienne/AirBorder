@@ -104,6 +104,7 @@ final class JourneyStore: ObservableObject {
     @Published private(set) var walkingSpeedKmh: Double?
     @Published private(set) var lastHealthSync: Date?
     @Published var routeStep = 1
+    @Published private(set) var returningDirectly = false
     /// The camera pop-up on Route is showing; `cameraAllowed` ticks when access is granted.
     @Published var asksForCamera = false
     @Published var cameraAllowed = 0
@@ -238,10 +239,10 @@ final class JourneyStore: ObservableObject {
 
     /// The sample journey's gate update: Gate 108A, reported a short while after the app opens.
     func startSampleFeed(after delay: Duration) {
-        guard feed == nil else { return refreshAlerts() }
+        guard feed == nil, !isAirportTransfer else { return refreshAlerts() }
         Task { @MainActor in
             try? await Task.sleep(for: delay)
-            guard feed == nil else { return }
+            guard feed == nil, !isAirportTransfer else { return }
             receive(FlightFeed(gate: "108A", receivedAt: now))
         }
     }
@@ -281,6 +282,27 @@ final class JourneyStore: ObservableObject {
         let timedPlan = queueUpdateHandled ? plan : PlanEngine.applying(cafeQueueUpdate, to: plan)
         return PlanEngine.schedule(timedPlan, pace: pace, directWalk: gateWalkMinutes(for: choice),
                                    gateWalkAdjustment: gateWalkAdjustment(for: choice), notBefore: now)
+    }
+
+    var guidesDirectlyToGate: Bool { returningDirectly || hasTimingSituation }
+
+    func guidanceSchedule(for choice: RouteChoice) -> Schedule {
+        if guidesDirectlyToGate {
+            return PlanEngine.schedule(Plan(), pace: pace, directWalk: gateWalkMinutes(for: choice))
+        }
+        return schedule(for: choice)
+    }
+
+    func openRoute(directToGate: Bool = false) {
+        returningDirectly = directToGate
+        routeStep = 1
+        tab = .route
+    }
+
+    func finishRoute() {
+        returningDirectly = false
+        routeStep = 1
+        tab = .flight
     }
 
     private func gateWalkAdjustment(for choice: RouteChoice) -> Int {
@@ -513,6 +535,7 @@ final class JourneyStore: ObservableObject {
             feed = nil
             alerts = [:]
             alertToPresent = nil
+            returningDirectly = false
             routeStep = 1
         }
         refreshAlerts()

@@ -3,7 +3,19 @@ import SwiftUI
 
 /// One route instruction (Figma "Map step", 1121:17357).
 struct RouteStep: Equatable {
-    enum Turn { case straight, left, right, stairs, lift, stop, gate }
+    enum Turn {
+        case straight, left, right, stairs, lift, stop, gate
+
+        var cameraArrow: String? {
+            switch self {
+            case .straight: "camArrowForward"
+            case .left, .right: "camArrowRight"
+            case .stairs, .lift, .stop, .gate: nil
+            }
+        }
+
+        var mirrorsCameraArrow: Bool { self == .left }
+    }
     let distance: String
     let text: String
     let turn: Turn
@@ -24,7 +36,7 @@ enum RouteSteps {
     static func steps(for choice: RouteChoice, store: JourneyStore) -> [RouteStep] {
         let gate = store.gate
         let board = "Board at \(SampleJourney.boarding)"
-        let timed = store.schedule(for: choice)
+        let timed = store.guidanceSchedule(for: choice)
         let stops = timed.stops.map(\.stop)
         let route = RouteMap.route(through: stops.map { RouteMap.node(for: $0.id) }, choice: choice)
         let nodes = route.nodes
@@ -107,7 +119,7 @@ enum RouteSteps {
 
     /// Plan stops in the order the traveller will reach them.
     static func stopsInOrder(_ store: JourneyStore) -> [PlanStop] {
-        store.schedule.stops.map(\.stop)
+        store.guidanceSchedule(for: store.routeChoice).stops.map(\.stop)
     }
 
     /// What to do on a stretch of the map, worded like the Figma route steps.
@@ -162,7 +174,8 @@ struct RouteView: View {
                     }
                 }
                 if mode == .camera {
-                    CameraGuide(sign: sign, exit: { mode = .map }, covers: $cameraCovers) { routeCard(map: false) }
+                    CameraGuide(sign: sign, arrow: currentTurn.cameraArrow, mirrorArrow: currentTurn.mirrorsCameraArrow,
+                                exit: { mode = .map }, covers: $cameraCovers) { routeCard(map: false) }
                 } else {
                     routeCard(map: true)
                     if store.isAirportTransfer {
@@ -179,6 +192,16 @@ struct RouteView: View {
         .toolbar(.hidden, for: .navigationBar)
         // Camera access is asked in the AirBorder pop-up (RootView); open the camera once it's allowed.
         .onChange(of: store.cameraAllowed) { mode = .camera }
+        .onChange(of: store.guidesDirectlyToGate) { store.routeStep = 1 }
+    }
+
+    private var currentTurn: RouteStep.Turn {
+        let steps = guidanceSteps
+        return steps[min(max(store.routeStep, 1), steps.count) - 1].turn
+    }
+
+    private var guidanceSteps: [RouteStep] {
+        store.isAirportTransfer ? RouteSteps.transfer() : RouteSteps.steps(for: store.routeChoice, store: store)
     }
 
     /// The sign the camera looks for at the current step.
@@ -189,13 +212,11 @@ struct RouteView: View {
     }
 
     private func routeCard(map: Bool) -> some View {
-        let steps = store.isAirportTransfer ? RouteSteps.transfer() : RouteSteps.steps(for: store.routeChoice, store: store)
-        return RouteCard(step: $store.routeStep, steps: steps, showsChoice: !store.isAirportTransfer) {
+        RouteCard(step: $store.routeStep, steps: guidanceSteps, showsChoice: !store.isAirportTransfer) {
             if map && !store.isAirportTransfer { concourse }
         } end: {
-            store.routeStep = 1
             mode = .map
-            store.tab = .flight
+            store.finishRoute()
             Haptics.success()
             guard !store.isAirportTransfer else { return }
             if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }

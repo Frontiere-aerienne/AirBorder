@@ -402,6 +402,27 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertFalse(app.buttons["addStop"].exists)
     }
 
+    func testUrgentReturnRoutesDirectlyAndRetainsTheStops() {
+        app.tabBars.buttons["Layover"].tap()
+        app.buttons["add-cafe"].tap()
+        app.buttons["add-anaLounge"].tap()
+        app.terminate()
+        app.launchArguments = ["-skipOnboarding", "-gateUpdate", "off", "-now", "17:02"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Time to return to Gate 105"].waitForExistence(timeout: 5))
+        app.buttons["alertRoute"].tap()
+        let map = app.descendants(matching: .any)["routeSummary"]
+        XCTAssertTrue(map.waitForExistence(timeout: 3))
+        XCTAssertFalse(map.label.contains("Curacion Cafe"))
+        XCTAssertFalse(map.label.contains("ANA LOUNGE"))
+        XCTAssertTrue(app.staticTexts["Follow the Gates 105–109 sign"].exists)
+        app.terminate()
+        app.launchArguments = ["-skipOnboarding", "-gateUpdate", "off"]
+        app.launch()
+        XCTAssertTrue(app.buttons["lane-cafe"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["lane-anaLounge"].exists)
+    }
+
     func testArrivalAfterClosureOffersAssistance() {
         relaunch(["-gateUpdate", "off", "-now", "17:17"])
         let banner = app.buttons["travelUpdate-flight"]

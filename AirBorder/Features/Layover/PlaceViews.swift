@@ -421,7 +421,7 @@ struct T2NotEnoughTimeView: View {
             .accessibilityIdentifier("notEnoughTime")
             Button {
                 popToRoot()
-                store.tab = .route
+                store.openRoute(directToGate: true)
             } label: {
                 HStack(spacing: 9) {
                     Image("icWalkWhite").resizable().frame(width: 21, height: 21)
@@ -583,7 +583,7 @@ struct ReturnFromT2View: View {
             ])
             CenteredButton(title: "Open gate directions") {
                 popToRoot()
-                store.tab = .route
+                store.openRoute(directToGate: true)
             }
         }
     }
@@ -616,7 +616,7 @@ struct ShuttleFullView: View {
             CTAButton(title: "Terminal transfer route", style: .outline) { dismiss() }
             CTAButton(title: "Go to gate", style: .plain) {
                 popToRoot()
-                store.tab = .route
+                store.openRoute(directToGate: true)
             }
         }
     }

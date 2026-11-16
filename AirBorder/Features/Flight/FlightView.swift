@@ -283,8 +283,7 @@ struct PlanStripCard: View {
     private func route() {
         if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
         if store.plan.stops.isEmpty && store.t2VisitPlanned { return open(.t2Deck) }
-        store.routeStep = 1
-        store.tab = .route
+        store.openRoute()
     }
 
     static func color(_ id: PlaceID) -> Color {

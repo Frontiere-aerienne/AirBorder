@@ -169,7 +169,8 @@ struct CameraGuide<StepCard: View>: View {
     enum Phase { case guide, scanning, failed }
 
     let sign: SignTarget
-    var arrow = "camArrowForward"
+    var arrow: String? = "camArrowForward"
+    var mirrorArrow = false
     var readAgainTitle = "Read sign again"
     var readAgainFullWidth = false
     let exit: () -> Void
@@ -238,8 +239,9 @@ struct CameraGuide<StepCard: View>: View {
                     Image("camScanTarget").resizable().frame(width: 200, height: 90)
                         .frame(maxHeight: .infinity, alignment: .top).padding(.top, 20)
                         .accessibilityHidden(true)
-                } else if camera.hasCamera {
+                } else if camera.hasCamera, let arrow {
                     Image(arrow).resizable().frame(width: 160, height: 60)
+                        .scaleEffect(x: mirrorArrow ? -1 : 1, y: 1)
                         .frame(maxHeight: .infinity, alignment: .bottom).padding(.bottom, 18)
                         .accessibilityHidden(true)
                 }

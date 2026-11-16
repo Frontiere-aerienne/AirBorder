@@ -301,6 +301,34 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(store.alertToPresent, .gateChange)
     }
 
+    func testUrgentRouteBypassesOptionalStopsWithoutChangingPlan() {
+        let store = makeStore()
+        store.add(.cafe)
+        store.add(.anaLounge)
+        let saved = store.plan
+        store.openRoute()
+        XCTAssertEqual(RouteSteps.stopsInOrder(store).map(\.id), [.cafe, .anaLounge])
+        store.setNow(ClockTime(17, 2))
+        XCTAssertTrue(store.hasTimingSituation)
+        store.openRoute(directToGate: true)
+        let steps = RouteSteps.steps(for: .direct, store: store)
+        XCTAssertEqual(steps.first?.remaining, "12 min")
+        XCTAssertFalse(steps.contains { $0.turn == .stop })
+        XCTAssertEqual(store.plan, saved)
+        store.setNow(ClockTime(12, 0))
+        store.openRoute()
+        XCTAssertEqual(RouteSteps.stopsInOrder(store).map(\.id), [.cafe, .anaLounge])
+    }
+
+    func testCameraArrowMatchesTheInstructionOrIsOmitted() {
+        XCTAssertEqual(RouteStep.Turn.straight.cameraArrow, "camArrowForward")
+        XCTAssertEqual(RouteStep.Turn.right.cameraArrow, "camArrowRight")
+        XCTAssertEqual(RouteStep.Turn.left.cameraArrow, "camArrowRight")
+        XCTAssertFalse(RouteStep.Turn.right.mirrorsCameraArrow)
+        XCTAssertTrue(RouteStep.Turn.left.mirrorsCameraArrow)
+        for turn in [RouteStep.Turn.stairs, .lift, .stop, .gate] { XCTAssertNil(turn.cameraArrow) }
+    }
+
     func testStopsMoveTheLeaveTimeForReturnNow() {
         let store = makeStore()
         store.setNow(ClockTime(16, 40))
