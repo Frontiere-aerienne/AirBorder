@@ -48,7 +48,34 @@ enum WalkingEstimate {
 
 /// Places in Haneda Terminal 3 a plan can visit.
 enum PlaceID: String, Codable, Hashable, CaseIterable {
-    case start, cafe, anaLounge, skyLounge, gate
+    case start, cafe, anaLounge, skyLounge, bento, udon, sushi, gate
+
+    /// How long a meal usually takes here, and whether it is a sit-down meal (sample estimates).
+    var meal: (minutes: Int, sitDown: Bool)? {
+        switch self {
+        case .cafe: (20, false)
+        case .bento: (10, false)
+        case .udon: (15, false)
+        case .sushi: (45, true)
+        default: nil
+        }
+    }
+
+    /// 4F places are reached by lift from the 3F concourse.
+    var floor: String { self == .anaLounge || self == .sushi ? "4F" : "3F" }
+
+    /// Short label for the plan strip and the map.
+    var shortLabel: String {
+        switch self {
+        case .anaLounge: "LOUNGE"
+        case .skyLounge: "SKY LOUNGE"
+        case .cafe: "Curacion Cafe"
+        case .bento: "Bento"
+        case .udon: "Udon"
+        case .sushi: "Sushi"
+        default: rawValue
+        }
+    }
 }
 
 /// Average walking minutes between places (Terminal 3, airside, 3F–4F).
@@ -90,6 +117,9 @@ struct PlanStop: Identifiable, Equatable, Codable {
     static let cafe = PlanStop(id: .cafe, name: "Curacion Cafe", shortName: "café", waitMinutes: 8, visitMinutes: 20)
     static let anaLounge = PlanStop(id: .anaLounge, name: "ANA LOUNGE", shortName: "lounge", waitMinutes: 0, visitMinutes: 28)
     static let skyLounge = PlanStop(id: .skyLounge, name: "SKY LOUNGE", shortName: "SKY LOUNGE", waitMinutes: 0, visitMinutes: 30)
+    static let bento = PlanStop(id: .bento, name: "Bento & Onigiri To Go", shortName: "bento", waitMinutes: 0, visitMinutes: 10)
+    static let udon = PlanStop(id: .udon, name: "Udon Noodle Counter", shortName: "udon", waitMinutes: 0, visitMinutes: 15)
+    static let sushi = PlanStop(id: .sushi, name: "Sushi Restaurant", shortName: "sushi", waitMinutes: 0, visitMinutes: 45)
 }
 
 struct Plan: Equatable, Codable {
@@ -218,6 +248,9 @@ enum StopTimes {
         switch id {
         case .anaLounge: ClockTime(16, 30)
         case .skyLounge: ClockTime(15, 30)
+        case .bento: ClockTime(16, 15)
+        case .udon: ClockTime(15, 45)
+        case .sushi: ClockTime(15, 15)
         default: ClockTime(16, 0)
         }
     }
@@ -228,7 +261,12 @@ enum StopTimes {
 
     static func arrive(_ stop: PlanStop) -> ClockTime { stop.arrive ?? defaultArrive(stop.id) }
 
-    static func leave(_ stop: PlanStop, latest: ClockTime) -> ClockTime { min(stop.leave ?? latest, latest) }
+    /// Food stops default to their usual meal length; the café and lounges default to the latest leave.
+    static func leave(_ stop: PlanStop, latest: ClockTime) -> ClockTime {
+        if let leave = stop.leave { return min(leave, latest) }
+        if stop.id != .cafe, let meal = stop.id.meal { return min(arrive(stop) + meal.minutes, latest) }
+        return latest
+    }
 
     /// The previous point on the 15-minute grid strictly before `time`.
     static func stepBefore(_ time: ClockTime) -> ClockTime {

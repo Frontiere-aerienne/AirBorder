@@ -153,6 +153,24 @@ final class AirBorderUITests: XCTestCase {
         }
     }
 
+    func testSitDownMealWarnsWhenTheLayoverIsTight() {
+        app.tabBars.buttons["Layover"].tap()
+        app.buttons["add-cafe"].tap()
+        app.swipeUp()
+        app.buttons["add-skyLounge"].tap()
+        app.swipeDown()
+        app.buttons["Food & drink"].tap()
+        XCTAssertTrue(app.staticTexts["Sit-down, ~45 min"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Quick, ~10 min"].exists)
+        app.swipeUp()
+        app.buttons["add-sushi"].tap()
+        let alert = app.alerts["A sit-down meal may not fit"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 2))
+        snapshot("sitdown-warning")
+        alert.buttons["Add anyway"].tap()
+        XCTAssertTrue(app.buttons["add-sushi"].label.contains("Remove"), "Add anyway still adds it")
+    }
+
     func testAppleHealthRefinesWalkingPace() {
         app.tabBars.buttons["Profile"].tap()
         app.buttons["previousTripsRow"].tap()

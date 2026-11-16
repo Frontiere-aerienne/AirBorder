@@ -50,10 +50,10 @@ enum RouteSteps {
             let length = group.map { RouteMap.length(of: [nodes[$0], nodes[$0 + 1]]) }.reduce(0, +) * metresPerUnit
             let (text, turn): (String, RouteStep.Turn) = {
                 if let stop {
-                    if stop.id == .anaLounge { return ("Take the lift to ANA LOUNGE, 4F", .lift) }
+                    if stop.id.floor == "4F" { return ("Take the lift to \(stop.name), 4F", .lift) }
                     return legStarts ? ("Follow the signs to \(stop.name)", .straight) : ("Turn into \(stop.name)", .right)
                 }
-                if a == .lounge { return ("Take the lift down to 3F", .lift) }
+                if a == .lounge || a == .sushi { return ("Take the lift down to 3F", .lift) }
                 let (text, turn) = phrase(a, b, gate: gate)
                 if legStarts, turn != .stairs, turn != .lift, let target = nextStop(first) {
                     return ("Follow the signs to \(target.name)", .straight)
@@ -62,7 +62,7 @@ enum RouteSteps {
                 if a == .lift, b == .southLink, steps.last?.text == "Take the lift down to 3F" { return ("Go straight along the level corridor", .straight) }
                 return (text, turn)
             }()
-            let distance = a == .lounge ? "4F to 3F" : "\(Int((length / 10).rounded()) * 10) m"
+            let distance = a == .lounge || a == .sushi ? "4F to 3F" : "\(Int((length / 10).rounded()) * 10) m"
             steps.append(RouteStep(distance: distance, text: text, turn: turn, remaining: "\(minutes(first)) min",
                                    remainingDetail: "\(Int((metres(first) / 10).rounded()) * 10) m", position: CGFloat(first)))
             group = []
@@ -76,7 +76,7 @@ enum RouteSteps {
                                        position: CGFloat(i)))
             }
             let leavingRoom = stopAt[i] != nil
-            if leavingRoom && nodes[i] == .lounge {
+            if leavingRoom && (nodes[i] == .lounge || nodes[i] == .sushi) {
                 group = [i]
                 flush()
                 legStarts = true
@@ -108,7 +108,8 @@ enum RouteSteps {
         case (.cafeDoor, .junction), (.cafe, .cafeDoor): ("Continue to the junction", .straight)
         case (.junction, .east): ("Take the stairs at the junction", .stairs)
         // ponytail: a changed gate (108A) shares the map; only the gate-area sign differs.
-        case (.east, .approach): gate == SampleJourney.outbound.departureGate ? ("Go straight past Gate 104", .straight) : ("Follow signs for 108–149", .straight)
+        case (.east, .bentoDoor), (.bentoDoor, .approach), (.bento, .bentoDoor):
+            gate == SampleJourney.outbound.departureGate ? ("Go straight past Gate 104", .straight) : ("Follow signs for 108–149", .straight)
         case (.approach, .gate), (.windowsGate, .approach), (.windowsEast, .windowsGate): ("Turn left at the Gate \(gate) sign", .left)
         case (.junction, .lift): ("Turn right to the lift", .right)
         case (.lift, .junction): ("Go back to the central concourse", .straight)
@@ -118,7 +119,8 @@ enum RouteSteps {
         case (.southLink, .windowsSouth): ("Turn right toward the windows", .right)
         case (.windowsSouth, .southLink): ("Turn left off the windows", .left)
         case (.start, .windowsWest): ("Keep right toward the windows", .right)
-        case (.windowsWest, .windowsSouth), (.windowsSouth, .windowsEast): ("Walk along the windows past Gates 101–104", .straight)
+        case (.windowsWest, .udonDoor), (.udonDoor, .windowsSouth), (.udon, .udonDoor), (.windowsSouth, .windowsEast):
+            ("Walk along the windows past Gates 101–104", .straight)
         default: ("Continue toward Gate \(gate)", .straight)
         }
     }
@@ -263,6 +265,9 @@ struct RouteMap: View {
                 room("Café", .cafe, at: p(.cafe))
                 room("4F LOUNGE", .anaLounge, at: p(.lounge))
                 room("SKY", .skyLounge, at: p(.sky))
+                room("Bento", .bento, at: p(.bento))
+                room("Udon", .udon, at: p(.udon))
+                room("4F Sushi", .sushi, at: p(.sushi))
                 icon("figure.stairs", at: CGPoint(x: (p(.junction).x + p(.east).x) / 2, y: p(.junction).y))
                 icon("arrow.up.arrow.down", at: p(.lift))
                 // Route: ahead dotted, walked solid
@@ -295,7 +300,7 @@ struct RouteMap: View {
         let color = PlanStripCard.color(id)
         let active = stops.contains { $0.id == id }
         return Button { select(id) } label: {
-            Text(label).outfitText(12, .bold, active ? (color == AB.sky ? AB.ticket : .white) : AB.secondary)
+            Text(label).outfitText(12, .bold, active ? PlanStripCard.textColor(id) : AB.secondary)
                 .padding(.horizontal, 7).padding(.vertical, 4)
                 .background(active ? color : .white, in: RoundedRectangle(cornerRadius: 7))
                 .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(active ? color : AB.border, lineWidth: 1.5))
@@ -320,6 +325,7 @@ struct RouteMap: View {
     enum Node: Hashable {
         case start, cafeDoor, cafe, junction, east, approach, gate, lift, lounge, southLink, liftLane, sky
         case windowsWest, windowsSouth, windowsEast, windowsGate
+        case bentoDoor, bento, udonDoor, udon, sushi
     }
     /// corridor: busy central concourse; level: step-free corridors on the lift side; windows: outer concourse.
     enum Kind { case corridor, stairs, lift, level, windows, door }
@@ -332,14 +338,18 @@ struct RouteMap: View {
         .southLink: CGPoint(x: 185, y: 128), .liftLane: CGPoint(x: 230, y: 128), .sky: CGPoint(x: 230, y: 158),
         .windowsWest: CGPoint(x: 20, y: 182), .windowsSouth: CGPoint(x: 185, y: 182),
         .windowsEast: CGPoint(x: 305, y: 182), .windowsGate: CGPoint(x: 305, y: 128),
+        .bentoDoor: CGPoint(x: 268, y: 84), .bento: CGPoint(x: 268, y: 50),
+        .udonDoor: CGPoint(x: 100, y: 182), .udon: CGPoint(x: 100, y: 156), .sushi: CGPoint(x: 140, y: 160),
     ]
     static let edges: [(Node, Node, Kind)] = [
         (.start, .cafeDoor, .corridor), (.cafeDoor, .cafe, .door), (.cafeDoor, .junction, .corridor),
-        (.junction, .east, .stairs), (.east, .approach, .corridor), (.approach, .gate, .corridor),
+        (.junction, .east, .stairs), (.east, .bentoDoor, .corridor), (.bentoDoor, .approach, .corridor), (.bentoDoor, .bento, .door),
+        (.approach, .gate, .corridor), (.lift, .sushi, .door),
         (.junction, .lift, .lift), (.lift, .lounge, .door), (.lift, .southLink, .level), (.southLink, .liftLane, .level),
         (.liftLane, .sky, .door), (.liftLane, .windowsGate, .level), (.windowsGate, .approach, .level),
         (.southLink, .windowsSouth, .level),
-        (.start, .windowsWest, .windows), (.windowsWest, .windowsSouth, .windows), (.windowsSouth, .windowsEast, .windows),
+        (.start, .windowsWest, .windows), (.windowsWest, .udonDoor, .windows), (.udonDoor, .windowsSouth, .windows), (.udonDoor, .udon, .door),
+        (.windowsSouth, .windowsEast, .windows),
         (.windowsEast, .windowsGate, .windows),
     ]
 
@@ -347,6 +357,9 @@ struct RouteMap: View {
         switch id {
         case .cafe: .cafe
         case .anaLounge: .lounge
+        case .bento: .bento
+        case .udon: .udon
+        case .sushi: .sushi
         default: .sky
         }
     }

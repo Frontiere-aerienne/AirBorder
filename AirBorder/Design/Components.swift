@@ -212,13 +212,15 @@ struct InfoCard<Content: View>: View {
 }
 
 enum ChipTone {
-    case info, open, leaveBy
+    case info, open, leaveBy, quick, sitDown
 
     var foreground: Color {
         switch self {
         case .info: return AB.chipText
         case .open: return AB.mint
         case .leaveBy: return AB.sky
+        case .quick: return AB.gateYellow
+        case .sitDown: return Color(hex: 0xFFB4A8)
         }
     }
 
@@ -227,6 +229,8 @@ enum ChipTone {
         case .info: return AB.ice.opacity(0.1)
         case .open: return AB.green.opacity(0.18)
         case .leaveBy: return AB.sky.opacity(0.2)
+        case .quick: return AB.gateYellow.opacity(0.18)
+        case .sitDown: return Color(hex: 0xFF8A80).opacity(0.2)
         }
     }
 }

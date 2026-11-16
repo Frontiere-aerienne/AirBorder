@@ -254,6 +254,9 @@ final class JourneyStore: ObservableObject {
         let average: Int = switch place {
         case .anaLounge: 4
         case .cafe: 6
+        case .bento: 3
+        case .udon: 7
+        case .sushi: 6
         default: 8
         }
         return WalkingTimes.minutes(average: average, pace: pace)
@@ -335,6 +338,34 @@ final class JourneyStore: ObservableObject {
         showToast(ToastMessage(text: "Removed \(stop.name)", action: "Undo")) { [weak self] in
             self?.add(stop)
         }
+    }
+
+    /// A warning before adding a stop that is unlikely to fit: a sit-down meal in a tight layover,
+    /// or more stops than the time before the gate allows.
+    func fitWarning(for stop: PlanStop) -> (title: String, message: String)? {
+        let latest = StopTimes.latestLeave(walkToGate: venueToGateMinutes(stop.id))
+        let start = max(now, StopTimes.earliest)
+        let window = latest - start
+        let spans = plan.stops.compactMap { times($0.id) }
+            .map { (max($0.arrive.minutes, start.minutes), min($0.leave.minutes, latest.minutes)) }
+            .filter { $0.0 < $0.1 }.sorted { $0.0 < $1.0 }
+        var covered = 0, end = Int.min
+        for (from, to) in spans {
+            covered += max(to - max(from, end), 0)
+            end = max(end, to)
+        }
+        let free = window - covered
+        let need = (stop.id.meal?.minutes ?? stop.visitMinutes) + walkMinutes(.start, stop.id)
+        if let meal = stop.id.meal, meal.sitDown, free < need {
+            return ("A sit-down meal may not fit",
+                    "\(stop.name) usually takes about \(meal.minutes) min. You have about \(max(free, 0)) min free before you leave for Gate \(gate). A quick option fits better.")
+        }
+        let planned = plan.stops.map { ($0.id.meal?.minutes ?? $0.visitMinutes) + walkMinutes(.start, $0.id) }.reduce(need, +)
+        if plan.stops.count + 1 >= 4 || planned > window {
+            return ("That's a lot to fit in",
+                    "With \(plan.stops.count + 1) stops before \(latest), you may not reach Gate \(gate) by \(SampleJourney.gateArrivalTarget). Two or three stops is safer.")
+        }
+        return nil
     }
 
     /// Minutes before the gate closes that no stop covers (overlapping stops count once).

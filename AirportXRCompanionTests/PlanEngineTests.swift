@@ -380,4 +380,25 @@ final class TerminalTwoTimingTests: XCTestCase {
         store.setTimes(.cafe, arrive: ClockTime(16, 59))
         XCTAssertEqual(store.times(.cafe)?.leave.description, "16:59", "Never past the latest leave")
     }
+
+    @MainActor
+    func testSitDownAndBusyPlansWarnBeforeAdding() {
+        let defaults = UserDefaults(suiteName: "fitWarning")!
+        defaults.removePersistentDomain(forName: "fitWarning")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        XCTAssertNil(store.fitWarning(for: .sushi), "An empty afternoon fits a sit-down meal")
+        store.add(.cafe)
+        store.add(.skyLounge)
+        XCTAssertEqual(store.fitWarning(for: .sushi)?.title, "A sit-down meal may not fit")
+        XCTAssertNil(store.fitWarning(for: .bento), "A quick bite still fits")
+        store.add(.bento)
+        XCTAssertEqual(store.fitWarning(for: .udon)?.title, "That's a lot to fit in")
+        XCTAssertEqual(store.times(.bento)?.leave.description, "16:25", "Food stops default to their meal length")
+        store.remove(.bento)
+        store.remove(.skyLounge)
+        store.add(.sushi)
+        let texts = RouteSteps.steps(for: .direct, store: store).map(\.text)
+        XCTAssertTrue(texts.contains("Take the lift to Sushi Restaurant, 4F"), "\(texts)")
+        XCTAssertTrue(texts.contains("Take the lift down to 3F"), "\(texts)")
+    }
 }

@@ -145,6 +145,13 @@ struct Venue: Identifiable {
               details: ["05:30–02:00", "Coffee & light meals"], amenities: ["icSeating"], showsLeaveBy: false, stop: .cafe),
         Venue(id: .skyLounge, name: "SKY LOUNGE", icon: "icRest", airline: nil, filter: .rest, floor: "4F", status: "Open 24 hours",
               details: ["JPY 1,500"], amenities: ["icSeating"], showsLeaveBy: false, stop: .skyLounge),
+        // ponytail: sample food places to compare quick and sit-down meals; descriptive names, not real outlets.
+        Venue(id: .bento, name: "Bento & Onigiri To Go", icon: "sf:takeoutbag.and.cup.and.straw.fill", airline: nil, filter: .food, floor: "3F",
+              status: nil, details: ["Grab and go"], amenities: [], showsLeaveBy: false, stop: .bento),
+        Venue(id: .udon, name: "Udon Noodle Counter", icon: "sf:fork.knife", airline: nil, filter: .food, floor: "3F",
+              status: nil, details: ["Counter seats"], amenities: ["icSeating"], showsLeaveBy: false, stop: .udon),
+        Venue(id: .sushi, name: "Sushi Restaurant", icon: "sf:fork.knife", airline: nil, filter: .food, floor: "4F",
+              status: nil, details: ["Table service"], amenities: ["icSeating"], showsLeaveBy: false, stop: .sushi),
     ]
 }
 
@@ -152,6 +159,7 @@ private struct VenueCard: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     let venue: Venue
+    @State private var warning: (title: String, message: String)?
 
     var body: some View {
         let added = store.plan.contains(venue.id)
@@ -159,7 +167,13 @@ private struct VenueCard: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     if let airline = venue.airline { AirlineBadge(airline: airline) }
-                    if let icon = venue.icon { Image(icon).resizable().frame(width: 20, height: 20) }
+                    if let icon = venue.icon {
+                        if icon.hasPrefix("sf:") {
+                            Image(systemName: String(icon.dropFirst(3))).font(.system(size: 16, weight: .semibold)).foregroundStyle(AB.ice).frame(width: 20, height: 20)
+                        } else {
+                            Image(icon).resizable().frame(width: 20, height: 20)
+                        }
+                    }
                     Button { if venue.id == .anaLounge { open(.anaLounge) } } label: {
                         Text(venue.name).outfitText(20, .bold, AB.ice).tracking(-0.2)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -168,6 +182,11 @@ private struct VenueCard: View {
                     .allowsHitTesting(venue.id == .anaLounge)
                     // Figma Place Card "Show add" / "Show remove": the plan bar below shows what was added.
                     Button {
+                        if !added, let check = store.fitWarning(for: venue.stop) {
+                            Haptics.warning()
+                            warning = check
+                            return
+                        }
                         Haptics.tap()
                         withAnimation(.abOut) {
                             if added { store.removeWithUndo(venue.id) } else { store.add(venue.stop) }
@@ -214,6 +233,9 @@ private struct VenueCard: View {
                         Chip(text: "In your plan \(times.arrive)–\(times.leave)", tone: .leaveBy)
                             .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .leading)))
                     }
+                    if let meal = venue.id.meal {
+                        Chip(text: meal.sitDown ? "Sit-down, ~\(meal.minutes) min" : "Quick, ~\(meal.minutes) min", tone: meal.sitDown ? .sitDown : .quick)
+                    }
                     if let status = venue.status { Chip(text: status, tone: .open) }
                     if venue.showsLeaveBy {
                         Chip(text: "Leave by \(SampleJourney.gateArrivalTarget - store.walkMinutes(venue.id, .gate))", tone: .leaveBy)
@@ -236,6 +258,15 @@ private struct VenueCard: View {
         }
         .background(AB.ticket, in: RoundedRectangle(cornerRadius: 22))
         .accessibilityElement(children: .contain)
+        .alert(warning?.title ?? "", isPresented: Binding(get: { warning != nil }, set: { if !$0 { warning = nil } })) {
+            Button("Add anyway") {
+                Haptics.tap()
+                withAnimation(.abOut) { store.add(venue.stop) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(warning?.message ?? "")
+        }
     }
 
     /// Walking time between the venue and the gate (Figma cards: 4, 6 and 8 min on average).

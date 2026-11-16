@@ -215,7 +215,7 @@ struct PlanStripCard: View {
                 let x = { (time: ClockTime) in width * CGFloat(time - Self.stripStart) / CGFloat(Self.stripMinutes) }
                 ZStack(alignment: .leading) {
                     if let times {
-                        Text(stop.id == .anaLounge ? "LOUNGE" : stop.name).outfitText(13, .bold, Self.textColor(stop.id))
+                        Text(stop.id.shortLabel).outfitText(13, .bold, Self.textColor(stop.id))
                             .lineLimit(1)
                             .padding(.horizontal, 5)
                             .frame(width: max(x(times.leave) - x(times.arrive), 0), height: proxy.size.height, alignment: .leading)
@@ -261,11 +261,14 @@ struct PlanStripCard: View {
         switch id {
         case .anaLounge: AB.ticket
         case .skyLounge: AB.sky
+        case .bento: Color(hex: 0xED9E38)
+        case .udon: AB.green
+        case .sushi: Color(hex: 0x6B5CA5)
         default: AB.primary
         }
     }
 
-    static func textColor(_ id: PlaceID) -> Color { id == .skyLounge ? AB.ticket : .white }
+    static func textColor(_ id: PlaceID) -> Color { [.skyLounge, .bento, .udon].contains(id) ? AB.ticket : .white }
 }
 
 /// One stop's details under its strip row: where it is, Arrive/Leave in 15-minute steps, overlaps and Remove.
@@ -287,7 +290,7 @@ private struct StopTimesEditor: View {
                             removeButton
                         }
                         HStack(spacing: 6) {
-                            fact("building.2", "Terminal 3, \(stop.id == .anaLounge ? "4F" : "3F")")
+                            fact("building.2", "Terminal 3, \(stop.id.floor)")
                             fact("figure.walk", "\(store.venueToGateMinutes(stop.id)) min to gate")
                         }
                     }
@@ -306,7 +309,7 @@ private struct StopTimesEditor: View {
                 ForEach(store.overlapping(stop.id)) { other in
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 14, weight: .bold)).foregroundStyle(AB.alert)
-                        Text("Overlaps \(other.id == .anaLounge ? "LOUNGE" : other.name)").outfitText(15, .bold, AB.alert)
+                        Text("Overlaps \(other.id.shortLabel)").outfitText(15, .bold, AB.alert)
                             .lineLimit(1).minimumScaleFactor(0.85)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .accessibilityLabel("Overlaps with \(other.name)")
