@@ -29,6 +29,9 @@ struct GateSign: View {
             }
             Text(gate).outfitText(size, .bold, AB.gateText)
         }
+        // A changed gate ("Gate 105 108A") must stay on one line; shrink a little rather than wrap.
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
         .padding(.horizontal, size >= 26 ? 12 : 8)
         .padding(.vertical, size >= 26 ? 6 : 4)
         .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: size >= 26 ? 8 : 6))
