@@ -439,6 +439,33 @@ final class TerminalTwoTimingTests: XCTestCase {
     }
 
     @MainActor
+    func testFirstArrivalEditIncludesTheWalkAndHonorsCurrentTime() {
+        let defaults = UserDefaults(suiteName: "firstStopWalk")!
+        defaults.removePersistentDomain(forName: "firstStopWalk")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        store.add(.anaLounge)
+        XCTAssertEqual(store.times(.anaLounge)?.arrive, ClockTime(16, 5))
+        store.setTimes(.anaLounge, arrive: ClockTime(16, 0))
+        XCTAssertEqual(store.times(.anaLounge)?.arrive, ClockTime(16, 0))
+        store.setNow(ClockTime(15, 58))
+        XCTAssertEqual(store.times(.anaLounge)?.arrive, ClockTime(16, 3), "Cannot start the walk in the past")
+        XCTAssertEqual(store.earliestArrival(for: .anaLounge), ClockTime(16, 3))
+        XCTAssertNil(StopTimes.earlierArrive(ClockTime(16, 3), earliestAllowed: ClockTime(16, 3)))
+    }
+
+    @MainActor
+    func testSkyLoungeGuidanceUsesFourthFloorAndLiftBothWays() {
+        let defaults = UserDefaults(suiteName: "skyLoungeRoute")!
+        defaults.removePersistentDomain(forName: "skyLoungeRoute")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        store.add(.skyLounge)
+        XCTAssertEqual(PlaceID.skyLounge.floor, "4F")
+        let steps = RouteSteps.steps(for: .direct, store: store)
+        XCTAssertTrue(steps.contains { $0.text == "Take the lift to SKY LOUNGE, 4F" && $0.turn == .lift })
+        XCTAssertTrue(steps.contains { $0.text == "Take the lift down to 3F" && $0.turn == .lift })
+    }
+
+    @MainActor
     func testSitDownAndBusyPlansWarnBeforeAdding() {
         let defaults = UserDefaults(suiteName: "fitWarning")!
         defaults.removePersistentDomain(forName: "fitWarning")

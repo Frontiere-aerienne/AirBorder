@@ -386,6 +386,13 @@ final class JourneyStore: ObservableObject {
         return (stop.start, stop.end, SampleJourney.gateArrivalTarget - downstream)
     }
 
+    func earliestArrival(for id: PlaceID) -> ClockTime? {
+        let stops = schedule.stops
+        guard let index = stops.firstIndex(where: { $0.stop.id == id }) else { return nil }
+        let departure = index == 0 ? now : stops[index - 1].end
+        return max(StopTimes.earliest, departure + stops[index].walkFromPrevious)
+    }
+
     func canLeave(_ id: PlaceID, at leave: ClockTime) -> Bool {
         guard let stop = schedule.stops.first(where: { $0.stop.id == id }) else { return false }
         return leave - stop.start - stop.stop.waitMinutes >= PlanEngine.minimumVisit

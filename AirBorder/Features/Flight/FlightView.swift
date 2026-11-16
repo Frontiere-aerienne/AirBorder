@@ -328,7 +328,9 @@ private struct StopTimesEditor: View {
                 .staggered(0)
                 HStack(spacing: 12) {
                     stepper("Arrive", times.arrive, latest: false,
-                            earlier: StopTimes.earlierArrive(times.arrive),
+                            earlier: store.earliestArrival(for: stop.id).flatMap {
+                                StopTimes.earlierArrive(times.arrive, earliestAllowed: $0)
+                            },
                             later: StopTimes.laterArrive(times.arrive, leave: times.latest)) { store.setTimes(stop.id, arrive: $0) }
                     stepper("Leave", times.leave, latest: times.leave == times.latest,
                             earlier: StopTimes.earlierLeave(times.leave, arrive: times.arrive),

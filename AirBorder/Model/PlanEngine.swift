@@ -64,7 +64,8 @@ enum PlaceID: String, Codable, Hashable, CaseIterable {
     }
 
     /// 4F places are reached by lift from the 3F concourse.
-    var floor: String { self == .anaLounge || self == .sushi ? "4F" : "3F" }
+    var requiresLift: Bool { self == .anaLounge || self == .skyLounge || self == .sushi }
+    var floor: String { requiresLift ? "4F" : "3F" }
 
     /// Short label for the plan strip and the map.
     var shortLabel: String {
@@ -187,11 +188,12 @@ enum PlanEngine {
         gateWalkAdjustment: Int = 0,
         notBefore: ClockTime? = nil
     ) -> Schedule {
-        guard !plan.stops.isEmpty else {
+        guard let first = plan.stops.first else {
             let walk = directWalk ?? WalkMatrix.minutes(.start, .gate, pace: pace)
             return Schedule(stops: [], leave: target - walk, walkToGate: walk, arriveAtGate: target, gateCloses: gateCloses)
         }
-        let requestedStart = min(start, plan.stops.first?.arrive ?? start)
+        let firstWalk = WalkMatrix.minutes(.start, first.id, pace: pace)
+        let requestedStart = min(start, first.arrive.map { $0 - firstWalk } ?? start)
         var time = max(requestedStart, notBefore ?? requestedStart)
         var previousPlace = PlaceID.start
         var previousStop: PlanStop?
@@ -290,9 +292,9 @@ enum StopTimes {
         return earliest + steps * step
     }
 
-    static func earlierArrive(_ arrive: ClockTime) -> ClockTime? {
-        let value = stepBefore(arrive)
-        return value >= earliest ? value : nil
+    static func earlierArrive(_ arrive: ClockTime, earliestAllowed: ClockTime = earliest) -> ClockTime? {
+        guard earliestAllowed < arrive else { return nil }
+        return max(stepBefore(arrive), earliestAllowed)
     }
 
     static func laterArrive(_ arrive: ClockTime, leave: ClockTime) -> ClockTime? {

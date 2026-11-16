@@ -67,14 +67,15 @@ enum RouteSteps {
         func flush(into stop: PlanStop? = nil) {
             guard let first = group.first else { return }
             let a = nodes[first], b = nodes[first + 1]
+            let leavingFourthFloor = stopAt[first]?.id.requiresLift == true
             defer { legStarts = stop != nil }
             let length = group.map { RouteMap.length(of: [nodes[$0], nodes[$0 + 1]]) }.reduce(0, +) * metresPerUnit
             let (text, turn): (String, RouteStep.Turn) = {
                 if let stop {
-                    if stop.id.floor == "4F" { return ("Take the lift to \(stop.name), 4F", .lift) }
+                    if stop.id.requiresLift { return ("Take the lift to \(stop.name), 4F", .lift) }
                     return legStarts ? ("Follow the signs to \(stop.name)", .straight) : ("Turn into \(stop.name)", .right)
                 }
-                if a == .lounge || a == .sushi { return ("Take the lift down to 3F", .lift) }
+                if leavingFourthFloor { return ("Take the lift down to 3F", .lift) }
                 let (text, turn) = phrase(a, b, gate: gate)
                 if legStarts, turn != .stairs, turn != .lift, let target = nextStop(first) {
                     return ("Follow the signs to \(target.name)", .straight)
@@ -83,7 +84,7 @@ enum RouteSteps {
                 if a == .lift, b == .southLink, steps.last?.text == "Take the lift down to 3F" { return ("Go straight along the level corridor", .straight) }
                 return (text, turn)
             }()
-            let distance = a == .lounge || a == .sushi ? "4F to 3F" : "\(Int((length / 10).rounded()) * 10) m"
+            let distance = leavingFourthFloor ? "4F to 3F" : "\(Int((length / 10).rounded()) * 10) m"
             steps.append(RouteStep(distance: distance, text: text, turn: turn, remaining: "\(minutes(first)) min",
                                    remainingDetail: "\(Int((metres(first) / 10).rounded()) * 10) m", position: CGFloat(first)))
             group = []
@@ -96,8 +97,7 @@ enum RouteSteps {
                                        turn: .stop, remaining: "Leave by \(leave)", remainingDetail: "\(minutes(i)) min walk left",
                                        position: CGFloat(i)))
             }
-            let leavingRoom = stopAt[i] != nil
-            if leavingRoom && (nodes[i] == .lounge || nodes[i] == .sushi) {
+            if stopAt[i]?.id.requiresLift == true {
                 group = [i]
                 flush()
                 legStarts = true
