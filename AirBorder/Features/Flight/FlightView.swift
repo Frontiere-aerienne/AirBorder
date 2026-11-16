@@ -19,7 +19,7 @@ struct FlightView: View {
                 }
                 if store.isAirportTransfer {
                     TransferPlanSection()
-                } else if let condition = store.primaryCondition, store.hasTimingSituation {
+                } else if let condition = store.timingCondition {
                     VStack(alignment: .leading, spacing: 16) {
                         ScenarioPlanSection(condition: condition)
                     }

@@ -198,13 +198,17 @@ final class JourneyStore: ObservableObject {
     var conditions: [JourneyCondition] { JourneyConditions.evaluate(conditionInputs) }
     var primaryCondition: JourneyCondition? { conditions.first }
 
-    /// Return now, boarding at risk or arrival after closure: the Flight tab shows the countdown instead of the plan.
-    var hasTimingSituation: Bool {
-        switch primaryCondition {
-        case .returnNow, .boardingAtRisk, .arrivesAfterClosure: true
-        default: false
+    /// A gate update can coexist with a time-sensitive return decision.
+    var timingCondition: JourneyCondition? {
+        conditions.first {
+            switch $0 {
+            case .returnNow, .boardingAtRisk, .arrivesAfterClosure: true
+            default: false
+            }
         }
     }
+
+    var hasTimingSituation: Bool { timingCondition != nil }
 
     /// "Boarding soon" from 30 minutes before boarding.
     var flightStatus: String { now >= SampleJourney.boarding - 30 ? "Boarding soon" : outbound.status }
