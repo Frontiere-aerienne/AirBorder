@@ -370,12 +370,14 @@ final class AirBorderUITests: XCTestCase {
         app.launch()
         app.tabBars.buttons["Route"].tap()
         app.buttons["mode-camera"].tap()
-        XCTAssertTrue(app.staticTexts["Camera guidance"].waitForExistence(timeout: 2))
-        app.buttons["useMapInstead"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["routeSummary"].waitForExistence(timeout: 2))
+        let prompt = app.alerts["Use the camera to read signs?"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 2), "Camera access is asked in a pop-up")
+        prompt.buttons["Dismiss"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["routeSummary"].waitForExistence(timeout: 2), "Dismiss stays on the map")
         app.buttons["nextStep"].tap()
         app.buttons["mode-camera"].tap()
-        app.buttons["allowCamera"].tap()
+        XCTAssertTrue(prompt.waitForExistence(timeout: 2))
+        prompt.buttons["Allow camera"].tap()
         let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow"]
         if allow.waitForExistence(timeout: 3) { allow.tap() }
         XCTAssertTrue(app.buttons["readSignAgain"].waitForExistence(timeout: 3))
