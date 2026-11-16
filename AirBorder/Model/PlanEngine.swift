@@ -261,7 +261,6 @@ enum PlanEngine {
 /// latest time that still reaches the gate by the arrival target.
 enum StopTimes {
     static let step = 15
-    static let minimumStay = 15
     /// The plan strip starts here; nothing is scheduled earlier.
     static let earliest = ClockTime(15, 0)
 
@@ -297,14 +296,14 @@ enum StopTimes {
         return max(stepBefore(arrive), earliestAllowed)
     }
 
-    static func laterArrive(_ arrive: ClockTime, leave: ClockTime) -> ClockTime? {
+    static func laterArrive(_ arrive: ClockTime, latestAllowed: ClockTime) -> ClockTime? {
         let value = stepAfter(arrive)
-        return value + minimumStay <= leave ? value : nil
+        return value <= latestAllowed ? value : nil
     }
 
-    static func earlierLeave(_ leave: ClockTime, arrive: ClockTime) -> ClockTime? {
+    static func earlierLeave(_ leave: ClockTime, earliestAllowed: ClockTime) -> ClockTime? {
         let value = stepBefore(leave)
-        return value >= arrive + minimumStay ? value : nil
+        return value >= earliestAllowed ? value : nil
     }
 
     /// Later leave time, ending at `latest` exactly; nil once already there.

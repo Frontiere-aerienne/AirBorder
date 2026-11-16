@@ -387,12 +387,12 @@ final class TerminalTwoTimingTests: XCTestCase {
 
     func testStopTimesStepByFifteenMinutesWithinLimits() {
         let latest = ClockTime(16, 59)
-        XCTAssertEqual(StopTimes.earlierLeave(latest, arrive: ClockTime(16, 0))?.description, "16:45")
+        XCTAssertEqual(StopTimes.earlierLeave(latest, earliestAllowed: ClockTime(16, 28))?.description, "16:45")
         XCTAssertEqual(StopTimes.laterLeave(ClockTime(16, 45), latest: latest)?.description, "16:59")
         XCTAssertNil(StopTimes.laterLeave(latest, latest: latest), "Never past the latest leave")
         XCTAssertNil(StopTimes.earlierArrive(ClockTime(15, 0)), "Plan starts at 15:00")
-        XCTAssertNil(StopTimes.laterArrive(ClockTime(16, 30), leave: ClockTime(16, 59)), "Keeps at least 15 min")
-        XCTAssertEqual(StopTimes.laterArrive(ClockTime(16, 0), leave: ClockTime(16, 59))?.description, "16:15")
+        XCTAssertNil(StopTimes.laterArrive(ClockTime(16, 30), latestAllowed: ClockTime(16, 44)), "Keeps at least 15 min")
+        XCTAssertEqual(StopTimes.laterArrive(ClockTime(16, 0), latestAllowed: ClockTime(16, 44))?.description, "16:15")
     }
 
     @MainActor
@@ -451,6 +451,19 @@ final class TerminalTwoTimingTests: XCTestCase {
         XCTAssertEqual(store.times(.anaLounge)?.arrive, ClockTime(16, 3), "Cannot start the walk in the past")
         XCTAssertEqual(store.earliestArrival(for: .anaLounge), ClockTime(16, 3))
         XCTAssertNil(StopTimes.earlierArrive(ClockTime(16, 3), earliestAllowed: ClockTime(16, 3)))
+    }
+
+    @MainActor
+    func testEarlierLeaveControlIncludesUpdatedWaitAndMinimumVisit() {
+        let defaults = UserDefaults(suiteName: "cafeLeaveBounds")!
+        defaults.removePersistentDomain(forName: "cafeLeaveBounds")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        store.add(.cafe)
+        XCTAssertEqual(store.earliestLeave(for: .cafe), ClockTime(16, 28))
+        XCTAssertEqual(StopTimes.earlierLeave(ClockTime(16, 38), earliestAllowed: ClockTime(16, 28)), ClockTime(16, 30))
+        store.setTimes(.cafe, leave: ClockTime(16, 30))
+        XCTAssertEqual(store.times(.cafe)?.leave, ClockTime(16, 30))
+        XCTAssertNil(StopTimes.earlierLeave(ClockTime(16, 30), earliestAllowed: ClockTime(16, 28)))
     }
 
     @MainActor

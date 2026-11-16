@@ -331,9 +331,11 @@ private struct StopTimesEditor: View {
                             earlier: store.earliestArrival(for: stop.id).flatMap {
                                 StopTimes.earlierArrive(times.arrive, earliestAllowed: $0)
                             },
-                            later: StopTimes.laterArrive(times.arrive, leave: times.latest)) { store.setTimes(stop.id, arrive: $0) }
+                            later: StopTimes.laterArrive(times.arrive, latestAllowed: times.latest - (times.leave - times.arrive))) { store.setTimes(stop.id, arrive: $0) }
                     stepper("Leave", times.leave, latest: times.leave == times.latest,
-                            earlier: StopTimes.earlierLeave(times.leave, arrive: times.arrive),
+                            earlier: store.earliestLeave(for: stop.id).flatMap {
+                                StopTimes.earlierLeave(times.leave, earliestAllowed: $0)
+                            },
                             later: StopTimes.laterLeave(times.leave, latest: times.latest)) { store.setTimes(stop.id, leave: $0) }
                 }
                 .staggered(1)
