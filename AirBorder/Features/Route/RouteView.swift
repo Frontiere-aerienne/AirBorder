@@ -347,7 +347,7 @@ struct RouteMap: View {
         .windowsWest: CGPoint(x: 20, y: 182), .windowsSouth: CGPoint(x: 185, y: 182),
         .windowsEast: CGPoint(x: 305, y: 182), .windowsGate: CGPoint(x: 305, y: 128),
         .bentoDoor: CGPoint(x: 268, y: 84), .bento: CGPoint(x: 268, y: 50),
-        .udonDoor: CGPoint(x: 100, y: 182), .udon: CGPoint(x: 100, y: 156), .sushi: CGPoint(x: 140, y: 160),
+        .udonDoor: CGPoint(x: 80, y: 182), .udon: CGPoint(x: 80, y: 156), .sushi: CGPoint(x: 140, y: 160),
     ]
     static let edges: [(Node, Node, Kind)] = [
         (.start, .cafeDoor, .corridor), (.cafeDoor, .cafe, .door), (.cafeDoor, .junction, .corridor),

@@ -165,15 +165,15 @@ struct AirBorderPopup<Visual: View>: View {
         ZStack {
             Color.black.opacity(0.4).ignoresSafeArea().onTapGesture(perform: secondary.perform)
             VStack(spacing: 0) {
-                VStack(spacing: 14) {
-                    Text(title).outfitText(17, .bold).multilineTextAlignment(.center).accessibilityAddTraits(.isHeader)
+                // Just a title and a visual; the full explanation is read by VoiceOver.
+                VStack(spacing: 16) {
+                    Text(title).outfitText(18, .bold).multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityHint(message)
                     visual
-                    Text(message)
-                        .outfitText(15, .regular, AB.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(20)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 22)
                 Rectangle().fill(AB.border).frame(height: 1)
                 HStack(spacing: 0) {
                     action(secondary.title, .regular, id: secondary.id, perform: secondary.perform)
@@ -242,6 +242,49 @@ struct GateChangeAlert: View {
         .frame(minWidth: old ? 64 : 104, minHeight: 64)
         .padding(.horizontal, 6)
         .background(old ? AB.screen : AB.gateYellow, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// "Won't fit" warning before adding a stop (Figma "Sit-down warning popup").
+struct FitPrompt: View {
+    @EnvironmentObject private var store: JourneyStore
+    let warning: FitWarning
+
+    var body: some View {
+        AirBorderPopup(
+            title: warning.need != nil ? "This meal may not fit" : "That's a lot of stops",
+            message: warning.message,
+            id: "fitPrompt",
+            secondary: ("Cancel", "fitCancel", { store.fitPrompt = nil }),
+            primary: ("Add anyway", "fitAdd", {
+                store.fitPrompt = nil
+                Haptics.tap()
+                withAnimation(.abOut) { store.add(warning.stop) }
+            })
+        ) {
+            HStack(spacing: 10) {
+                if let need = warning.need, let free = warning.free {
+                    box("Meal", "~\(need) min", AB.alert, AB.alertBackground)
+                    Text(">").outfitText(18, .bold, AB.ticket)
+                    box("Free", "~\(free) min", AB.ticket, AB.screen)
+                } else if let stops = warning.stops {
+                    box("Stops", "\(stops)", AB.alert, AB.alertBackground)
+                    Text(">").outfitText(18, .bold, AB.ticket)
+                    box("Safer", "2–3", AB.ticket, AB.screen)
+                }
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func box(_ top: String, _ value: String, _ color: Color, _ fill: Color) -> some View {
+        VStack(spacing: 0) {
+            Text(top).outfitText(12, .medium, color)
+            Text(value).outfitText(24, .bold, color).lineLimit(1).fixedSize()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(fill, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

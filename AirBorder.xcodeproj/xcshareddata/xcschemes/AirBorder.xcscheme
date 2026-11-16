@@ -120,7 +120,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-gateUpdate 5"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>

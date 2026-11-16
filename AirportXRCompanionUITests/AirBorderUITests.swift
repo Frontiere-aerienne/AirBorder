@@ -164,10 +164,11 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Quick, ~10 min"].exists)
         app.swipeUp()
         app.buttons["add-sushi"].tap()
-        let alert = app.alerts["A sit-down meal may not fit"]
-        XCTAssertTrue(alert.waitForExistence(timeout: 2))
+        let prompt = app.descendants(matching: .any)["fitPrompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["This meal may not fit"].exists)
         snapshot("sitdown-warning")
-        alert.buttons["Add anyway"].tap()
+        app.buttons["fitAdd"].tap()
         XCTAssertTrue(app.buttons["add-sushi"].label.contains("Remove"), "Add anyway still adds it")
     }
 
@@ -306,7 +307,7 @@ final class AirBorderUITests: XCTestCase {
         relaunch(["-gateUpdate", "1"])
         let alert = app.descendants(matching: .any)["gateAlert"]
         XCTAssertTrue(alert.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["NH 106 now departs from Gate 108A. It’s a 12 min walk."].exists)
+        XCTAssertTrue(app.staticTexts["Gate changed"].exists)
         snapshot("gate-alert")
         app.buttons["alertDismiss"].tap()
         XCTAssertTrue(alert.waitForNonExistence(timeout: 2))

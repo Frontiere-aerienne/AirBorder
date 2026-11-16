@@ -61,6 +61,16 @@ enum HealthConnection: String, Codable {
     case notConnected, connected, removed
 }
 
+/// Why a stop may not fit before the gate: a sit-down meal longer than the free time, or too many stops.
+struct FitWarning: Equatable {
+    let stop: PlanStop
+    let title: String
+    let message: String
+    var need: Int?
+    var free: Int?
+    var stops: Int?
+}
+
 /// App state for the traveller's journey: selected plan, checkpoints, preferences and walking data.
 @MainActor
 final class JourneyStore: ObservableObject {
@@ -97,6 +107,8 @@ final class JourneyStore: ObservableObject {
     @Published private(set) var walkingSpeedKmh: Double?
     @Published private(set) var lastHealthSync: Date?
     @Published var routeStep = 1
+    /// The "won't fit" pop-up for a stop about to be added on Layover.
+    @Published var fitPrompt: FitWarning?
     /// The camera pop-up on Route is showing; `cameraAllowed` ticks when access is granted.
     @Published var asksForCamera = false
     @Published var cameraAllowed = 0
@@ -345,7 +357,7 @@ final class JourneyStore: ObservableObject {
 
     /// A warning before adding a stop that is unlikely to fit: a sit-down meal in a tight layover,
     /// or more stops than the time before the gate allows.
-    func fitWarning(for stop: PlanStop) -> (title: String, message: String)? {
+    func fitWarning(for stop: PlanStop) -> FitWarning? {
         let latest = StopTimes.latestLeave(walkToGate: venueToGateMinutes(stop.id))
         let start = max(now, StopTimes.earliest)
         let window = latest - start
@@ -360,13 +372,15 @@ final class JourneyStore: ObservableObject {
         let free = window - covered
         let need = (stop.id.meal?.minutes ?? stop.visitMinutes) + walkMinutes(.start, stop.id)
         if let meal = stop.id.meal, meal.sitDown, free < need {
-            return ("A sit-down meal may not fit",
-                    "\(stop.name) usually takes about \(meal.minutes) min. You have about \(max(free, 0)) min free before you leave for Gate \(gate). A quick option fits better.")
+            return FitWarning(stop: stop, title: "A sit-down meal may not fit",
+                              message: "\(stop.name) usually takes about \(meal.minutes) min. You have about \(max(free, 0)) min free before you leave for Gate \(gate). A quick option fits better.",
+                              need: meal.minutes, free: max(free, 0), stops: nil)
         }
         let planned = plan.stops.map { ($0.id.meal?.minutes ?? $0.visitMinutes) + walkMinutes(.start, $0.id) }.reduce(need, +)
         if plan.stops.count + 1 >= 4 || planned > window {
-            return ("That's a lot to fit in",
-                    "With \(plan.stops.count + 1) stops before \(latest), you may not reach Gate \(gate) by \(SampleJourney.gateArrivalTarget). Two or three stops is safer.")
+            return FitWarning(stop: stop, title: "That's a lot to fit in",
+                              message: "With \(plan.stops.count + 1) stops before \(latest), you may not reach Gate \(gate) by \(SampleJourney.gateArrivalTarget). Two or three stops is safer.",
+                              need: nil, free: nil, stops: plan.stops.count + 1)
         }
         return nil
     }

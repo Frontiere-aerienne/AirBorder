@@ -159,7 +159,6 @@ private struct VenueCard: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     let venue: Venue
-    @State private var warning: (title: String, message: String)?
 
     var body: some View {
         let added = store.plan.contains(venue.id)
@@ -184,7 +183,7 @@ private struct VenueCard: View {
                     Button {
                         if !added, let check = store.fitWarning(for: venue.stop) {
                             Haptics.warning()
-                            warning = check
+                            store.fitPrompt = check
                             return
                         }
                         Haptics.tap()
@@ -258,15 +257,6 @@ private struct VenueCard: View {
         }
         .background(AB.ticket, in: RoundedRectangle(cornerRadius: 22))
         .accessibilityElement(children: .contain)
-        .alert(warning?.title ?? "", isPresented: Binding(get: { warning != nil }, set: { if !$0 { warning = nil } })) {
-            Button("Add anyway") {
-                Haptics.tap()
-                withAnimation(.abOut) { store.add(venue.stop) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(warning?.message ?? "")
-        }
     }
 
     /// Walking time between the venue and the gate (Figma cards: 4, 6 and 8 min on average).

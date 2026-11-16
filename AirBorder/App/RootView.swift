@@ -48,6 +48,11 @@ struct RootView: View {
                     .transition(.opacity)
                     .zIndex(3)
             }
+            if let warning = store.fitPrompt {
+                FitPrompt(warning: warning)
+                    .transition(.opacity)
+                    .zIndex(3)
+            }
             if store.asksForCamera {
                 CameraPrompt()
                     .transition(.opacity)
@@ -57,6 +62,7 @@ struct RootView: View {
         .background(AB.screen.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: showsGateAlert)
         .animation(.easeOut(duration: 0.2), value: store.asksForCamera)
+        .animation(.easeOut(duration: 0.2), value: store.fitPrompt)
         .environment(\.openDestination, OpenDestinationAction { destination in
             paths[store.tab, default: []].append(destination)
         })
