@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 /// Colours of the Figma "Travel update" tones and alert tags.
@@ -45,7 +46,7 @@ struct TravelUpdateBanner: View {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .allowsHitTesting(tapAction != nil)
             .accessibilityAddTraits(tapAction == nil ? .isStaticText : .isButton)
             .accessibilityIdentifier("travelUpdate-\(place)")
@@ -68,9 +69,19 @@ struct TravelUpdateBanner: View {
     private var title: some View {
         switch condition {
         case let .gateChanged(from, to):
-            (Text(from).strikethrough(color: AB.removeRed) + Text(" \(to)  Gate changed"))
-                .outfitText(14, .bold, AB.ticket)
-                .accessibilityLabel("Gate changed from \(from) to \(to)")
+            HStack(spacing: 6) {
+                Text("Gate changed").outfitText(14, .bold, AB.ticket)
+                Spacer(minLength: 4)
+                Text(from).outfitText(14, .bold, AB.secondary).strikethrough(color: AB.secondary)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(AB.chip, in: RoundedRectangle(cornerRadius: 6))
+                Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold)).foregroundStyle(AB.ticket)
+                Text(to).outfitText(14, .bold, AB.gateText)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 6))
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Gate changed from \(from) to \(to)")
         case let .returnNow(closesIn, _):
             Text(place == .flight ? "Time to return to Gate \(store.gate)" : "Gate \(store.gate) closes in \(closesIn) min")
                 .outfitText(14, .semibold, tone)
@@ -115,11 +126,9 @@ struct TravelUpdateBanner: View {
     }
 
     private var action: (title: String, perform: () -> Void)? {
-        let route = ("Route", { store.tab = .route })
+        let route = ("Route", { store.openRoute(directToGate: true) })
         let call = ("Call ANA", { if let url = ANAHelp.url { openURL(url) } })
         switch (condition, place) {
-        case (.gateChanged, .flight): return ("Alerts", { open(.alerts(.gateChange)) })
-        case (.gateChanged, .details), (.gateChanged, .layover): return route
         case (.returnNow, .details), (.returnNow, .layover): return route
         case (.boardingAtRisk, .flight), (.boardingAtRisk, .route): return call
         case (.boardingAtRisk, _): return route
@@ -129,6 +138,8 @@ struct TravelUpdateBanner: View {
     }
 
     private var tapAction: (() -> Void)? {
+        // Figma "Gate change strip": tapping it anywhere shows the gate change again.
+        if case .gateChanged = condition { return { store.alertToPresent = .gateChange } }
         guard place == .flight else { return nil }
         if let kind = condition.alertKind { return { open(.alerts(kind)) } }
         if case .arrivesAfterClosure = condition { return { showsAssistance = true } }
@@ -136,6 +147,129 @@ struct TravelUpdateBanner: View {
     }
 
     private func tap() { tapAction?() }
+}
+
+/// The AirBorder pop-up (Figma "Gate change alert", 1157:17460): a dimmed screen, a white card,
+/// and two actions along the bottom. Used for gate changes and for asking to use the camera.
+struct AirBorderPopup<Visual: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let title: String
+    let message: String
+    let id: String
+    let secondary: (title: String, id: String, perform: () -> Void)
+    let primary: (title: String, id: String, perform: () -> Void)
+    @ViewBuilder let visual: Visual
+    @State private var shown = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea().onTapGesture(perform: secondary.perform)
+            VStack(spacing: 0) {
+                VStack(spacing: 14) {
+                    Text(title).outfitText(17, .bold).multilineTextAlignment(.center).accessibilityAddTraits(.isHeader)
+                    visual
+                    Text(message)
+                        .outfitText(15, .regular, AB.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(20)
+                Rectangle().fill(AB.border).frame(height: 1)
+                HStack(spacing: 0) {
+                    action(secondary.title, .regular, id: secondary.id, perform: secondary.perform)
+                    Rectangle().fill(AB.border).frame(width: 1)
+                    action(primary.title, .bold, id: primary.id, perform: primary.perform)
+                }
+                .frame(height: 52)
+            }
+            .frame(width: 300)
+            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+            .scaleEffect(shown || reduceMotion ? 1 : 0.95)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(id)
+            .accessibilityAddTraits(.isModal)
+        }
+        .onAppear { withAnimation(.abOut) { shown = true } }
+    }
+
+    private func action(_ title: String, _ weight: OutfitWeight, id: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            Text(title).outfitText(17, weight, AB.primary).frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityIdentifier(id)
+    }
+}
+
+/// Figma "Gate change alert" (1157:17460).
+struct GateChangeAlert: View {
+    @EnvironmentObject private var store: JourneyStore
+    let dismiss: () -> Void
+
+    var body: some View {
+        let previousGate = store.feed?.previousGate ?? store.outbound.departureGate
+        AirBorderPopup(
+            title: "Gate changed",
+            message: "\(store.outbound.number) now departs from Gate \(store.gate). It’s a \(store.gateWalkMinutes) min walk.",
+            id: "gateAlert",
+            secondary: ("Dismiss", "alertDismiss", dismiss),
+            primary: ("View route", "alertRoute", {
+                store.acknowledge(.gateChange)
+                dismiss()
+                store.openRoute(directToGate: store.hasTimingSituation)
+            })
+        ) {
+            HStack(spacing: 10) {
+                gate(previousGate, old: true)
+                Image(systemName: "arrow.right").font(.system(size: 16, weight: .bold)).foregroundStyle(AB.ticket)
+                gate(store.gate, old: false)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Gate \(previousGate) changed to \(store.gate)")
+        }
+        .onAppear {
+            store.alertSeen(.gateChange)
+            Haptics.warning()
+        }
+    }
+
+    private func gate(_ gate: String, old: Bool) -> some View {
+        VStack(spacing: 0) {
+            Text("Gate").outfitText(12, .medium, old ? AB.secondary : AB.gateText)
+            Text(gate).outfitText(old ? 22 : 30, .bold, old ? AB.secondary : AB.gateText)
+                .strikethrough(old, color: AB.secondary)
+        }
+        .frame(minWidth: old ? 64 : 104, minHeight: 64)
+        .padding(.horizontal, 6)
+        .background(old ? AB.screen : AB.gateYellow, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// Asks to use the camera for sign reading, before iOS's own permission prompt.
+struct CameraPrompt: View {
+    @EnvironmentObject private var store: JourneyStore
+
+    var body: some View {
+        AirBorderPopup(
+            title: "Use the camera to read signs?",
+            message: "Point your iPhone at an overhead sign and AirBorder checks you’re heading the right way. You can switch back to the map at any time.",
+            id: "cameraPrompt",
+            secondary: ("Dismiss", "cameraDismiss", { store.asksForCamera = false }),
+            primary: ("Allow camera", "cameraAllow", {
+                store.asksForCamera = false
+                Task {
+                    if await AVCaptureDevice.requestAccess(for: .video) { store.cameraAllowed += 1 }
+                }
+            })
+        ) {
+            Image(systemName: "camera.viewfinder")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(AB.gateText)
+                .frame(width: 72, height: 64)
+                .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
+        }
+    }
 }
 
 /// Figma "Alerts" (858:10770 gate change, 858:10824 return now, 858:10878 boarding at risk) and their reminders.
@@ -158,7 +292,7 @@ struct AlertsView: View {
                 Button {
                     store.acknowledge(kind)
                     dismiss()
-                    store.tab = .route
+                    store.openRoute(directToGate: kind != .gateChange || store.hasTimingSituation)
                 } label: {
                     HStack(spacing: 9) {
                         Image("icWalkWhite").resizable().frame(width: 21, height: 21)
@@ -167,7 +301,7 @@ struct AlertsView: View {
                     .frame(width: 200, height: 52)
                     .background(AB.primary, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityIdentifier("alertRoute")
                 Spacer()
             }
@@ -231,7 +365,7 @@ struct AlertsView: View {
 
     private var headline: String {
         switch kind {
-        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.outbound.departureGate) → \(store.gate)"
+        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.feed?.previousGate ?? store.outbound.departureGate) → \(store.gate)"
         case .returnNow: "Time to return to Gate \(store.gate)"
         case .boardingAtRisk: "Boarding time is tight"
         }
@@ -291,7 +425,7 @@ struct ScenarioPlanSection: View {
                 timeRow("Gate closes", store.outbound.gateCloses?.description ?? "–")
             }
             .accessibilityIdentifier("arrivalAfterClosure")
-            TextLink(title: "Route") { store.tab = .route }
+            TextLink(title: "Route") { store.openRoute(directToGate: true) }
         default:
             EmptyView()
         }
@@ -315,7 +449,7 @@ struct ScenarioPlanSection: View {
     private func routeButton(color: Color) -> some View {
         Button {
             if let kind = condition.alertKind { store.acknowledge(kind) }
-            store.tab = .route
+            store.openRoute(directToGate: true)
         } label: {
             HStack(spacing: 8) {
                 Image("icWalkWhite").resizable().frame(width: 21, height: 21)
@@ -324,7 +458,7 @@ struct ScenarioPlanSection: View {
             .frame(width: 222, height: 47)
             .background(color, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("routeButton")
     }

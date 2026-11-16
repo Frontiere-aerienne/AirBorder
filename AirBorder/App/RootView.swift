@@ -2,44 +2,61 @@ import SwiftUI
 
 /// Screens pushed on top of a tab.
 enum Destination: Hashable {
-    case journeyDetails, journeySteps, myPlan, editStop(PlaceID), addFlight, importFlight, manualEntry
+    case journeyDetails, journeySteps, addFlight, importFlight, manualEntry
     case reviewEntered(ManualFlight), manualFlights, editFlight, chooseFlight, chooseDate, choosePurpose
     case checkFlight, flightSaved, baggage, declareBaggage, returnFlight
     case cameraPermission, ticketCamera, cameraUnavailable, unreadableTicket, capturedReview(ParsedTicket), ticketSaved
-    case addToPlan, cafeAvailability, routeThroughStops, routeDetail(RouteChoice), openAnotherMap, returnToGate(PlaceID)
+    case returnToGate(PlaceID)
     case anaLounge, loungeMap, landsideRoute(Bool), facilityGuide, t2Deck, t2NotEnoughTime, toTerminal2, atTerminal2, returnFromT2, shuttleFull
     case choosePDF, importWallet, connectGmail, connectCalendar, reviewImported(ParsedTicket), flightUpdated, reviewFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
-    case language, about, help, editProfile, tutorial, routeOptions
+    case language, about, help, editProfile, tutorial
     case alerts(AlertKind)
 }
 
 struct RootView: View {
     @EnvironmentObject private var store: JourneyStore
     @State private var paths: [AppTab: [Destination]] = [:]
+    @State private var showsGateAlert = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            ForEach(AppTab.allCases) { tab in
-                NavigationStack(path: binding(for: tab)) {
-                    root(for: tab)
-                        .navigationDestination(for: Destination.self) { destination(for: $0) }
+            // Apple's tab bar: Liquid Glass on iOS 26 and later, the standard bar on iOS 18.
+            TabView(selection: $store.tab) {
+                ForEach(AppTab.allCases) { tab in
+                    NavigationStack(path: binding(for: tab)) {
+                        root(for: tab)
+                            .navigationDestination(for: Destination.self) { destination in
+                                self.destination(for: destination)
+                                    .toolbar(destination == .journeyDetails ? .visible : .hidden, for: .tabBar)
+                            }
+                    }
+                    .tabItem { Label(tab.title, systemImage: tab.symbol) }
+                    .accessibilityIdentifier("tab-\(tab.rawValue)")
+                    .tag(tab)
                 }
-                .opacity(store.tab == tab ? 1 : 0)
-                .allowsHitTesting(store.tab == tab)
-                .accessibilityHidden(store.tab != tab)
             }
+            .tint(AB.primary)
             if let toast = store.toast {
                 ToastView(toast: toast, perform: toast.action == nil ? nil : { store.performToastAction() })
-                    .padding(.bottom, showsTabBar ? 104 : 24)
+                    .padding(.bottom, showsTabBar ? 96 : 24)
                     .transition(.opacity)
                     .zIndex(2)
             }
-            if showsTabBar {
-                TabBar(selection: $store.tab).offset(y: 10)
+            if showsGateAlert {
+                GateChangeAlert { showsGateAlert = false }
+                    .transition(.opacity)
+                    .zIndex(3)
+            }
+            if store.asksForCamera {
+                CameraPrompt()
+                    .transition(.opacity)
+                    .zIndex(3)
             }
         }
         .background(AB.screen.ignoresSafeArea())
+        .animation(.easeOut(duration: 0.2), value: showsGateAlert)
+        .animation(.easeOut(duration: 0.2), value: store.asksForCamera)
         .environment(\.openDestination, OpenDestinationAction { destination in
             paths[store.tab, default: []].append(destination)
         })
@@ -61,10 +78,14 @@ struct RootView: View {
         }
     }
 
-    /// A new alert opens the Alerts screen on the Flight tab, as the Figma gate update does.
+    /// A gate change shows the Figma alert over the current screen; other alerts open the Alerts screen on Flight.
     private func presentAlert() {
         guard let kind = store.alertToPresent, store.onboardingSeen else { return }
         store.alertToPresent = nil
+        if kind == .gateChange {
+            showsGateAlert = true
+            return
+        }
         store.tab = .flight
         if paths[.flight]?.last != .alerts(kind) {
             paths[.flight, default: []].append(.alerts(kind))
@@ -96,8 +117,6 @@ struct RootView: View {
         switch destination {
         case .journeyDetails: JourneyDetailsView()
         case .journeySteps: JourneyStepsView()
-        case .myPlan: MyPlanView()
-        case let .editStop(id): EditStopView(stopID: id)
         case .addFlight: AddFlightSummaryView()
         case .importFlight: AddFlightView()
         case .manualEntry: ManualEntryView()
@@ -125,11 +144,6 @@ struct RootView: View {
         case let .reviewImported(ticket): ReviewImportedView(ticket: ticket)
         case .flightUpdated: FlightUpdatedView()
         case .reviewFlight: ReviewFlightView()
-        case .addToPlan: AddToPlanView()
-        case .cafeAvailability: CafeAvailabilityView()
-        case .routeThroughStops: RouteThroughStopsView()
-        case let .routeDetail(choice): RouteDetailView(choice: choice)
-        case .openAnotherMap: OpenAnotherMapView()
         case let .returnToGate(place): ReturnToGateView(place: place)
         case .anaLounge: ANALoungeView()
         case .loungeMap: LoungeMapView()
@@ -152,7 +166,6 @@ struct RootView: View {
         case .help: AboutView()
         case .editProfile: EditProfileView()
         case .tutorial: TutorialReplay()
-        case .routeOptions: RouteOptionsView()
         case let .alerts(kind): AlertsView(kind: kind)
         }
     }
@@ -204,55 +217,8 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Tab bar (Figma "Tab Bar")
-
-struct TabBar: View {
-    @Binding var selection: AppTab
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(AppTab.allCases) { tab in
-                let selected = selection == tab
-                Button { selection = tab } label: {
-                    VStack(spacing: tab == .profile ? 4 : 3) {
-                        icon(for: tab, selected: selected)
-                        Text(tab.title).outfitText(12, selected ? .bold : .regular, selected ? AB.primary : AB.secondary)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 49)
-                    .padding(.vertical, 7)
-                    .background(selected ? AB.primary.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 26))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("tab-\(tab.rawValue)")
-                .accessibilityAddTraits(selected ? .isSelected : [])
-            }
-        }
-        .padding(6)
-        .frame(width: 378)
-        .background(.white, in: RoundedRectangle(cornerRadius: 32))
-        .overlay(RoundedRectangle(cornerRadius: 32).strokeBorder(AB.border, lineWidth: 1))
-        .shadow(color: AB.navy.opacity(0.14), radius: 7.5, x: 0, y: 10)
-    }
-
-    @ViewBuilder
-    private func icon(for tab: AppTab, selected: Bool) -> some View {
-        let name: String = switch tab {
-        case .flight: selected ? "tabFlightOn" : "tabFlightOff"
-        case .layover: selected ? "tabLayoverOn" : "tabLayoverOff"
-        case .route: selected ? "tabRouteOn" : "tabRouteOff"
-        case .profile: selected ? "tabProfileOn" : "tabProfileOff"
-        }
-        if tab == .profile {
-            Image(name).resizable().frame(width: 26.25, height: 26.25).offset(y: 1).frame(width: 21, height: 21)
-        } else {
-            Image(name).resizable().frame(width: 21, height: 21)
-        }
-    }
-}
-
-/// Bottom space so scroll content clears the floating tab bar.
-let tabBarClearance: CGFloat = 110
+/// Extra space under scroll content; the system tab bar already insets it.
+let tabBarClearance: CGFloat = 24
 
 /// Profile › Replay tutorial (Figma link to Onboarding 1).
 private struct TutorialReplay: View {

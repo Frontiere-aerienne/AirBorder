@@ -441,7 +441,7 @@ struct ManualFlightsCard: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("SAVED FLIGHTS").outfitText(12, .semibold, AB.sky)
             ForEach(flights) { flight in
-                Text("\(flight.number) · \(TripDate.format(flight.date, "d MMM yyyy"))").outfitText(20, .bold, AB.ice)
+                Text("\(flight.number), \(TripDate.format(flight.date, "d MMM yyyy"))").outfitText(20, .bold, AB.ice)
             }
         }
         .padding(20)

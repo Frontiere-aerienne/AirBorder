@@ -9,7 +9,7 @@ struct JourneyStepsView: View {
         let checklist = store.checklist
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Journey steps") { dismiss() }
-            SectionLabel(text: (store.isAirportTransfer ? "Transfer to Narita · " : "Haneda connection · ") + (checklist.currentIndex.map { "Step \($0 + 1) of \(checklist.steps.count)" } ?? "All steps done"))
+            SectionLabel(text: (store.isAirportTransfer ? "Transfer to Narita, " : "Haneda connection, ") + (checklist.currentIndex.map { "Step \($0 + 1) of \(checklist.steps.count)" } ?? "All steps done"))
                 .accessibilityIdentifier("stepCount")
             GroupedList {
                 ForEach(Array(checklist.steps.enumerated()), id: \.element.id) { index, step in
@@ -23,6 +23,7 @@ struct JourneyStepsView: View {
     private func row(_ step: JourneyStep, number: Int) -> some View {
         let checklist = store.checklist
         let isCurrent = checklist.current?.id == step.id
+        let assignmentRevision = store.gateAssignmentRevision
         return HStack(spacing: 14) {
             StepMarker(state: step.state, number: number, isCurrent: isCurrent, size: 28)
             VStack(alignment: .leading, spacing: 2) {
@@ -41,7 +42,9 @@ struct JourneyStepsView: View {
                     action("Not needed", id: "skip-\(step.id)") { store.skipStep(step.id) }
                 }
                 if checklist.canConfirm(step.id) {
-                    action("Done", id: "confirm-\(step.id)") { store.confirmStep(step.id) }
+                    action("Done", id: "confirm-\(step.id)") {
+                        store.confirmStep(step.id, assignmentRevision: assignmentRevision)
+                    }
                 }
             }
         }

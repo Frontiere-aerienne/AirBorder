@@ -22,6 +22,8 @@ enum AB {
     static let green = Color(hex: 0x54CC80)
     static let chipText = Color(hex: 0xE5EDF2)
     static let tagGrey = Color(hex: 0xF0F4F7)
+    static let alert = Color(hex: 0xC93C3C)
+    static let alertBackground = Color(hex: 0xFBEAEA)
 }
 
 extension Color {

@@ -24,6 +24,9 @@ UI_PREFIXES = (
     "AirBorder/Views/",
     "AirBorder/Components/",
     "AirBorder/Assets.xcassets/",
+    "AirBorder/Features/",
+    "AirBorder/Design/",
+    "AirBorder/App/RootView.swift",
     "AirBorder/AR/",
     "AirBorder/App/RootTabView.swift",
 )
