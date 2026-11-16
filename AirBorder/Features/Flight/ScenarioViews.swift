@@ -141,7 +141,7 @@ struct TravelUpdateBanner: View {
         // Figma "Gate change strip": tapping it anywhere shows the gate change again.
         if case .gateChanged = condition { return { store.alertToPresent = .gateChange } }
         guard place == .flight else { return nil }
-        if let kind = condition.alertKind { return { open(.alerts(kind)) } }
+        if let kind = condition.alertKind { return { store.alertToPresent = kind } }
         if case .arrivesAfterClosure = condition { return { showsAssistance = true } }
         return nil
     }
@@ -315,114 +315,58 @@ struct CameraPrompt: View {
     }
 }
 
-/// Figma "Alerts" (858:10770 gate change, 858:10824 return now, 858:10878 boarding at risk) and their reminders.
-struct AlertsView: View {
+/// Head back now / Boarding is tight as an AirBorder pop-up (no separate Alerts page).
+struct SituationAlert: View {
     @EnvironmentObject private var store: JourneyStore
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     let kind: AlertKind
-    @State private var reminder = false
+    let dismiss: () -> Void
 
     var body: some View {
-        let record = store.alerts[kind]
-        VStack(alignment: .leading, spacing: 16) {
-            BackButton { dismiss() }.offset(x: -9)
-            Text("Alerts").outfitText(30, .bold).accessibilityAddTraits(.isHeader)
-            Text(stamp(record)).outfitText(13, .regular, AB.muted)
-            card
-            HStack {
-                Spacer()
-                Button {
-                    store.acknowledge(kind)
-                    dismiss()
-                    store.tab = .route
-                } label: {
-                    HStack(spacing: 9) {
-                        Image("icWalkWhite").resizable().frame(width: 21, height: 21)
-                        Text("Route").outfitText(15, .semibold, .white)
-                    }
-                    .frame(width: 200, height: 52)
-                    .background(AB.primary, in: Capsule())
-                }
-                .buttonStyle(.pressable)
-                .accessibilityIdentifier("alertRoute")
-                Spacer()
+        let numbers = self.numbers
+        AirBorderPopup(
+            title: kind == .boardingAtRisk ? "Boarding is tight" : "Head back now",
+            message: "Gate \(store.gate) closes in \(numbers.left) min and the walk takes \(numbers.walk) min.",
+            id: "situationAlert",
+            secondary: ("Dismiss", "situationDismiss", dismiss),
+            primary: ("View route", "situationRoute", {
+                store.acknowledge(kind)
+                dismiss()
+                store.tab = .route
+            })
+        ) {
+            HStack(spacing: 10) {
+                box("Walk", "\(numbers.walk) min", AB.ticket, AB.screen)
+                Text(kind == .boardingAtRisk ? "≈" : "<").outfitText(18, .bold, AB.ticket)
+                box("Left", "\(numbers.left) min", kind == .boardingAtRisk ? AB.alert : AB.amber,
+                    kind == .boardingAtRisk ? AB.alertBackground : AB.warningTint)
             }
-            Spacer()
+            .accessibilityHidden(true)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AB.screen.ignoresSafeArea())
-        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
-            reminder = record?.isReminder(at: Date()) ?? false
             store.alertSeen(kind)
+            Haptics.warning()
         }
     }
 
-    private var card: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 6) {
-                pill(tag.text, tag.foreground, tag.background)
-                if reminder { pill("Reminder", AB.ice, AB.ice.opacity(0.14)) }
+    private var numbers: (walk: Int, left: Int) {
+        for condition in store.conditions {
+            switch condition {
+            case let .returnNow(closesIn, walk) where kind == .returnNow: return (walk, closesIn)
+            case let .boardingAtRisk(closesIn, walk) where kind == .boardingAtRisk: return (walk, closesIn)
+            default: continue
             }
-            Text(headline).outfitText(22, .bold, AB.ice)
-            HStack(spacing: 8) {
-                GateSign(gate: store.gate)
-                Text("closes").outfitText(15, .regular, AB.ice.opacity(0.75))
-                Text(store.outbound.gateCloses?.description ?? "–").outfitText(20, .semibold, AB.ice)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 2)
-                    .background(AB.ice.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
-            }
-            .accessibilityElement(children: .combine)
-            HStack(spacing: 6) {
-                Image("icWalkSmall").renderingMode(.template).resizable().foregroundStyle(AB.sky).frame(width: 18, height: 18)
-                Text(walkText).outfitText(14, .semibold, AB.sky)
-            }
-            .accessibilityElement(children: .combine)
-            TextLink(title: "Get help", color: AB.sky) { if let url = ANAHelp.url { openURL(url) } }
-                .accessibilityLabel("Get help, call ANA")
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AB.ticket, in: RoundedRectangle(cornerRadius: 20))
-        .accessibilityIdentifier("alertCard")
+        return (store.gateWalkMinutes, max((store.outbound.gateCloses ?? SampleJourney.gateArrivalTarget) - store.now, 0))
     }
 
-    private func pill(_ text: String, _ foreground: Color, _ background: Color) -> some View {
-        Text(text).outfitText(12, .semibold, foreground)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(background, in: Capsule())
-    }
-
-    private var tag: (text: String, foreground: Color, background: Color) {
-        switch kind {
-        case .gateChange: ("Gate changed", AB.gateText, AB.gateYellow)
-        case .returnNow: ("Return now", AB.gateText, AB.returnTag)
-        case .boardingAtRisk: ("Boarding at risk", .white, AB.riskTag)
+    private func box(_ top: String, _ value: String, _ color: Color, _ fill: Color) -> some View {
+        VStack(spacing: 0) {
+            Text(top).outfitText(12, .medium, color)
+            Text(value).outfitText(24, .bold, color).lineLimit(1).fixedSize()
         }
-    }
-
-    private var headline: String {
-        switch kind {
-        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.outbound.departureGate) → \(store.gate)"
-        case .returnNow: "Time to return to Gate \(store.gate)"
-        case .boardingAtRisk: "Boarding time is tight"
-        }
-    }
-
-    private var walkText: String {
-        let walk = store.gateWalkMinutes
-        guard kind == .boardingAtRisk, let closes = store.outbound.gateCloses else { return "\(walk) min walk" }
-        return "\(walk) min walk, \(closes - (store.now + walk)) min spare"
-    }
-
-    /// "15 Oct, 12:00": the flight date and when the situation began.
-    private func stamp(_ record: AlertRecord?) -> String {
-        "\(TripDate.format(store.outbound.date, "d MMM")), \((record?.issuedAt ?? store.now).description)"
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(fill, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -448,85 +392,87 @@ struct BoardingAssistanceSheet: View {
 }
 
 /// The Flight tab's "Your plan" area while a timing situation holds (Figma Return, Boarding at risk, Boarding assistance).
-struct ScenarioPlanSection: View {
+/// A taller warning strip above the ticket for timing situations: what's happening, one line of numbers,
+/// and the one action that matters (Route, or Call ANA when the gate will have closed).
+struct SituationStrip: View {
     @EnvironmentObject private var store: JourneyStore
+    @Environment(\.openDestination) private var open
+    @Environment(\.openURL) private var openURL
     let condition: JourneyCondition
 
-    /// Same white card as the plan: a title, one line of context, Route, and a two-box visual.
     var body: some View {
+        let content = self.content
+        HStack(spacing: 12) {
+            Image(systemName: content.late ? "exclamationmark.circle.fill" : (store.isAirportTransfer ? "bus.fill" : "clock.fill"))
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(content.tint)
+                .frame(width: 40, height: 40)
+                .background(.white.opacity(0.75), in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(content.title).outfitText(18, .bold, content.tint)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("\(content.title). \(content.spoken)")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityIdentifier("travelUpdate-flight")
+                Text(content.detail).outfitText(14, .regular, AB.ticket)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(content.countdownLabel ?? content.detail)
+                    .accessibilityIdentifier(content.countdownLabel == nil ? "situationDetail" : "scenarioCountdown")
+            }
+            Spacer(minLength: 0)
+            Button(action: content.late ? callANA : route) {
+                HStack(spacing: 7) {
+                    Image(systemName: content.late ? "phone.fill" : "figure.walk").font(.system(size: 14, weight: .bold))
+                    Text(content.late ? "Call ANA" : "Route").outfitText(14, .semibold, .white)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .frame(height: 40)
+                .background(content.tint, in: Capsule())
+            }
+            .buttonStyle(.pressable)
+            .accessibilityLabel(content.late ? "Call ANA" : "Route")
+            .accessibilityIdentifier("travelUpdateAction-flight")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 12)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: tap)
+        .background(content.background, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(content.tint.opacity(0.25), lineWidth: 1))
+    }
+
+    private var content: (title: String, detail: String, spoken: String, countdownLabel: String?, tint: Color, background: Color, late: Bool) {
+        let gate = store.gate
         switch condition {
         case let .returnNow(closesIn, walk):
-            card(title: "Head back now", countdown: closesIn, tint: AB.amber,
-                 left: ("Walk", "\(walk) min", AB.ticket, AB.screen), right: ("Left", "\(closesIn) min", AB.amber, AB.warningTint), sign: "<")
-                .accessibilityIdentifier("arrivalEstimate")
+            return ("Head back now", "\(walk) min walk, \(closesIn) min left", "Time to return to Gate \(gate)",
+                    "\(closesIn) min before Gate \(gate) closes.", AB.amber, AB.warningTint, false)
         case let .boardingAtRisk(closesIn, walk):
-            card(title: "Boarding is tight", countdown: closesIn, tint: AB.removeRed,
-                 left: ("Walk", "\(walk) min", AB.ticket, AB.screen), right: ("Left", "\(closesIn) min", AB.alert, AB.alertBackground), sign: "≈")
-        case let .arrivesAfterClosure(arrival, _):
-            card(title: "You'd arrive after closing", countdown: nil, tint: AB.removeRed,
-                 left: ("Arrival", arrival.description, AB.alert, AB.alertBackground),
-                 right: ("Gate closes", store.outbound.gateCloses?.description ?? "–", AB.ticket, AB.screen), sign: ">")
-                .accessibilityIdentifier("arrivalAfterClosure")
+            return ("Boarding is tight", "\(walk) min walk, \(closesIn) min left", "Gate closes in \(closesIn) min, walk \(walk) min",
+                    "\(closesIn) min before Gate \(gate) closes.", AB.removeRed, AB.riskTint, false)
+        case let .arrivesAfterClosure(arrival, late):
+            return ("Arriving too late", "Arriving \(arrival), closes \(store.outbound.gateCloses?.description ?? "–")",
+                    "Arrival \(late) min after closure", nil, AB.removeRed, AB.riskTint, true)
+        case .airportTransfer:
+            return ("Changing airports", "Haneda → Narita by airport bus", "Change airports: Haneda → Narita",
+                    nil, AB.amber, AB.warningTint, false)
         default:
-            EmptyView()
+            return ("", "", "", nil, AB.amber, AB.warningTint, false)
         }
     }
 
-    private func card(title: String, countdown: Int?, tint: Color,
-                      left: (String, String, Color, Color), right: (String, String, Color, Color), sign: String) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).outfitText(22, .bold).accessibilityAddTraits(.isHeader)
-                    if let countdown {
-                        (Text("Gate closes in ").outfitText(16, .regular, AB.secondary) + Text("\(countdown) min").outfitText(16, .semibold, tint))
-                            .lineLimit(1).minimumScaleFactor(0.85)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("\(countdown) min before Gate \(store.gate) closes.")
-                        .accessibilityIdentifier("scenarioCountdown")
-                    } else {
-                        Text("Ask ANA for help").outfitText(16, .regular, AB.secondary)
-                    }
-                }
-                Spacer()
-                Button {
-                    if let kind = condition.alertKind { store.acknowledge(kind) }
-                    store.tab = .route
-                } label: {
-                    HStack(spacing: 9) {
-                        Image("icWalkWhite").resizable().frame(width: 21, height: 21)
-                        Text("Route").outfitText(14, .semibold, .white)
-                    }
-                    .padding(.horizontal, 18)
-                    .frame(height: 48)
-                    .background(tint, in: Capsule())
-                }
-                .buttonStyle(.pressable)
-                .accessibilityIdentifier("routeButton")
-            }
-            HStack(spacing: 10) {
-                box(left)
-                Text(sign).outfitText(18, .bold, AB.ticket)
-                box(right)
-            }
-            .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(left.0) \(left.1), \(right.0) \(right.1)")
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 22)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white, in: RoundedRectangle(cornerRadius: 24))
-        .accessibilityElement(children: .contain)
+    private func tap() {
+        if let kind = condition.alertKind { store.alertToPresent = kind }
     }
 
-    private func box(_ item: (String, String, Color, Color)) -> some View {
-        VStack(spacing: 0) {
-            Text(item.0).outfitText(13, .medium, item.2)
-            Text(item.1).outfitText(26, .bold, item.2).lineLimit(1).fixedSize()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(item.3, in: RoundedRectangle(cornerRadius: 14))
+    private func route() {
+        if let kind = condition.alertKind { store.acknowledge(kind) }
+        Haptics.tick()
+        store.tab = .route
     }
+
+    private func callANA() { if let url = ANAHelp.url { openURL(url) } }
 }

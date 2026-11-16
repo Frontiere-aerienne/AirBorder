@@ -115,7 +115,7 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-now 17:00"
+            argument = "-flight NH6"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument

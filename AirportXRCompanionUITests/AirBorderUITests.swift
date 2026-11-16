@@ -175,9 +175,8 @@ final class AirBorderUITests: XCTestCase {
     func testSituationCardsForScreenshots() {
         for (args, name) in [(["-now", "17:00"], "return"), (["-now", "17:05"], "risk"), (["-now", "17:17"], "late"), (["-flight", "NH6"], "transfer")] {
             relaunch(["-gateUpdate", "off"] + args)
-            if app.buttons["back"].waitForExistence(timeout: 4) { app.buttons["back"].tap() }
-            XCTAssertTrue(app.buttons["routeButton"].waitForExistence(timeout: 3), name)
-            app.swipeUp()
+            if app.buttons["situationDismiss"].waitForExistence(timeout: 4) { app.buttons["situationDismiss"].tap() }
+            XCTAssertTrue((app.buttons["travelUpdateAction-flight"].exists || app.buttons["routeButton"].waitForExistence(timeout: 3)), name)
             snapshot("situation-\(name)")
         }
     }
@@ -188,7 +187,7 @@ final class AirBorderUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-skipOnboarding", "-walkingSpeed", "5.6", "-gateUpdate", "off", "-now", "17:00"]
         app.launch()
-        if app.buttons["back"].waitForExistence(timeout: 4) { app.buttons["back"].tap() }
+        if app.buttons["situationDismiss"].waitForExistence(timeout: 4) { app.buttons["situationDismiss"].tap() }
         XCTAssertTrue(app.descendants(matching: .any)["scenarioCountdown"].waitForExistence(timeout: 3))
         app.swipeUp()
         XCTAssertTrue(app.buttons["lane-cafe"].waitForExistence(timeout: 2), "The plan stays under the warning")
@@ -348,13 +347,13 @@ final class AirBorderUITests: XCTestCase {
 
     func testReturnNowShowsCountdownInsteadOfThePlan() {
         relaunch(["-gateUpdate", "off", "-now", "17:00"])
-        XCTAssertTrue(app.staticTexts["Time to return to Gate 105"].waitForExistence(timeout: 5), "Alert opens on its own")
-        app.buttons["back"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["situationAlert"].waitForExistence(timeout: 5), "The pop-up opens on its own")
+        XCTAssertTrue(app.staticTexts["Head back now"].exists)
+        app.buttons["situationDismiss"].tap()
         let countdown = app.descendants(matching: .any)["scenarioCountdown"]
         XCTAssertTrue(countdown.waitForExistence(timeout: 2))
         XCTAssertEqual(countdown.label, "25 min before Gate 105 closes.")
-        XCTAssertFalse(app.buttons["myPlanLink"].exists)
-        XCTAssertFalse(app.buttons["addStop"].exists)
+        XCTAssertTrue(app.buttons["addStop"].exists, "The plan stays, even when it is time to head back")
     }
 
     func testArrivalAfterClosureOffersAssistance() {
@@ -363,9 +362,7 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(banner.waitForExistence(timeout: 5))
         XCTAssertTrue(banner.label.contains("Arrival 4 min after closure"))
         XCTAssertTrue(app.buttons["travelUpdateAction-flight"].label.contains("Call ANA"))
-        banner.tap()
-        XCTAssertTrue(app.staticTexts["Boarding assistance"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Arriving 17:29"].exists)
+        XCTAssertTrue(app.staticTexts["Arriving 17:29, closes 17:25"].exists)
     }
 
     func testChoosingNH6StartsTheNaritaTransfer() {

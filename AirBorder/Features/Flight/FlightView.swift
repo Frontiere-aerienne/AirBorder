@@ -11,21 +11,20 @@ struct FlightView: View {
                 VStack(spacing: 8) {
                     titleRow
                     if let condition = store.primaryCondition {
-                        TravelUpdateBanner(condition: condition, place: .flight)
-                            .padding(.bottom, 16)
+                        if store.hasTimingSituation || store.isAirportTransfer {
+                            SituationStrip(condition: condition).padding(.bottom, 16)
+                        } else {
+                            TravelUpdateBanner(condition: condition, place: .flight)
+                                .padding(.bottom, 16)
+                        }
                     }
                     TicketCard(flight: store.outbound, previous: SampleJourney.inbound, status: store.flightStatus, gate: store.gate)
                     links
                 }
                 if store.isAirportTransfer {
                     TransferPlanSection()
-                } else if let condition = store.primaryCondition, store.hasTimingSituation {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ScenarioPlanSection(condition: condition)
-                        // The warning comes first, but the stops the traveller added stay in view.
-                        if !store.plan.stops.isEmpty { PlanStripCard() }
-                    }
                 } else {
+                    // The plan always stays; timing warnings sit in the strip above the ticket.
                     planSection
                 }
             }

@@ -11,13 +11,13 @@ enum Destination: Hashable {
     case choosePDF, importWallet, connectGmail, connectCalendar, reviewImported(ParsedTicket), flightUpdated, reviewFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
     case language, about, help, editProfile
-    case alerts(AlertKind)
 }
 
 struct RootView: View {
     @EnvironmentObject private var store: JourneyStore
     @State private var paths: [AppTab: [Destination]] = [:]
     @State private var showsGateAlert = false
+    @State private var situationAlert: AlertKind?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -53,6 +53,11 @@ struct RootView: View {
                     .transition(.opacity)
                     .zIndex(3)
             }
+            if let kind = situationAlert {
+                SituationAlert(kind: kind) { situationAlert = nil }
+                    .transition(.opacity)
+                    .zIndex(3)
+            }
             if store.asksForCamera {
                 CameraPrompt()
                     .transition(.opacity)
@@ -62,6 +67,7 @@ struct RootView: View {
         .background(AB.screen.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: showsGateAlert)
         .animation(.easeOut(duration: 0.2), value: store.asksForCamera)
+        .animation(.easeOut(duration: 0.2), value: situationAlert)
         .animation(.easeOut(duration: 0.2), value: store.fitPrompt)
         .environment(\.openDestination, OpenDestinationAction { destination in
             paths[store.tab, default: []].append(destination)
@@ -84,18 +90,11 @@ struct RootView: View {
         }
     }
 
-    /// A gate change shows the Figma alert over the current screen; other alerts open the Alerts screen on Flight.
+    /// Every alert is a pop-up over the current screen; there is no separate Alerts page.
     private func presentAlert() {
         guard let kind = store.alertToPresent, store.onboardingSeen else { return }
         store.alertToPresent = nil
-        if kind == .gateChange {
-            showsGateAlert = true
-            return
-        }
-        store.tab = .flight
-        if paths[.flight]?.last != .alerts(kind) {
-            paths[.flight, default: []].append(.alerts(kind))
-        }
+        if kind == .gateChange { showsGateAlert = true } else { situationAlert = kind }
     }
 
     /// The tab bar shows on the four tab roots and on Journey details, as in Figma.
@@ -171,7 +170,6 @@ struct RootView: View {
         case .about: AboutView()
         case .help: AboutView()
         case .editProfile: EditProfileView()
-        case let .alerts(kind): AlertsView(kind: kind)
         }
     }
 }
