@@ -95,9 +95,12 @@ struct PlanStripCard: View {
     static let stripMinutes = 150
 
     var body: some View {
-        let stops = PlaceID.allCases.compactMap { id in store.plan.stops.first { $0.id == id } }
+        let stops = store.schedule.stops.map(\.stop)
         VStack(alignment: .leading, spacing: 20) {
             header
+            if let suggestion = store.suggestion {
+                cafeNotice(suggestion)
+            }
             if stops.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     addStopButton
@@ -138,16 +141,15 @@ struct PlanStripCard: View {
     }
 
     private var header: some View {
-        let spare = store.minutesToSpare
+        let timed = store.schedule
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Your plan").outfitText(22, .bold).accessibilityAddTraits(.isHeader)
-                HStack(spacing: 5) {
-                    Text(durationText(spare)).outfitText(16, .semibold, AB.primary)
-                        .contentTransition(.numericText(value: Double(spare)))
-                    Text("to spare").outfitText(16, .regular, AB.secondary)
-                }
-                .accessibilityElement(children: .combine)
+                Text(timed.stops.isEmpty
+                    ? "Leave by \(timed.leave)"
+                    : "Estimated gate arrival \(timed.arriveAtGate)")
+                    .outfitText(15, .semibold, store.minutesToSpare < 0 ? AB.alert : AB.primary)
+                    .accessibilityIdentifier("planGateTiming")
             }
             Spacer()
             Button(action: route) {
@@ -162,6 +164,32 @@ struct PlanStripCard: View {
             .buttonStyle(.pressable)
             .accessibilityIdentifier("routeButton")
         }
+    }
+
+    private func cafeNotice(_ suggestion: PlanSuggestion) -> some View {
+        InfoCard(padding: 14, radius: 16, background: AB.ticket) {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Café wait increased by \(suggestion.extraMinutes) min").outfitText(17, .bold, .white)
+                    Text("Gate arrival \(store.schedule.arriveAtGate). \(suggestion.detail)")
+                        .outfitText(14, .regular, AB.ice)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("cafeWaitSuggestion")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { cafeActions }
+                    VStack(spacing: 8) { cafeActions }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var cafeActions: some View {
+        CTAButton(title: "Keep my plan", style: .outline) { store.keepPlan() }
+            .accessibilityIdentifier("keepSuggestion")
+        CTAButton(title: "Apply") { store.applySuggestion() }
+            .accessibilityIdentifier("applySuggestion")
     }
 
     private var addStopButton: some View {
@@ -215,7 +243,9 @@ struct PlanStripCard: View {
                 let x = { (time: ClockTime) in width * CGFloat(time - Self.stripStart) / CGFloat(Self.stripMinutes) }
                 ZStack(alignment: .leading) {
                     if let times {
-                        Text(stop.id.shortLabel).outfitText(13, .bold, Self.textColor(stop.id))
+                        Text(stop.id == .cafe ? "Café" : stop.id.shortLabel.capitalized)
+                            .outfitText(13, .bold, Self.textColor(stop.id))
+                            .minimumScaleFactor(0.75)
                             .lineLimit(1)
                             .padding(.horizontal, 5)
                             .frame(width: max(x(times.leave) - x(times.arrive), 0), height: proxy.size.height, alignment: .leading)
@@ -291,7 +321,7 @@ private struct StopTimesEditor: View {
                         }
                         HStack(spacing: 6) {
                             fact("building.2", "Terminal 3, \(stop.id.floor)")
-                            fact("figure.walk", "\(store.venueToGateMinutes(stop.id)) min to gate")
+                            fact("figure.walk", "\(store.walkMinutes(stop.id, .gate)) min to gate")
                         }
                     }
                 }
@@ -377,14 +407,13 @@ private struct StopTimesEditor: View {
         .background(AB.screen, in: Capsule())
     }
 
-    /// One tap to end the overlap: leave when the other stop starts, or arrive when it ends.
+    /// Leave enough room for the walk as well as the next stop.
     private func fix(for mine: (arrive: ClockTime, leave: ClockTime, latest: ClockTime), other: PlanStop) -> (title: String, apply: () -> Void)? {
         guard let theirs = store.times(other.id) else { return nil }
-        if mine.arrive <= theirs.arrive, theirs.arrive >= mine.arrive + StopTimes.minimumStay {
-            return ("Leave \(theirs.arrive)", { store.setTimes(stop.id, leave: theirs.arrive) })
-        }
-        if mine.arrive > theirs.arrive, theirs.leave + StopTimes.minimumStay <= mine.latest {
-            return ("Arrive \(theirs.leave)", { store.setTimes(stop.id, arrive: theirs.leave) })
+        let requested = other.arrive ?? theirs.arrive
+        let leave = requested - store.walkMinutes(stop.id, other.id)
+        if mine.arrive <= requested && store.canLeave(stop.id, at: leave) {
+            return ("Leave \(leave)", { store.setTimes(stop.id, leave: leave) })
         }
         return nil
     }

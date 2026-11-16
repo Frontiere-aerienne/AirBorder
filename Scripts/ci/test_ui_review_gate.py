@@ -1,3 +1,5 @@
+# PROCEDURAL: Verifies pull-request evidence rules.
+
 import sys
 import unittest
 from pathlib import Path
@@ -50,6 +52,14 @@ class GateTests(unittest.TestCase):
 
     def test_ui_change_with_evidence_passes(self):
         self.assertEqual(g.gate(["AirBorder/Components/InterfaceComponents.swift"], set(), self.BODY_OK), (True, []))
+
+    def test_current_native_ui_paths_require_evidence(self):
+        for path in ("AirBorder/Features/Flight/FlightView.swift",
+                     "AirBorder/Design/Theme.swift", "AirBorder/App/RootView.swift"):
+            with self.subTest(path=path):
+                ui, problems = g.gate([path], set(), "")
+                self.assertTrue(ui)
+                self.assertEqual(len(problems), 3)
 
     def test_template_placeholder_without_link_fails(self):
         _, problems = g.gate(["AirBorder/Views/A.swift"], set(), "Preview (approved):\nScreenshots:\n")

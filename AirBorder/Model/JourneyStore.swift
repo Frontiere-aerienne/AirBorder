@@ -1,3 +1,5 @@
+// SUBSTANTIVE: Applies journey updates and maintains passenger decisions across views.
+
 import Foundation
 import SwiftUI
 import UIKit
@@ -75,7 +77,12 @@ final class JourneyStore: ObservableObject {
             routeChoice = stepFreeRoutes ? .stepFree : .direct
         }
     }
-    @Published var routeChoice: RouteChoice = .direct
+    @Published var routeChoice: RouteChoice = .direct {
+        didSet {
+            guard routeChoice != oldValue else { return }
+            refreshPlanGuidance()
+        }
+    }
     @Published var onboardingSeen: Bool { didSet { persist() } }
     @Published var firstName: String { didSet { persist() } }
     @Published var lastName: String { didSet { persist() } }
@@ -167,9 +174,13 @@ final class JourneyStore: ObservableObject {
         return outbound.departureGate
     }
 
+    var gateAssignmentRevision: Int { feed?.assignmentRevision ?? 0 }
+
     var conditionInputs: ConditionInputs {
         let schedule = schedule
-        let leave = schedule.stops.isEmpty ? SampleJourney.gateArrivalTarget - gateWalkMinutes : schedule.leave
+        let leave = schedule.stops.isEmpty
+            ? SampleJourney.gateArrivalTarget - gateWalkMinutes
+            : min(schedule.leave, SampleJourney.gateArrivalTarget - schedule.walkToGate)
         return ConditionInputs(
             now: now,
             ticketGate: outbound.departureGate,
@@ -200,13 +211,29 @@ final class JourneyStore: ObservableObject {
     /// Sets the airport time the journey is shown at (sample data and tests).
     func setNow(_ time: ClockTime) {
         now = time
+        refreshSuggestion()
         refreshAlerts()
     }
 
     /// A departure-flight report arrived from the feed.
     func receive(_ report: FlightFeed) {
-        feed = report
+        guard let reportedGate = report.gate, !reportedGate.isEmpty,
+              feed.map({ report.receivedAt >= $0.receivedAt }) ?? true else { return }
+        if reportedGate == gate {
+            if feed == nil { feed = report }
+            return
+        }
+        var update = report
+        update.previousGate = gate
+        update.assignmentRevision = gateAssignmentRevision + 1
+        checklist.reopenGate()
+        routeStep = 1
+        alerts.removeValue(forKey: .gateChange)
+        alerts.removeValue(forKey: .returnNow)
+        alerts.removeValue(forKey: .boardingAtRisk)
+        feed = update
         refreshAlerts()
+        alertToPresent = .gateChange
     }
 
     /// The sample journey's gate update: Gate 108A, reported a short while after the app opens.
@@ -248,7 +275,17 @@ final class JourneyStore: ObservableObject {
         WalkingEstimate.pace(walks: SampleJourney.airportWalks, healthKmh: health == .connected ? walkingSpeedKmh : nil)
     }
 
-    var schedule: Schedule { PlanEngine.schedule(plan, pace: pace) }
+    var schedule: Schedule { schedule(for: routeChoice) }
+
+    func schedule(for choice: RouteChoice) -> Schedule {
+        let timedPlan = queueUpdateHandled ? plan : PlanEngine.applying(cafeQueueUpdate, to: plan)
+        return PlanEngine.schedule(timedPlan, pace: pace, directWalk: gateWalkMinutes(for: choice),
+                                   gateWalkAdjustment: gateWalkAdjustment(for: choice), notBefore: now)
+    }
+
+    private func gateWalkAdjustment(for choice: RouteChoice) -> Int {
+        gateWalkMinutes(for: choice) - gateWalkMinutes(for: .direct)
+    }
 
     func walkMinutes(_ from: PlaceID, _ to: PlaceID) -> Int { WalkMatrix.minutes(from, to, pace: pace) }
 
@@ -304,98 +341,100 @@ final class JourneyStore: ObservableObject {
         guard !plan.contains(stop.id) else { return }
         clearUndo()
         plan.stops.append(stop)
-        routeStep = 1 // every route now passes the new stop
-        refreshSuggestion()
-        refreshAlerts()
+        plan.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
+        refreshPlanGuidance()
     }
 
     func remove(_ id: PlaceID) {
         clearUndo()
         plan.stops.removeAll { $0.id == id }
+        refreshPlanGuidance()
+    }
+
+    /// Resolve the displayed stop times from the same schedule that drives gate guidance.
+    func times(_ id: PlaceID) -> (arrive: ClockTime, leave: ClockTime, latest: ClockTime)? {
+        let timed = schedule
+        guard let index = timed.stops.firstIndex(where: { $0.stop.id == id }) else { return nil }
+        let stop = timed.stops[index]
+        let downstream = timed.arriveAtGate - stop.end
+        return (stop.start, stop.end, SampleJourney.gateArrivalTarget - downstream)
+    }
+
+    func canLeave(_ id: PlaceID, at leave: ClockTime) -> Bool {
+        guard let stop = schedule.stops.first(where: { $0.stop.id == id }) else { return false }
+        return leave - stop.start - stop.stop.waitMinutes >= PlanEngine.minimumVisit
+    }
+
+    func setTimes(_ id: PlaceID, arrive: ClockTime? = nil, leave: ClockTime? = nil) {
+        guard let index = plan.index(of: id), let current = times(id) else { return }
+        let wait = id == cafeQueueUpdate.stopID && !queueUpdateHandled
+            ? cafeQueueUpdate.waitMinutes : plan.stops[index].waitMinutes
+        let newVisit = leave.map { $0 - current.arrive - wait } ?? plan.stops[index].plannedVisitMinutes
+        guard newVisit >= PlanEngine.minimumVisit else { return }
+        clearUndo()
+        if let arrive { plan.stops[index].arrive = arrive }
+        plan.stops[index].visitMinutes = newVisit
+        plan.stops[index].leave = nil
+        plan.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
+        refreshPlanGuidance()
+    }
+
+    /// Restore the removed stop without replacing edits to other stops.
+    func removeWithUndo(_ id: PlaceID) {
+        guard let index = plan.index(of: id) else { return }
+        let stop = plan.stops[index]
+        remove(id)
+        showToast(ToastMessage(text: "Removed \(stop.name)", action: "Undo")) { [weak self] in
+            guard let self, !self.plan.contains(id) else { return }
+            self.plan.stops.insert(stop, at: min(index, self.plan.stops.count))
+            self.plan.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
+            self.refreshPlanGuidance()
+        }
+    }
+
+    private func refreshPlanGuidance() {
+        routeStep = 1
         refreshSuggestion()
         refreshAlerts()
     }
 
-    /// Arrive, leave and the latest leave that still reaches the gate, for a stop in the plan.
-    func times(_ id: PlaceID) -> (arrive: ClockTime, leave: ClockTime, latest: ClockTime)? {
-        guard let stop = plan.stops.first(where: { $0.id == id }) else { return nil }
-        let latest = StopTimes.latestLeave(walkToGate: venueToGateMinutes(id))
-        return (StopTimes.arrive(stop), StopTimes.leave(stop, latest: latest), latest)
-    }
-
-    // ponytail: arrive/leave live on the plan card only; the ordered Schedule (route, queue suggestion) still uses visit lengths.
-    /// Moving Arrive past the leave time pushes Leave along with it, up to the latest leave.
-    func setTimes(_ id: PlaceID, arrive: ClockTime? = nil, leave: ClockTime? = nil) {
-        guard let index = plan.index(of: id), let current = times(id) else { return }
-        let newArrive = arrive ?? current.arrive
-        var newLeave = leave ?? current.leave
-        if newLeave < newArrive + StopTimes.minimumStay { newLeave = min(newArrive + StopTimes.minimumStay, current.latest) }
-        plan.stops[index].arrive = newArrive
-        plan.stops[index].leave = newLeave
-    }
-
-    /// Removes a stop and offers Undo, which puts it back with the same times.
-    func removeWithUndo(_ id: PlaceID) {
-        guard let stop = plan.stops.first(where: { $0.id == id }) else { return }
-        remove(id)
-        showToast(ToastMessage(text: "Removed \(stop.name)", action: "Undo")) { [weak self] in
-            self?.add(stop)
-        }
-    }
-
-    /// A warning before adding a stop that is unlikely to fit: a sit-down meal in a tight layover,
-    /// or more stops than the time before the gate allows.
+    /// Compare the proposed stop using the same arrival calculation as the plan.
     func fitWarning(for stop: PlanStop) -> (title: String, message: String)? {
-        let latest = StopTimes.latestLeave(walkToGate: venueToGateMinutes(stop.id))
-        let start = max(now, StopTimes.earliest)
-        let window = latest - start
-        let spans = plan.stops.compactMap { times($0.id) }
-            .map { (max($0.arrive.minutes, start.minutes), min($0.leave.minutes, latest.minutes)) }
-            .filter { $0.0 < $0.1 }.sorted { $0.0 < $1.0 }
-        var covered = 0, end = Int.min
-        for (from, to) in spans {
-            covered += max(to - max(from, end), 0)
-            end = max(end, to)
-        }
-        let free = window - covered
-        let need = (stop.id.meal?.minutes ?? stop.visitMinutes) + walkMinutes(.start, stop.id)
-        if let meal = stop.id.meal, meal.sitDown, free < need {
-            return ("A sit-down meal may not fit",
-                    "\(stop.name) usually takes about \(meal.minutes) min. You have about \(max(free, 0)) min free before you leave for Gate \(gate). A quick option fits better.")
-        }
-        let planned = plan.stops.map { ($0.id.meal?.minutes ?? $0.visitMinutes) + walkMinutes(.start, $0.id) }.reduce(need, +)
-        if plan.stops.count + 1 >= 4 || planned > window {
-            return ("That's a lot to fit in",
-                    "With \(plan.stops.count + 1) stops before \(latest), you may not reach Gate \(gate) by \(SampleJourney.gateArrivalTarget). Two or three stops is safer.")
-        }
-        return nil
+        var proposed = plan
+        proposed.stops.append(stop)
+        if !queueUpdateHandled { proposed = PlanEngine.applying(cafeQueueUpdate, to: proposed) }
+        proposed.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
+        let arrival = PlanEngine.schedule(proposed, pace: pace, gateWalkAdjustment: gateWalkAdjustment(for: routeChoice),
+                                          notBefore: now).arriveAtGate
+        guard arrival > SampleJourney.gateArrivalTarget,
+              stop.id.meal?.sitDown == true || plan.stops.count >= 3 else { return nil }
+        let message = "Estimated arrival at Gate \(gate) is \(arrival). Aim to be there by \(SampleJourney.gateArrivalTarget)."
+        return (stop.id.meal?.sitDown == true ? "A sit-down meal may not fit" : "That's a lot to fit in", message)
     }
 
-    /// Minutes before the gate closes that no stop covers (overlapping stops count once).
+    /// Positive slack is measured against the planning target, after the remaining route.
     var minutesToSpare: Int {
-        let closes = outbound.gateCloses ?? SampleJourney.gateArrivalTarget
-        let spans = plan.stops.compactMap { times($0.id) }.map { ($0.arrive.minutes, $0.leave.minutes) }.sorted { $0.0 < $1.0 }
-        var covered = 0, end = Int.min
-        for (start, finish) in spans {
-            covered += max(finish - max(start, end), 0)
-            end = max(end, finish)
-        }
-        return closes - now - covered
+        let arrival = plan.stops.isEmpty ? now + gateWalkMinutes : max(now, schedule.leave) + schedule.walkToGate
+        return SampleJourney.gateArrivalTarget - arrival
     }
 
-    /// Other stops in the plan whose times overlap this one.
+    /// Requested start times can conflict with the preceding walk or stop.
     func overlapping(_ id: PlaceID) -> [PlanStop] {
-        guard let mine = times(id) else { return [] }
-        return plan.stops.filter { other in
-            guard other.id != id, let theirs = times(other.id) else { return false }
-            return StopTimes.overlaps((mine.arrive, mine.leave), (theirs.arrive, theirs.leave))
+        let stops = schedule.stops
+        guard let index = stops.firstIndex(where: { $0.stop.id == id }) else { return [] }
+        if index > 0, let requested = stops[index].stop.arrive, requested < stops[index].start {
+            return [stops[index - 1].stop]
+        }
+        return stops.dropFirst(index + 1).prefix(1).compactMap { following in
+            guard let requested = following.stop.arrive, requested < following.start else { return nil }
+            return following.stop
         }
     }
 
     func replacePlan(with edited: Plan) {
         clearUndo()
         plan = edited
-        refreshSuggestion()
+        refreshPlanGuidance()
     }
 
     func applySuggestion() {
@@ -403,7 +442,10 @@ final class JourneyStore: ObservableObject {
         undoPlan = plan
         plan = suggestion.proposed
         queueUpdateHandled = true
-        self.suggestion = nil
+        refreshPlanGuidance()
+        showToast(ToastMessage(text: "Plan updated", action: "Undo")) { [weak self] in
+            self?.undoSuggestion()
+        }
     }
 
     /// Keeps the selected stops as they are. The longer queue still counts toward the timing.
@@ -411,7 +453,7 @@ final class JourneyStore: ObservableObject {
         guard let suggestion, suggestion.basePlan == plan else { return refreshSuggestion() }
         plan = PlanEngine.applying(suggestion.update, to: plan)
         queueUpdateHandled = true
-        self.suggestion = nil
+        refreshPlanGuidance()
     }
 
     func undoSuggestion() {
@@ -419,7 +461,7 @@ final class JourneyStore: ObservableObject {
         undoPlan = nil
         plan = previous
         queueUpdateHandled = false
-        refreshSuggestion()
+        refreshPlanGuidance()
     }
 
     func clearUndo() { undoPlan = nil }
@@ -430,12 +472,17 @@ final class JourneyStore: ObservableObject {
             suggestion = nil
             return
         }
-        suggestion = PlanEngine.suggestion(for: plan, update: cafeQueueUpdate, pace: pace)
+        suggestion = PlanEngine.suggestion(for: plan, update: cafeQueueUpdate, pace: pace,
+                                           gateWalkAdjustment: gateWalkAdjustment(for: routeChoice), notBefore: now)
     }
 
     // MARK: Journey steps
 
-    func confirmStep(_ id: String) { checklist.confirm(id); refreshAlerts() }
+    func confirmStep(_ id: String, assignmentRevision: Int? = nil) {
+        guard id != "gate" || assignmentRevision == gateAssignmentRevision else { return }
+        checklist.confirm(id)
+        refreshAlerts()
+    }
     func skipStep(_ id: String) { checklist.skip(id) }
     func undoStep() { checklist.undo() }
 
@@ -463,6 +510,9 @@ final class JourneyStore: ObservableObject {
         tripFlight = flightDraft
         if changedAirport {
             checklist = isAirportTransfer ? .narita : .haneda
+            feed = nil
+            alerts = [:]
+            alertToPresent = nil
             routeStep = 1
         }
         refreshAlerts()

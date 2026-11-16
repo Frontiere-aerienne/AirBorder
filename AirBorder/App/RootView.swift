@@ -10,7 +10,7 @@ enum Destination: Hashable {
     case anaLounge, loungeMap, landsideRoute(Bool), facilityGuide, t2Deck, t2NotEnoughTime, toTerminal2, atTerminal2, returnFromT2, shuttleFull
     case choosePDF, importWallet, connectGmail, connectCalendar, reviewImported(ParsedTicket), flightUpdated, reviewFlight
     case connectedAccounts, healthPermission, removeHealth, airportWalking, previousTrips, savedFlights
-    case language, about, help, editProfile
+    case language, about, help, editProfile, tutorial
     case alerts(AlertKind)
 }
 
@@ -165,6 +165,7 @@ struct RootView: View {
         case .about: AboutView()
         case .help: AboutView()
         case .editProfile: EditProfileView()
+        case .tutorial: TutorialReplay()
         case let .alerts(kind): AlertsView(kind: kind)
         }
     }
@@ -218,3 +219,11 @@ extension EnvironmentValues {
 
 /// Extra space under scroll content; the system tab bar already insets it.
 let tabBarClearance: CGFloat = 24
+
+/// Profile › Replay tutorial (Figma link to Onboarding 1).
+private struct TutorialReplay: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        OnboardingFlow(startAt: 1) { dismiss() }
+    }
+}

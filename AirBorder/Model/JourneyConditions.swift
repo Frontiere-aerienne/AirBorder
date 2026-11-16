@@ -9,6 +9,8 @@ struct FlightFeed: Codable, Equatable {
     var gate: String?
     /// When the update was received, in airport local time.
     var receivedAt: ClockTime
+    var previousGate: String? = nil
+    var assignmentRevision: Int? = nil
 }
 
 /// A situation the traveller needs to know about. Each one appears only while its condition holds.
@@ -72,8 +74,9 @@ enum JourneyConditions {
     static func evaluate(_ input: ConditionInputs) -> [JourneyCondition] {
         if input.departsFromAnotherAirport { return [.airportTransfer] }
         var found: [JourneyCondition] = []
-        if let gate = input.feed?.gate, !gate.isEmpty, gate != input.ticketGate {
-            found.append(.gateChanged(from: input.ticketGate, to: gate))
+        let previousGate = input.feed?.previousGate ?? input.ticketGate
+        if let gate = input.feed?.gate, !gate.isEmpty, gate != previousGate {
+            found.append(.gateChanged(from: previousGate, to: gate))
         }
         if !input.atGate, let closes = input.gateCloses {
             let arrival = input.now + input.walkToGate

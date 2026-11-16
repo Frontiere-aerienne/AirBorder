@@ -1,3 +1,5 @@
+// PROCEDURAL: Verifies timing and journey state with controlled inputs.
+
 @testable import AirBorder
 import XCTest
 
@@ -279,12 +281,32 @@ final class JourneySituationStoreTests: XCTestCase {
         XCTAssertEqual(store.alerts[.gateChange]?.acknowledged, true)
     }
 
+    func testGateChangeReopensConfirmedArrivalEvenWhenReturningToOriginalGate() {
+        let store = makeStore()
+        store.confirmStep("security")
+        store.skipStep("passport")
+        let firstAssignment = store.gateAssignmentRevision
+        store.confirmStep("gate", assignmentRevision: firstAssignment)
+        store.setNow(ClockTime(17, 8))
+        XCTAssertTrue(store.conditionInputs.atGate)
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(17, 8)))
+        XCTAssertEqual(store.checklist.current?.id, "gate")
+        XCTAssertEqual(store.checklist.steps.first { $0.id == "security" }?.state, .confirmed)
+        XCTAssertTrue(store.conditions.contains(.boardingAtRisk(closesIn: 17, walk: 12)))
+        store.confirmStep("gate", assignmentRevision: store.gateAssignmentRevision)
+        store.receive(FlightFeed(gate: "105", receivedAt: ClockTime(17, 9)))
+        store.confirmStep("gate", assignmentRevision: firstAssignment)
+        XCTAssertEqual(store.checklist.current?.id, "gate")
+        XCTAssertTrue(store.conditions.contains(.gateChanged(from: "108A", to: "105")))
+        XCTAssertEqual(store.alertToPresent, .gateChange)
+    }
+
     func testStopsMoveTheLeaveTimeForReturnNow() {
         let store = makeStore()
         store.setNow(ClockTime(16, 40))
         XCTAssertNil(store.primaryCondition)
         store.add(.cafe)
-        XCTAssertEqual(store.conditionInputs.leaveBy, store.schedule.leave)
+        XCTAssertEqual(store.conditionInputs.leaveBy, SampleJourney.gateArrivalTarget - store.schedule.walkToGate)
     }
 
     func testChoosingNH6StartsTheNaritaTransfer() {
@@ -331,17 +353,13 @@ final class TerminalTwoTimingTests: XCTestCase {
     }
 
     func testStopTimesStepByFifteenMinutesWithinLimits() {
-        let latest = StopTimes.latestLeave(walkToGate: 6)
-        XCTAssertEqual(latest.description, "16:59")
-        XCTAssertEqual(StopTimes.leave(.cafe, latest: latest).description, "16:59")
+        let latest = ClockTime(16, 59)
         XCTAssertEqual(StopTimes.earlierLeave(latest, arrive: ClockTime(16, 0))?.description, "16:45")
         XCTAssertEqual(StopTimes.laterLeave(ClockTime(16, 45), latest: latest)?.description, "16:59")
         XCTAssertNil(StopTimes.laterLeave(latest, latest: latest), "Never past the latest leave")
         XCTAssertNil(StopTimes.earlierArrive(ClockTime(15, 0)), "Plan starts at 15:00")
         XCTAssertNil(StopTimes.laterArrive(ClockTime(16, 30), leave: ClockTime(16, 59)), "Keeps at least 15 min")
         XCTAssertEqual(StopTimes.laterArrive(ClockTime(16, 0), leave: ClockTime(16, 59))?.description, "16:15")
-        XCTAssertTrue(StopTimes.overlaps((ClockTime(16, 0), ClockTime(16, 59)), (ClockTime(16, 30), ClockTime(17, 1))))
-        XCTAssertFalse(StopTimes.overlaps((ClockTime(15, 30), ClockTime(16, 0)), (ClockTime(16, 0), ClockTime(16, 59))))
     }
 
     @MainActor
@@ -360,25 +378,31 @@ final class TerminalTwoTimingTests: XCTestCase {
             let steps = RouteSteps.steps(for: choice, store: store)
             print("ROUTE \(choice):", steps.map { "[\($0.distance)] \($0.text) (\($0.remaining))" }.joined(separator: " | "))
             XCTAssertEqual(steps.filter { $0.turn == .stop }.map(\.text), [
-                "Stop at Curacion Cafe, leave by 16:59", "Stop at ANA LOUNGE, leave by 17:01",
+                "Stop at Curacion Cafe, leave by 16:38", "Stop at ANA LOUNGE, leave by 17:11",
             ])
         }
     }
 
     @MainActor
-    func testArrivePushesLeaveAndSpareTimeCountsStops() {
+    func testStopEditsChangeArrivalAndRouteTogether() {
         let defaults = UserDefaults(suiteName: "planTimes")!
         defaults.removePersistentDomain(forName: "planTimes")
         let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
-        XCTAssertEqual(durationText(store.minutesToSpare), "5h 25m")
-        store.add(.cafe) // 16:00–16:59
-        store.add(.anaLounge) // 16:30–17:01, overlaps the café
-        XCTAssertEqual(durationText(store.minutesToSpare), "4h 24m", "16:00–17:01 is covered once")
-        store.setTimes(.cafe, leave: ClockTime(16, 15))
-        store.setTimes(.cafe, arrive: ClockTime(16, 15))
-        XCTAssertEqual(store.times(.cafe)?.leave.description, "16:30", "Leave moves with Arrive")
-        store.setTimes(.cafe, arrive: ClockTime(16, 59))
-        XCTAssertEqual(store.times(.cafe)?.leave.description, "16:59", "Never past the latest leave")
+        store.setNow(ClockTime(16, 50))
+        XCTAssertEqual(store.minutesToSpare, 3, "Slack includes the twelve-minute walk and the planning target")
+        store.setNow(ClockTime(12, 0))
+        store.add(.cafe)
+        store.add(.anaLounge)
+        XCTAssertEqual(store.schedule.arriveAtGate, ClockTime(17, 15))
+        store.setTimes(.anaLounge, leave: ClockTime(17, 1))
+        XCTAssertEqual(store.schedule.arriveAtGate, ClockTime(17, 5))
+        XCTAssertEqual(store.minutesToSpare, 0)
+        XCTAssertTrue(RouteSteps.steps(for: .direct, store: store).contains {
+            $0.text == "Stop at ANA LOUNGE, leave by 17:01"
+        })
+        store.setTimes(.anaLounge, arrive: ClockTime(16, 45))
+        XCTAssertEqual(store.times(.anaLounge)?.leave, ClockTime(17, 3))
+        XCTAssertEqual(store.schedule.arriveAtGate, ClockTime(17, 7))
     }
 
     @MainActor
@@ -393,7 +417,9 @@ final class TerminalTwoTimingTests: XCTestCase {
         XCTAssertNil(store.fitWarning(for: .bento), "A quick bite still fits")
         store.add(.bento)
         XCTAssertEqual(store.fitWarning(for: .udon)?.title, "That's a lot to fit in")
-        XCTAssertEqual(store.times(.bento)?.leave.description, "16:25", "Food stops default to their meal length")
+        let bento = store.schedule.stops.first { $0.stop.id == .bento }
+        XCTAssertNotNil(bento)
+        if let bento { XCTAssertEqual(bento.end - bento.start, 10) }
         store.remove(.bento)
         store.remove(.skyLounge)
         store.add(.sushi)

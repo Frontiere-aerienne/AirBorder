@@ -81,6 +81,12 @@ struct JourneyChecklist: Codable, Equatable {
         set(id, .skipped)
     }
 
+    mutating func reopenGate() {
+        guard let index = steps.firstIndex(where: { $0.id == "gate" && $0.state == .confirmed }) else { return }
+        steps[index].state = .pending
+        if lastChange?.stepID == "gate" { lastChange = nil }
+    }
+
     mutating func undo() {
         guard let change = lastChange, let index = steps.firstIndex(where: { $0.id == change.stepID }) else { return }
         steps[index].state = change.previous

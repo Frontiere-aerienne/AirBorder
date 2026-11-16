@@ -207,6 +207,7 @@ struct GateChangeAlert: View {
     let dismiss: () -> Void
 
     var body: some View {
+        let previousGate = store.feed?.previousGate ?? store.outbound.departureGate
         AirBorderPopup(
             title: "Gate changed",
             message: "\(store.outbound.number) now departs from Gate \(store.gate). It’s a \(store.gateWalkMinutes) min walk.",
@@ -220,12 +221,12 @@ struct GateChangeAlert: View {
             })
         ) {
             HStack(spacing: 10) {
-                gate(store.outbound.departureGate, old: true)
+                gate(previousGate, old: true)
                 Image(systemName: "arrow.right").font(.system(size: 16, weight: .bold)).foregroundStyle(AB.ticket)
                 gate(store.gate, old: false)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Gate \(store.outbound.departureGate) changed to \(store.gate)")
+            .accessibilityLabel("Gate \(previousGate) changed to \(store.gate)")
         }
         .onAppear {
             store.alertSeen(.gateChange)
@@ -365,7 +366,7 @@ struct AlertsView: View {
 
     private var headline: String {
         switch kind {
-        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.outbound.departureGate) → \(store.gate)"
+        case .gateChange: reminder ? "Gate changed to \(store.gate)" : "Gate \(store.feed?.previousGate ?? store.outbound.departureGate) → \(store.gate)"
         case .returnNow: "Time to return to Gate \(store.gate)"
         case .boardingAtRisk: "Boarding time is tight"
         }

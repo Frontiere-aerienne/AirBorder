@@ -579,7 +579,7 @@ struct ReturnFromT2View: View {
                 ("T2 bus stop 9", "Lift to 1F arrivals"),
                 ("Free shuttle to T3", "About 15 min"),
                 ("T3 departures, 3F", "Security and passport control, about 30 min"),
-                ("Follow Gates 105–109", "Continue to Gate 105"),
+                ("Follow Gates 105–109", "Continue to Gate \(store.gate)"),
             ])
             CenteredButton(title: "Open gate directions") {
                 popToRoot()

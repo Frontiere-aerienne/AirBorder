@@ -20,12 +20,12 @@ struct RouteStep: Equatable {
 enum RouteSteps {
     /// Map units to metres, so the direct route measures the Figma 570 m.
     static let metresPerUnit: CGFloat = 570 / RouteMap.length(of: RouteMap.route(through: [], choice: .direct).nodes)
-    static let metresPerMinute: CGFloat = 47.5
 
     static func steps(for choice: RouteChoice, store: JourneyStore) -> [RouteStep] {
         let gate = store.gate
         let board = "Board at \(SampleJourney.boarding)"
-        let stops = stopsInOrder(store)
+        let timed = store.schedule(for: choice)
+        let stops = timed.stops.map(\.stop)
         let route = RouteMap.route(through: stops.map { RouteMap.node(for: $0.id) }, choice: choice)
         let nodes = route.nodes
         let last = RouteStep(distance: "At Gate \(gate)", text: "Check \(store.outbound.number) on the gate screen", turn: .gate,
@@ -33,8 +33,17 @@ enum RouteSteps {
         let stopAt = Dictionary(uniqueKeysWithValues: zip(route.stopIndices, stops))
         let edges = zip(nodes, nodes.dropFirst()).map { RouteMap.edge($0, $1) }
         let metres = { (from: Int) in RouteMap.length(of: Array(nodes[from...])) * metresPerUnit }
+        let ends = route.stopIndices + [nodes.count - 1]
+        let durations = timed.stops.map(\.walkFromPrevious) + [timed.walkToGate]
+        // Use the schematic only to apportion the time within each already timed leg.
         let minutes = { (from: Int) in
-            WalkingTimes.minutes(average: max(Int((metres(from) / metresPerMinute).rounded(.up)), 1), pace: store.pace)
+            guard let leg = ends.firstIndex(where: { $0 > from }) else { return 0 }
+            let start = leg == 0 ? 0 : ends[leg - 1]
+            let end = ends[leg]
+            let legLength = RouteMap.length(of: Array(nodes[start...end]))
+            let remaining = RouteMap.length(of: Array(nodes[from...end]))
+            let current = legLength > 0 ? Int((Double(durations[leg]) * Double(remaining / legLength)).rounded(.up)) : 0
+            return current + durations.dropFirst(leg + 1).reduce(0, +)
         }
         var steps: [RouteStep] = []
         var group: [Int] = [] // edge indices walked as one step
@@ -70,7 +79,7 @@ enum RouteSteps {
 
         for (i, edge) in edges.enumerated() {
             if let stop = stopAt[i] {
-                let leave = store.times(stop.id)?.leave.description ?? ""
+                let leave = timed.stops.first { $0.stop.id == stop.id }?.end.description ?? ""
                 steps.append(RouteStep(distance: "Stop \(steps.filter { $0.turn == .stop }.count + 1)", text: "Stop at \(stop.name), leave by \(leave)",
                                        turn: .stop, remaining: "Leave by \(leave)", remainingDetail: "\(minutes(i)) min walk left",
                                        position: CGFloat(i)))
@@ -98,7 +107,7 @@ enum RouteSteps {
 
     /// Plan stops in the order the traveller will reach them.
     static func stopsInOrder(_ store: JourneyStore) -> [PlanStop] {
-        store.plan.stops.sorted { StopTimes.arrive($0) < StopTimes.arrive($1) }
+        store.schedule.stops.map(\.stop)
     }
 
     /// What to do on a stretch of the map, worded like the Figma route steps.
