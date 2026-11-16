@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 /// Colours of the Figma "Travel update" tones and alert tags.
@@ -148,43 +149,36 @@ struct TravelUpdateBanner: View {
     private func tap() { tapAction?() }
 }
 
-/// Figma "Gate change alert" (1157:17460): an iPhone-style alert over the Flight screen.
-struct GateChangeAlert: View {
-    @EnvironmentObject private var store: JourneyStore
+/// The AirBorder pop-up (Figma "Gate change alert", 1157:17460): a dimmed screen, a white card,
+/// and two actions along the bottom. Used for gate changes and for asking to use the camera.
+struct AirBorderPopup<Visual: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let dismiss: () -> Void
+    let title: String
+    let message: String
+    let id: String
+    let secondary: (title: String, id: String, perform: () -> Void)
+    let primary: (title: String, id: String, perform: () -> Void)
+    @ViewBuilder let visual: Visual
     @State private var shown = false
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.4).ignoresSafeArea().onTapGesture(perform: dismiss)
+            Color.black.opacity(0.4).ignoresSafeArea().onTapGesture(perform: secondary.perform)
             VStack(spacing: 0) {
                 VStack(spacing: 14) {
-                    Text("Gate changed").outfitText(17, .bold).accessibilityAddTraits(.isHeader)
-                    HStack(spacing: 10) {
-                        gate(store.outbound.departureGate, old: true)
-                        Image(systemName: "arrow.right").font(.system(size: 16, weight: .bold)).foregroundStyle(AB.ticket)
-                        gate(store.gate, old: false)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Gate \(store.outbound.departureGate) changed to \(store.gate)")
-                    Text("\(store.outbound.number) now departs from Gate \(store.gate). It’s a \(store.gateWalkMinutes) min walk.")
+                    Text(title).outfitText(17, .bold).multilineTextAlignment(.center).accessibilityAddTraits(.isHeader)
+                    visual
+                    Text(message)
                         .outfitText(15, .regular, AB.secondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                .padding(20)
                 Rectangle().fill(AB.border).frame(height: 1)
                 HStack(spacing: 0) {
-                    action("Dismiss", .regular, id: "alertDismiss", perform: dismiss)
+                    action(secondary.title, .regular, id: secondary.id, perform: secondary.perform)
                     Rectangle().fill(AB.border).frame(width: 1)
-                    action("View route", .bold, id: "alertRoute") {
-                        store.acknowledge(.gateChange)
-                        store.routeStep = 1
-                        dismiss()
-                        store.tab = .route
-                    }
+                    action(primary.title, .bold, id: primary.id, perform: primary.perform)
                 }
                 .frame(height: 52)
             }
@@ -192,13 +186,50 @@ struct GateChangeAlert: View {
             .background(.white, in: RoundedRectangle(cornerRadius: 16))
             .scaleEffect(shown || reduceMotion ? 1 : 0.95)
             .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("gateAlert")
+            .accessibilityIdentifier(id)
             .accessibilityAddTraits(.isModal)
+        }
+        .onAppear { withAnimation(.abOut) { shown = true } }
+    }
+
+    private func action(_ title: String, _ weight: OutfitWeight, id: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            Text(title).outfitText(17, weight, AB.primary).frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityIdentifier(id)
+    }
+}
+
+/// Figma "Gate change alert" (1157:17460).
+struct GateChangeAlert: View {
+    @EnvironmentObject private var store: JourneyStore
+    let dismiss: () -> Void
+
+    var body: some View {
+        AirBorderPopup(
+            title: "Gate changed",
+            message: "\(store.outbound.number) now departs from Gate \(store.gate). It’s a \(store.gateWalkMinutes) min walk.",
+            id: "gateAlert",
+            secondary: ("Dismiss", "alertDismiss", dismiss),
+            primary: ("View route", "alertRoute", {
+                store.acknowledge(.gateChange)
+                store.routeStep = 1
+                dismiss()
+                store.tab = .route
+            })
+        ) {
+            HStack(spacing: 10) {
+                gate(store.outbound.departureGate, old: true)
+                Image(systemName: "arrow.right").font(.system(size: 16, weight: .bold)).foregroundStyle(AB.ticket)
+                gate(store.gate, old: false)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Gate \(store.outbound.departureGate) changed to \(store.gate)")
         }
         .onAppear {
             store.alertSeen(.gateChange)
             Haptics.warning()
-            withAnimation(.abOut) { shown = true }
         }
     }
 
@@ -212,13 +243,32 @@ struct GateChangeAlert: View {
         .padding(.horizontal, 6)
         .background(old ? AB.screen : AB.gateYellow, in: RoundedRectangle(cornerRadius: 12))
     }
+}
 
-    private func action(_ title: String, _ weight: OutfitWeight, id: String, perform: @escaping () -> Void) -> some View {
-        Button(action: perform) {
-            Text(title).outfitText(17, weight, AB.primary).frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+/// Asks to use the camera for sign reading, before iOS's own permission prompt.
+struct CameraPrompt: View {
+    @EnvironmentObject private var store: JourneyStore
+
+    var body: some View {
+        AirBorderPopup(
+            title: "Use the camera to read signs?",
+            message: "Point your iPhone at an overhead sign and AirBorder checks you’re heading the right way. You can switch back to the map at any time.",
+            id: "cameraPrompt",
+            secondary: ("Dismiss", "cameraDismiss", { store.asksForCamera = false }),
+            primary: ("Allow camera", "cameraAllow", {
+                store.asksForCamera = false
+                Task {
+                    if await AVCaptureDevice.requestAccess(for: .video) { store.cameraAllowed += 1 }
+                }
+            })
+        ) {
+            Image(systemName: "camera.viewfinder")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(AB.gateText)
+                .frame(width: 72, height: 64)
+                .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
         }
-        .buttonStyle(.pressable)
-        .accessibilityIdentifier(id)
     }
 }
 

@@ -138,7 +138,6 @@ struct RouteView: View {
     @State private var mode: Mode = .map
     @State private var showsMapInfo = false
     @State private var cameraCovers = false
-    @State private var asksForCamera = false
 
     enum Mode { case map, camera }
 
@@ -169,17 +168,8 @@ struct RouteView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        // Asked in place, before iOS's own prompt, instead of a separate Camera guidance screen.
-        .alert("Use the camera to read signs?", isPresented: $asksForCamera) {
-            Button("Allow camera") {
-                Task {
-                    if await AVCaptureDevice.requestAccess(for: .video) { mode = .camera }
-                }
-            }
-            Button("Dismiss", role: .cancel) {}
-        } message: {
-            Text("Point your iPhone at an overhead sign and AirBorder checks you're heading the right way. You can switch back to the map at any time.")
-        }
+        // Camera access is asked in the AirBorder pop-up (RootView); open the camera once it's allowed.
+        .onChange(of: store.cameraAllowed) { mode = .camera }
     }
 
     /// The sign the camera looks for at the current step.
@@ -217,7 +207,7 @@ struct RouteView: View {
         let selected = mode == value
         return Button {
             if value == .camera, AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
-                asksForCamera = true
+                store.asksForCamera = true
             } else {
                 mode = value
             }

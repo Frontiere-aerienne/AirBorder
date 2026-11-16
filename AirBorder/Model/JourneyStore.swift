@@ -97,6 +97,9 @@ final class JourneyStore: ObservableObject {
     @Published private(set) var walkingSpeedKmh: Double?
     @Published private(set) var lastHealthSync: Date?
     @Published var routeStep = 1
+    /// The camera pop-up on Route is showing; `cameraAllowed` ticks when access is granted.
+    @Published var asksForCamera = false
+    @Published var cameraAllowed = 0
 
     /// Airport local time the journey is shown at. The sample journey stays at 12:00.
     @Published private(set) var now: ClockTime = SampleJourney.now
