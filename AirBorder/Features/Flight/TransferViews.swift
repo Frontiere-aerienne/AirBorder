@@ -20,25 +20,29 @@ struct TransferPlanSection: View {
     var body: some View {
         let closes = store.outbound.gateCloses ?? store.outbound.departs
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 6) {
-                TimeChip(text: durationText(closes - store.now))
-                Text("before Narita gate closes.").outfitText(22, .regular, AB.muted)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("transferCountdown")
-            Button { showsSteps = true } label: {
-                HStack(spacing: 9) {
-                    Image("icTransferWhite").resizable().frame(width: 21, height: 21)
-                    Text("Route").outfitText(14, .semibold, .white)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your transfer").outfitText(22, .bold).accessibilityAddTraits(.isHeader)
+                    (Text("Narita gate closes in ").outfitText(16, .regular, AB.secondary) + Text(durationText(closes - store.now)).outfitText(16, .semibold, AB.primary))
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("transferCountdown")
                 }
-                .frame(width: 222, height: 47)
-                .background(AB.primary, in: Capsule())
+                Spacer()
+                Button { showsSteps = true } label: {
+                    HStack(spacing: 9) {
+                        Image("icTransferWhite").resizable().frame(width: 21, height: 21)
+                        Text("Route").outfitText(14, .semibold, .white)
+                    }
+                    .padding(.horizontal, 18)
+                    .frame(height: 48)
+                    .background(AB.primary, in: Capsule())
+                }
+                .buttonStyle(.pressable)
+                .accessibilityIdentifier("routeButton")
             }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity)
-            .accessibilityIdentifier("routeButton")
-            Text("HND → NRT, ground transfer").outfitText(17, .semibold)
-                .padding(.top, 8)
+            Text("HND → NRT, ground transfer").outfitText(15, .semibold, AB.secondary)
+                .padding(.top, 4)
             VStack(spacing: 0) {
                 Button { showsBag = true } label: {
                     row("tileBag", "Baggage, collect at HND", "Bag tag: HND, recheck at Narita T1")
@@ -50,10 +54,12 @@ struct TransferPlanSection: View {
                 RowDivider()
                 row("tileMap", "Airport bus, \(NaritaTransfer.busDeparts)", "NRT T1 arrival \(NaritaTransfer.busArrives), fare \(NaritaTransfer.fare)")
             }
-            .background(AB.card, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(AB.border, lineWidth: 1))
+            .background(AB.screen.opacity(0.6), in: RoundedRectangle(cornerRadius: 16))
             .accessibilityIdentifier("beforeYouTransfer")
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 22)
+        .background(.white, in: RoundedRectangle(cornerRadius: 24))
         .sheet(isPresented: $showsSteps) { TransferStepsSheet() }
         .sheet(isPresented: $showsBag) { TransferBaggageSheet() }
     }

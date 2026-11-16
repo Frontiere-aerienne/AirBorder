@@ -452,68 +452,81 @@ struct ScenarioPlanSection: View {
     @EnvironmentObject private var store: JourneyStore
     let condition: JourneyCondition
 
+    /// Same white card as the plan: a title, one line of context, Route, and a two-box visual.
     var body: some View {
         switch condition {
         case let .returnNow(closesIn, walk):
-            countdown(closesIn, color: AB.amber)
-            routeButton(color: AB.amber)
-            Text("\(walk) min walk\nLeave now to reach your gate in time.").outfitText(14, .regular, AB.navy)
+            card(title: "Head back now", countdown: closesIn, tint: AB.amber,
+                 left: ("Walk", "\(walk) min", AB.ticket, AB.screen), right: ("Left", "\(closesIn) min", AB.amber, AB.warningTint), sign: "<")
                 .accessibilityIdentifier("arrivalEstimate")
-        case let .boardingAtRisk(closesIn, _):
-            countdown(closesIn, color: AB.removeRed)
-            routeButton(color: AB.removeRed)
+        case let .boardingAtRisk(closesIn, walk):
+            card(title: "Boarding is tight", countdown: closesIn, tint: AB.removeRed,
+                 left: ("Walk", "\(walk) min", AB.ticket, AB.screen), right: ("Left", "\(closesIn) min", AB.alert, AB.alertBackground), sign: "≈")
         case let .arrivesAfterClosure(arrival, _):
-            VStack(alignment: .leading, spacing: 8) {
-                timeRow("Arrival", arrival.description)
-                timeRow("Gate closes", store.outbound.gateCloses?.description ?? "–")
-            }
-            .accessibilityIdentifier("arrivalAfterClosure")
-            TextLink(title: "Route") { store.tab = .route }
+            card(title: "You'd arrive after closing", countdown: nil, tint: AB.removeRed,
+                 left: ("Arrival", arrival.description, AB.alert, AB.alertBackground),
+                 right: ("Gate closes", store.outbound.gateCloses?.description ?? "–", AB.ticket, AB.screen), sign: ">")
+                .accessibilityIdentifier("arrivalAfterClosure")
         default:
             EmptyView()
         }
     }
 
-    private func countdown(_ minutes: Int, color: Color) -> some View {
-        HStack(spacing: 6) {
-            Text("\(minutes) min").outfitText(20, .semibold, AB.ice)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 2)
-                .background(color, in: RoundedRectangle(cornerRadius: 8))
-            Text("before").outfitText(22, .regular, color)
-            GateSign(gate: store.gate, size: 18)
-            Text("closes.").outfitText(22, .regular, color)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(minutes) min before Gate \(store.gate) closes.")
-        .accessibilityIdentifier("scenarioCountdown")
-    }
-
-    private func routeButton(color: Color) -> some View {
-        Button {
-            if let kind = condition.alertKind { store.acknowledge(kind) }
-            store.tab = .route
-        } label: {
-            HStack(spacing: 8) {
-                Image("icWalkWhite").resizable().frame(width: 21, height: 21)
-                Text("Route").outfitText(14, .semibold, .white)
+    private func card(title: String, countdown: Int?, tint: Color,
+                      left: (String, String, Color, Color), right: (String, String, Color, Color), sign: String) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).outfitText(22, .bold).accessibilityAddTraits(.isHeader)
+                    if let countdown {
+                        (Text("Gate closes in ").outfitText(16, .regular, AB.secondary) + Text("\(countdown) min").outfitText(16, .semibold, tint))
+                            .lineLimit(1).minimumScaleFactor(0.85)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(countdown) min before Gate \(store.gate) closes.")
+                        .accessibilityIdentifier("scenarioCountdown")
+                    } else {
+                        Text("Ask ANA for help").outfitText(16, .regular, AB.secondary)
+                    }
+                }
+                Spacer()
+                Button {
+                    if let kind = condition.alertKind { store.acknowledge(kind) }
+                    store.tab = .route
+                } label: {
+                    HStack(spacing: 9) {
+                        Image("icWalkWhite").resizable().frame(width: 21, height: 21)
+                        Text("Route").outfitText(14, .semibold, .white)
+                    }
+                    .padding(.horizontal, 18)
+                    .frame(height: 48)
+                    .background(tint, in: Capsule())
+                }
+                .buttonStyle(.pressable)
+                .accessibilityIdentifier("routeButton")
             }
-            .frame(width: 222, height: 47)
-            .background(color, in: Capsule())
+            HStack(spacing: 10) {
+                box(left)
+                Text(sign).outfitText(18, .bold, AB.ticket)
+                box(right)
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(left.0) \(left.1), \(right.0) \(right.1)")
         }
-        .buttonStyle(.pressable)
-        .frame(maxWidth: .infinity)
-        .accessibilityIdentifier("routeButton")
+        .padding(.horizontal, 18)
+        .padding(.vertical, 22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white, in: RoundedRectangle(cornerRadius: 24))
+        .accessibilityElement(children: .contain)
     }
 
-    private func timeRow(_ label: String, _ time: String) -> some View {
-        HStack(spacing: 6) {
-            Text(label).outfitText(22, .regular, AB.muted)
-            Text(time).outfitText(20, .semibold, AB.ice)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 2)
-                .background(AB.ticket, in: RoundedRectangle(cornerRadius: 8))
+    private func box(_ item: (String, String, Color, Color)) -> some View {
+        VStack(spacing: 0) {
+            Text(item.0).outfitText(13, .medium, item.2)
+            Text(item.1).outfitText(26, .bold, item.2).lineLimit(1).fixedSize()
         }
-        .accessibilityElement(children: .combine)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(item.3, in: RoundedRectangle(cornerRadius: 14))
     }
 }

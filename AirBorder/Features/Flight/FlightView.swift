@@ -22,6 +22,8 @@ struct FlightView: View {
                 } else if let condition = store.primaryCondition, store.hasTimingSituation {
                     VStack(alignment: .leading, spacing: 16) {
                         ScenarioPlanSection(condition: condition)
+                        // The warning comes first, but the stops the traveller added stay in view.
+                        if !store.plan.stops.isEmpty { PlanStripCard() }
                     }
                 } else {
                     planSection

@@ -115,6 +115,10 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
+            argument = "-now 17:00"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
             argument = "-skipOnboarding"
             isEnabled = "YES">
          </CommandLineArgument>

@@ -388,13 +388,16 @@ final class JourneyStore: ObservableObject {
     /// Minutes before the gate closes that no stop covers (overlapping stops count once).
     var minutesToSpare: Int {
         let closes = outbound.gateCloses ?? SampleJourney.gateArrivalTarget
-        let spans = plan.stops.compactMap { times($0.id) }.map { ($0.arrive.minutes, $0.leave.minutes) }.sorted { $0.0 < $1.0 }
+        // Only stop time still ahead counts; a visit that already ended doesn't use up time now.
+        let spans = plan.stops.compactMap { times($0.id) }
+            .map { (max($0.arrive.minutes, now.minutes), min($0.leave.minutes, closes.minutes)) }
+            .filter { $0.0 < $0.1 }.sorted { $0.0 < $1.0 }
         var covered = 0, end = Int.min
         for (start, finish) in spans {
             covered += max(finish - max(start, end), 0)
             end = max(end, finish)
         }
-        return closes - now - covered
+        return max(closes - now - covered, 0)
     }
 
     /// Other stops in the plan whose times overlap this one.

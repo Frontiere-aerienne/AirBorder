@@ -172,6 +172,29 @@ final class AirBorderUITests: XCTestCase {
         XCTAssertTrue(app.buttons["add-sushi"].label.contains("Remove"), "Add anyway still adds it")
     }
 
+    func testSituationCardsForScreenshots() {
+        for (args, name) in [(["-now", "17:00"], "return"), (["-now", "17:05"], "risk"), (["-now", "17:17"], "late"), (["-flight", "NH6"], "transfer")] {
+            relaunch(["-gateUpdate", "off"] + args)
+            if app.buttons["back"].waitForExistence(timeout: 4) { app.buttons["back"].tap() }
+            XCTAssertTrue(app.buttons["routeButton"].waitForExistence(timeout: 3), name)
+            app.swipeUp()
+            snapshot("situation-\(name)")
+        }
+    }
+
+    func testPlanStaysVisibleWhenItIsTimeToHeadBack() {
+        app.tabBars.buttons["Layover"].tap()
+        app.buttons["add-cafe"].tap()
+        app.terminate()
+        app.launchArguments = ["-skipOnboarding", "-walkingSpeed", "5.6", "-gateUpdate", "off", "-now", "17:00"]
+        app.launch()
+        if app.buttons["back"].waitForExistence(timeout: 4) { app.buttons["back"].tap() }
+        XCTAssertTrue(app.descendants(matching: .any)["scenarioCountdown"].waitForExistence(timeout: 3))
+        app.swipeUp()
+        XCTAssertTrue(app.buttons["lane-cafe"].waitForExistence(timeout: 2), "The plan stays under the warning")
+        snapshot("situation-with-plan")
+    }
+
     func testAppleHealthRefinesWalkingPace() {
         app.tabBars.buttons["Profile"].tap()
         app.buttons["previousTripsRow"].tap()
