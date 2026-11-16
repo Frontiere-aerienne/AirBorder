@@ -13,8 +13,8 @@ final class PlanEngineTests: XCTestCase {
 
     func testCafeThenLoungeMatchesMyPlan() {
         let schedule = PlanEngine.schedule(both, pace: .average)
-        XCTAssertEqual(PlanText.timing(schedule.stops[0]), "16:00–16:28 · 8 min wait + 20 min visit")
-        XCTAssertEqual(PlanText.timing(schedule.stops[1]), "16:33–17:01 · 28 min visit")
+        XCTAssertEqual(PlanText.timing(schedule.stops[0]), "16:00–16:28, 8 min wait + 20 min visit")
+        XCTAssertEqual(PlanText.timing(schedule.stops[1]), "16:33–17:01, 28 min visit")
         XCTAssertEqual(PlanText.walk(schedule.stops[1]), "5 min walk from the café")
         XCTAssertEqual(PlanText.arrivalTitle(schedule), "Arrive at your gate by 17:05")
         XCTAssertEqual(PlanText.arrivalDetail(schedule), "Leave ANA LOUNGE at 17:01. Gate closes at 17:25.")
@@ -40,8 +40,8 @@ final class PlanEngineTests: XCTestCase {
         XCTAssertEqual(suggestion.title, "Allow 10 more minutes for the café queue")
         XCTAssertEqual(suggestion.detail, "Shorten ANA LOUNGE to 18 min to still arrive by 17:05.")
         let applied = PlanEngine.schedule(suggestion.proposed, pace: .average)
-        XCTAssertEqual(PlanText.timing(applied.stops[0]), "16:00–16:38 · 18 min for the queue + 20 min visit")
-        XCTAssertEqual(PlanText.timing(applied.stops[1]), "16:43–17:01 · 18 min visit")
+        XCTAssertEqual(PlanText.timing(applied.stops[0]), "16:00–16:38, 18 min for the queue + 20 min visit")
+        XCTAssertEqual(PlanText.timing(applied.stops[1]), "16:43–17:01, 18 min visit")
         XCTAssertEqual(applied.arriveAtGate.description, "17:05")
         // The proposal never touches stops that were not in the selected plan.
         XCTAssertEqual(suggestion.proposed.stops.map(\.id), both.stops.map(\.id))
@@ -328,5 +328,77 @@ final class TerminalTwoTimingTests: XCTestCase {
         XCTAssertTrue(TerminalTwo.hasTime(now: ClockTime(12, 0), gateWalk: 12))
         XCTAssertTrue(TerminalTwo.hasTime(now: ClockTime(14, 53), gateWalk: 12))
         XCTAssertFalse(TerminalTwo.hasTime(now: ClockTime(14, 54), gateWalk: 12))
+    }
+
+    func testStopTimesStepByFifteenMinutesWithinLimits() {
+        let latest = StopTimes.latestLeave(walkToGate: 6)
+        XCTAssertEqual(latest.description, "16:59")
+        XCTAssertEqual(StopTimes.leave(.cafe, latest: latest).description, "16:59")
+        XCTAssertEqual(StopTimes.earlierLeave(latest, arrive: ClockTime(16, 0))?.description, "16:45")
+        XCTAssertEqual(StopTimes.laterLeave(ClockTime(16, 45), latest: latest)?.description, "16:59")
+        XCTAssertNil(StopTimes.laterLeave(latest, latest: latest), "Never past the latest leave")
+        XCTAssertNil(StopTimes.earlierArrive(ClockTime(15, 0)), "Plan starts at 15:00")
+        XCTAssertNil(StopTimes.laterArrive(ClockTime(16, 30), leave: ClockTime(16, 59)), "Keeps at least 15 min")
+        XCTAssertEqual(StopTimes.laterArrive(ClockTime(16, 0), leave: ClockTime(16, 59))?.description, "16:15")
+        XCTAssertTrue(StopTimes.overlaps((ClockTime(16, 0), ClockTime(16, 59)), (ClockTime(16, 30), ClockTime(17, 1))))
+        XCTAssertFalse(StopTimes.overlaps((ClockTime(15, 30), ClockTime(16, 0)), (ClockTime(16, 0), ClockTime(16, 59))))
+    }
+
+    @MainActor
+    func testRouteStepsFollowTheMap() {
+        let defaults = UserDefaults(suiteName: "routeSteps")!
+        defaults.removePersistentDomain(forName: "routeSteps")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        XCTAssertEqual(RouteSteps.steps(for: .direct, store: store).map(\.text), [
+            "Follow the Gates 105–109 sign", "Take the stairs at the junction", "Go straight past Gate 104",
+            "Turn left at the Gate 105 sign", "Check NH 106 on the gate screen",
+        ], "No stops: the Figma direct route")
+        XCTAssertEqual(RouteSteps.steps(for: .direct, store: store).first?.remaining, "12 min")
+        store.add(.cafe)
+        store.add(.anaLounge)
+        for choice in RouteChoice.allCases {
+            let steps = RouteSteps.steps(for: choice, store: store)
+            print("ROUTE \(choice):", steps.map { "[\($0.distance)] \($0.text) (\($0.remaining))" }.joined(separator: " | "))
+            XCTAssertEqual(steps.filter { $0.turn == .stop }.map(\.text), [
+                "Stop at Curacion Cafe, leave by 16:59", "Stop at ANA LOUNGE, leave by 17:01",
+            ])
+        }
+    }
+
+    @MainActor
+    func testArrivePushesLeaveAndSpareTimeCountsStops() {
+        let defaults = UserDefaults(suiteName: "planTimes")!
+        defaults.removePersistentDomain(forName: "planTimes")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        XCTAssertEqual(durationText(store.minutesToSpare), "5h 25m")
+        store.add(.cafe) // 16:00–16:59
+        store.add(.anaLounge) // 16:30–17:01, overlaps the café
+        XCTAssertEqual(durationText(store.minutesToSpare), "4h 24m", "16:00–17:01 is covered once")
+        store.setTimes(.cafe, leave: ClockTime(16, 15))
+        store.setTimes(.cafe, arrive: ClockTime(16, 15))
+        XCTAssertEqual(store.times(.cafe)?.leave.description, "16:30", "Leave moves with Arrive")
+        store.setTimes(.cafe, arrive: ClockTime(16, 59))
+        XCTAssertEqual(store.times(.cafe)?.leave.description, "16:59", "Never past the latest leave")
+    }
+
+    @MainActor
+    func testSitDownAndBusyPlansWarnBeforeAdding() {
+        let defaults = UserDefaults(suiteName: "fitWarning")!
+        defaults.removePersistentDomain(forName: "fitWarning")
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        XCTAssertNil(store.fitWarning(for: .sushi), "An empty afternoon fits a sit-down meal")
+        store.add(.cafe)
+        store.add(.skyLounge)
+        XCTAssertEqual(store.fitWarning(for: .sushi)?.title, "A sit-down meal may not fit")
+        XCTAssertNil(store.fitWarning(for: .bento), "A quick bite still fits")
+        store.add(.bento)
+        XCTAssertEqual(store.fitWarning(for: .udon)?.title, "That's a lot to fit in")
+        XCTAssertEqual(store.times(.bento)?.leave.description, "16:25", "Food stops default to their meal length")
+        store.remove(.bento)
+        store.remove(.skyLounge)
+        store.add(.sushi)
+        let texts = RouteSteps.steps(for: .direct, store: store).map(\.text)
+        XCTAssertTrue(texts.contains("Take the lift to Sushi Restaurant, 4F"), "\(texts)")
+        XCTAssertTrue(texts.contains("Take the lift down to 3F"), "\(texts)")
     }
 }

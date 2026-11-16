@@ -29,6 +29,9 @@ struct GateSign: View {
             }
             Text(gate).outfitText(size, .bold, AB.gateText)
         }
+        // A changed gate ("Gate 105 108A") must stay on one line; shrink a little rather than wrap.
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
         .padding(.horizontal, size >= 26 ? 12 : 8)
         .padding(.vertical, size >= 26 ? 6 : 4)
         .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: size >= 26 ? 8 : 6))
@@ -107,7 +110,7 @@ struct CTAButton: View {
                 }
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var foreground: Color {
@@ -144,9 +147,10 @@ struct TextLink: View {
                 Image("icArrowRightLink16").renderingMode(.template).resizable().foregroundStyle(color).frame(width: 16, height: 16)
             }
             .frame(minHeight: 44)
+            .padding(.horizontal, 10)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
@@ -160,7 +164,7 @@ struct BackButton: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel("Back")
         .accessibilityIdentifier("back")
     }
@@ -211,13 +215,15 @@ struct InfoCard<Content: View>: View {
 }
 
 enum ChipTone {
-    case info, open, leaveBy
+    case info, open, leaveBy, quick, sitDown
 
     var foreground: Color {
         switch self {
         case .info: return AB.chipText
         case .open: return AB.mint
         case .leaveBy: return AB.sky
+        case .quick: return AB.gateYellow
+        case .sitDown: return Color(hex: 0xFFB4A8)
         }
     }
 
@@ -226,6 +232,8 @@ enum ChipTone {
         case .info: return AB.ice.opacity(0.1)
         case .open: return AB.green.opacity(0.18)
         case .leaveBy: return AB.sky.opacity(0.2)
+        case .quick: return AB.gateYellow.opacity(0.18)
+        case .sitDown: return Color(hex: 0xFF8A80).opacity(0.2)
         }
     }
 }
@@ -331,7 +339,7 @@ struct UndoToast: View {
             .padding(.vertical, 12)
             .background(AB.ticket, in: RoundedRectangle(cornerRadius: 14))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel("\(message). Undo")
         .accessibilityIdentifier("undoToast")
     }
@@ -354,5 +362,30 @@ struct SubScreen<Content: View>: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+struct GateChip: View {
+    @EnvironmentObject private var store: JourneyStore
+    var body: some View {
+        Text("Gate \(store.gate)").outfitText(18, .semibold, AB.gateText)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct NavyCard: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        InfoCard(padding: 16, radius: 16, background: AB.ticket) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).outfitText(18, .bold, AB.card)
+                Text(detail).outfitText(15, .regular, AB.card)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }

@@ -14,11 +14,23 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .profile: return "Profile"
         }
     }
+
+    var symbol: String {
+        switch self {
+        case .flight: "airplane"
+        case .layover: "safari"
+        case .route: "map"
+        case .profile: "person.crop.circle"
+        }
+    }
 }
 
 /// Figma "Choose a route" options. Minutes are the average walking times for each route.
 enum RouteChoice: String, CaseIterable, Codable {
     case direct, stepFree, lessCrowded
+
+    /// Shown on the route card's choice button (Figma "Direct route").
+    var menuTitle: String { "\(title) route" }
 
     var title: String {
         switch self {
@@ -30,9 +42,9 @@ enum RouteChoice: String, CaseIterable, Codable {
 
     var detail: String {
         switch self {
-        case .direct: return "Shortest walking route"
-        case .stepFree: return "Use lifts and level corridors"
-        case .lessCrowded: return "Avoid the busy central corridor"
+        case .direct: return "Shortest walk, one set of stairs"
+        case .stepFree: return "Lift beside the stairs"
+        case .lessCrowded: return "Outer concourse by the windows"
         }
     }
 
@@ -85,6 +97,9 @@ final class JourneyStore: ObservableObject {
     @Published private(set) var walkingSpeedKmh: Double?
     @Published private(set) var lastHealthSync: Date?
     @Published var routeStep = 1
+    /// The camera pop-up on Route is showing; `cameraAllowed` ticks when access is granted.
+    @Published var asksForCamera = false
+    @Published var cameraAllowed = 0
 
     /// Airport local time the journey is shown at. The sample journey stays at 12:00.
     @Published private(set) var now: ClockTime = SampleJourney.now
@@ -103,10 +118,16 @@ final class JourneyStore: ObservableObject {
     private let defaults: UserDefaults
     private static let stateKey = "journeyState.v1"
 
+    /// Shared with the plan card's one-time hint ("Tap a stop to change its times").
+    static let planHintKey = "planHintSeen"
+
     init(walkingData: WalkingDataSource, defaults: UserDefaults = .standard, reset: Bool = false) {
         self.walkingData = walkingData
         self.defaults = defaults
-        if reset { defaults.removeObject(forKey: Self.stateKey) }
+        if reset {
+            defaults.removeObject(forKey: Self.stateKey)
+            defaults.removeObject(forKey: Self.planHintKey)
+        }
         let saved = defaults.data(forKey: Self.stateKey).flatMap { try? JSONDecoder().decode(SavedState.self, from: $0) }
         plan = saved?.plan ?? Plan()
         checklist = saved?.checklist ?? .haneda
@@ -236,6 +257,9 @@ final class JourneyStore: ObservableObject {
         let average: Int = switch place {
         case .anaLounge: 4
         case .cafe: 6
+        case .bento: 3
+        case .udon: 7
+        case .sushi: 6
         default: 8
         }
         return WalkingTimes.minutes(average: average, pace: pace)
@@ -280,6 +304,7 @@ final class JourneyStore: ObservableObject {
         guard !plan.contains(stop.id) else { return }
         clearUndo()
         plan.stops.append(stop)
+        routeStep = 1 // every route now passes the new stop
         refreshSuggestion()
         refreshAlerts()
     }
@@ -289,6 +314,82 @@ final class JourneyStore: ObservableObject {
         plan.stops.removeAll { $0.id == id }
         refreshSuggestion()
         refreshAlerts()
+    }
+
+    /// Arrive, leave and the latest leave that still reaches the gate, for a stop in the plan.
+    func times(_ id: PlaceID) -> (arrive: ClockTime, leave: ClockTime, latest: ClockTime)? {
+        guard let stop = plan.stops.first(where: { $0.id == id }) else { return nil }
+        let latest = StopTimes.latestLeave(walkToGate: venueToGateMinutes(id))
+        return (StopTimes.arrive(stop), StopTimes.leave(stop, latest: latest), latest)
+    }
+
+    // ponytail: arrive/leave live on the plan card only; the ordered Schedule (route, queue suggestion) still uses visit lengths.
+    /// Moving Arrive past the leave time pushes Leave along with it, up to the latest leave.
+    func setTimes(_ id: PlaceID, arrive: ClockTime? = nil, leave: ClockTime? = nil) {
+        guard let index = plan.index(of: id), let current = times(id) else { return }
+        let newArrive = arrive ?? current.arrive
+        var newLeave = leave ?? current.leave
+        if newLeave < newArrive + StopTimes.minimumStay { newLeave = min(newArrive + StopTimes.minimumStay, current.latest) }
+        plan.stops[index].arrive = newArrive
+        plan.stops[index].leave = newLeave
+    }
+
+    /// Removes a stop and offers Undo, which puts it back with the same times.
+    func removeWithUndo(_ id: PlaceID) {
+        guard let stop = plan.stops.first(where: { $0.id == id }) else { return }
+        remove(id)
+        showToast(ToastMessage(text: "Removed \(stop.name)", action: "Undo")) { [weak self] in
+            self?.add(stop)
+        }
+    }
+
+    /// A warning before adding a stop that is unlikely to fit: a sit-down meal in a tight layover,
+    /// or more stops than the time before the gate allows.
+    func fitWarning(for stop: PlanStop) -> (title: String, message: String)? {
+        let latest = StopTimes.latestLeave(walkToGate: venueToGateMinutes(stop.id))
+        let start = max(now, StopTimes.earliest)
+        let window = latest - start
+        let spans = plan.stops.compactMap { times($0.id) }
+            .map { (max($0.arrive.minutes, start.minutes), min($0.leave.minutes, latest.minutes)) }
+            .filter { $0.0 < $0.1 }.sorted { $0.0 < $1.0 }
+        var covered = 0, end = Int.min
+        for (from, to) in spans {
+            covered += max(to - max(from, end), 0)
+            end = max(end, to)
+        }
+        let free = window - covered
+        let need = (stop.id.meal?.minutes ?? stop.visitMinutes) + walkMinutes(.start, stop.id)
+        if let meal = stop.id.meal, meal.sitDown, free < need {
+            return ("A sit-down meal may not fit",
+                    "\(stop.name) usually takes about \(meal.minutes) min. You have about \(max(free, 0)) min free before you leave for Gate \(gate). A quick option fits better.")
+        }
+        let planned = plan.stops.map { ($0.id.meal?.minutes ?? $0.visitMinutes) + walkMinutes(.start, $0.id) }.reduce(need, +)
+        if plan.stops.count + 1 >= 4 || planned > window {
+            return ("That's a lot to fit in",
+                    "With \(plan.stops.count + 1) stops before \(latest), you may not reach Gate \(gate) by \(SampleJourney.gateArrivalTarget). Two or three stops is safer.")
+        }
+        return nil
+    }
+
+    /// Minutes before the gate closes that no stop covers (overlapping stops count once).
+    var minutesToSpare: Int {
+        let closes = outbound.gateCloses ?? SampleJourney.gateArrivalTarget
+        let spans = plan.stops.compactMap { times($0.id) }.map { ($0.arrive.minutes, $0.leave.minutes) }.sorted { $0.0 < $1.0 }
+        var covered = 0, end = Int.min
+        for (start, finish) in spans {
+            covered += max(finish - max(start, end), 0)
+            end = max(end, finish)
+        }
+        return closes - now - covered
+    }
+
+    /// Other stops in the plan whose times overlap this one.
+    func overlapping(_ id: PlaceID) -> [PlanStop] {
+        guard let mine = times(id) else { return [] }
+        return plan.stops.filter { other in
+            guard other.id != id, let theirs = times(other.id) else { return false }
+            return StopTimes.overlaps((mine.arrive, mine.leave), (theirs.arrive, theirs.leave))
+        }
     }
 
     func replacePlan(with edited: Plan) {
@@ -348,6 +449,7 @@ final class JourneyStore: ObservableObject {
         checklist = isAirportTransfer ? .narita : .haneda
         queueUpdateHandled = false
         routeStep = 1
+        UserDefaults.standard.removeObject(forKey: Self.planHintKey)
         refreshSuggestion()
         refreshAlerts()
         showToast(ToastMessage(text: "Trip preferences reset"))

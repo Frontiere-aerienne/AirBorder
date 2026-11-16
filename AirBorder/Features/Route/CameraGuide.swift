@@ -261,7 +261,6 @@ struct CameraGuide<StepCard: View>: View {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
             }
-            exitButton
         }
     }
 
@@ -285,20 +284,6 @@ struct CameraGuide<StepCard: View>: View {
         camera.scan(for: sign) { result in
             phase = result == .found ? .guide : .failed
         }
-    }
-
-    private var exitButton: some View {
-        Button {
-            camera.cancelScan()
-            phase = .guide
-            exit()
-        } label: {
-            Text("Exit camera").outfitText(14, .semibold, .white)
-                .frame(width: 158, height: 47)
-                .background(AB.primary, in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("exitCamera")
     }
 
     private func navyCard(title: String, detail: String, titleSize: CGFloat) -> some View {
