@@ -61,26 +61,60 @@ struct TerminalSign: View {
 
 // MARK: - Airline badges
 
-enum Airline: String, Codable {
-    case ana, thai
+/// A carrier from itinerary data. The two bundled brands keep their original artwork;
+/// other carriers use their own code instead of inheriting a demo airline's logo.
+struct Airline: Codable, Hashable {
+    let code: String
+    let name: String
+    private let artwork: Artwork?
 
-    var logoAsset: String { self == .ana ? "logoANA" : "logoTHAI" }
-    var logoWidth: CGFloat { self == .ana ? 46 : 39 }
-    var name: String { self == .ana ? "ANA" : "Thai Airways" }
+    init(code: String, name: String) {
+        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let displayCode = normalized.range(of: #"^[A-Z0-9]{2,3}$"#, options: .regularExpression) == nil ? "" : normalized
+        self.code = displayCode
+        let displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.name = displayName.isEmpty ? (displayCode.isEmpty ? "Airline" : displayCode) : displayName
+        artwork = nil
+    }
+
+    private init(code: String, name: String, artwork: Artwork) {
+        self.code = code
+        self.name = name
+        self.artwork = artwork
+    }
+
+    static let ana = Airline(code: "NH", name: "ANA", artwork: .ana)
+    static let thai = Airline(code: "TG", name: "Thai Airways", artwork: .thai)
+
+    var logoAsset: String? { artwork?.asset }
+    var logoWidth: CGFloat { artwork?.width ?? 24 }
+
+    private enum Artwork: String, Codable {
+        case ana, thai
+
+        var asset: String { self == .ana ? "logoANA" : "logoTHAI" }
+        var width: CGFloat { self == .ana ? 46 : 39 }
+    }
 }
 
 struct AirlineBadge: View {
     let airline: Airline
 
     var body: some View {
-        Image(airline.logoAsset)
-            .resizable()
-            .scaledToFit()
-            .frame(width: airline.logoWidth, height: 12)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(.white, in: RoundedRectangle(cornerRadius: 6))
-            .accessibilityLabel(airline.name)
+        Group {
+            if let asset = airline.logoAsset {
+                Image(asset).resizable().scaledToFit()
+            } else if !airline.code.isEmpty {
+                Text(airline.code).outfitText(10, .bold, AB.ticket)
+            } else {
+                Image(systemName: "airplane").font(.system(size: 11)).foregroundStyle(AB.ticket)
+            }
+        }
+        .frame(width: airline.logoWidth, height: 12)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.white, in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel(airline.name)
     }
 }
 
