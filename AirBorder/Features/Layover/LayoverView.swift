@@ -17,11 +17,16 @@ struct LayoverView: View {
                 if let condition = store.primaryCondition {
                     TravelUpdateBanner(condition: condition, place: .layover).padding(.top, 16)
                 }
-                areaTabs.padding(.top, 22)
-                switch area {
-                case .airside: airside
-                case .landside: LandsideList()
-                case .city: CityList()
+                if store.hasConcourseCoverage {
+                    areaTabs.padding(.top, 22)
+                    switch area {
+                    case .airside: airside
+                    case .landside: LandsideList()
+                    case .city: CityList()
+                    }
+                } else {
+                    Text("Facilities and walking times are unavailable for this connection.")
+                        .outfitText(15, .regular, AB.muted).padding(.top, 22)
                 }
             }
             .padding(.horizontal, 18)
@@ -30,11 +35,11 @@ struct LayoverView: View {
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .bottom) {
-            if !store.plan.stops.isEmpty { planBar.padding(.bottom, 8) }
+            if store.hasConcourseCoverage && !store.plan.stops.isEmpty { planBar.padding(.bottom, 8) }
         }
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showsAirsideInfo) { Sheets.whyAirside() }
+        .sheet(isPresented: $showsAirsideInfo) { Sheets.whyAirside(returnMinutes: store.journey.presentation?.airsideReturnMinutes) }
     }
 
     /// Figma "Plan bar" (1172:17715): pinned above the tab bar once the plan has stops.
@@ -210,7 +215,7 @@ private struct VenueCard: View {
                     .accessibilityIdentifier("add-\(venue.id.rawValue)")
                 }
                 HStack(spacing: 8) {
-                    TerminalSign(terminal: SampleJourney.outbound.departureTerminal)
+                    TerminalSign(terminal: store.outbound.departureTerminal)
                     HStack(spacing: 6) {
                         Image("icWalkSmall").resizable().frame(width: 15, height: 15)
                         Text("\(walkFromYou) min")
@@ -238,7 +243,9 @@ private struct VenueCard: View {
                     }
                     if let status = venue.status { Chip(text: status, tone: .open) }
                     if venue.showsLeaveBy {
-                        Chip(text: "Leave by \(SampleJourney.gateArrivalTarget - store.walkMinutes(venue.id, .gate))", tone: .leaveBy)
+                        if let target = store.gateArrivalTarget, let walk = store.walkMinutes(venue.id, .gate) {
+                            Chip(text: "Leave by \(target - walk)", tone: .leaveBy)
+                        }
                     }
                     ForEach(venue.details, id: \.self) { Chip(text: $0) }
                     Chip(text: venue.floor)
@@ -341,7 +348,8 @@ private struct LandsideList: View {
                 }
             }
         }
-        .sheet(isPresented: $showsLeaving) { Sheets.beforeLeavingAirside(walk: store.gateWalkMinutes) }
+        .sheet(isPresented: $showsLeaving) { Sheets.beforeLeavingAirside(walk: store.knownGateWalkMinutes(for: store.routeChoice),
+                                                        details: store.journey.presentation) }
     }
 
     private func heading(_ icon: String, _ title: String) -> some View {
