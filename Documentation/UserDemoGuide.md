@@ -237,7 +237,7 @@ Expected result:
 - A stale, discovery-only, conditional, missing, or negative result cannot unlock a landside or city recommendation.
 - Checking the official-review toggle does not override an unresolved or expired provider result.
 
-The live-capable backend order is Sherpa, then a separately contracted Timatic adapter, then official-link discovery. Gemini search, when configured, contributes only allowlisted government links; its prose is discarded and it never returns an eligibility conclusion. An exact-query cached result can be displayed after a failure, but an expired result cannot authorize leaving the airport.
+The live-capable backend order is Sherpa, then a separately contracted Timatic adapter, then bundled official links where available. Those links are informational and never return an eligibility conclusion. An exact-query cached result can be displayed after a failure, but an expired result cannot authorize leaving the airport.
 
 ### In-flight progress, local OCR, and window-view research
 
@@ -491,35 +491,9 @@ Expected result:
 
 Apple Calendar can provide an exact-time alarm only after explicit full-calendar permission and selection of a calendar account that syncs to the user's other devices. Google Tasks requires user OAuth, not an API key. Its API preserves only a due date, so Airport XR writes the exact intended instant into notes while Google controls notification timing. A physical two-device test is required after configuring real accounts and permissions.
 
-## Optional AI and free/trial services
+## Deterministic explanations
 
-**Status:** backend-only grounded AI explainer; no iOS button or renderer is wired. Entry-link discovery is backend-capable when Gemini is configured.
-
-The safest demo is the deterministic Worker test suite:
-
-```bash
-cd /Users/anony/Downloads/AirportXRCompanion/Backend
-npm install
-npm test
-npm run check
-```
-
-Expected result:
-
-- The Cloudflare Workers AI adapter can only reorder already-sourced fact IDs.
-- Deterministic Worker code renders values, formulas, sources, hours, and URLs.
-- Malformed or unavailable AI output falls back to the original deterministic order.
-- Entry, visa, passport, nationality, and immigration content is rejected before inference.
-- No raw model prose can change a safety or entry decision.
-
-Options considered as of 2026-07-14:
-
-- **Cloudflare Workers AI:** implemented through an `AI` binding; Cloudflare currently documents a limited daily free allowance. Quotas and model availability can change.
-- **Gemini Developer API:** a free tier may be available. The current Worker uses it only for Google Search citations on allowlisted government domains when `GEMINI_API_KEY` is configured. Unpaid-service data terms require extra caution; do not send traveler profiles or documents.
-- **Apple Foundation Models:** future on-device option on supported Apple Intelligence devices; no API key or metered web call, but not available on every supported iPhone and not wired here.
-- **Hugging Face Inference Providers:** useful for experiments with a small changing starter credit; not integrated into this build.
-
-AI availability is never evidence that flight, visa, queue, weather, hotel, or transport data is live.
+AirBorder does not call a language model. Calculation details come from the app's planning code and the sourced journey facts, not model-generated text.
 
 ## Delay prediction and flight/baggage capacity
 
@@ -601,5 +575,5 @@ Check the command output from the current checkout; do not repeat a historical p
 - [Live data and freshness plan](LiveDataPlan.md)
 - [Data sources and licensing](DataSources.md)
 - [Cross-device reminder design](CrossDeviceReminders.md)
-- [Optional AI integrations](AIIntegrations.md)
+- [No-LLM runtime](AIIntegrations.md)
 - [Privacy and security](PrivacyAndSecurity.md)
