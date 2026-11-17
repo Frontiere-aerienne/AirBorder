@@ -41,6 +41,7 @@ struct LanguageView: View {
 
 /// Help & information: what the app does and where the trip details come from.
 struct AboutView: View {
+    @EnvironmentObject private var store: JourneyStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -54,10 +55,15 @@ struct AboutView: View {
             }
             InfoCard {
                 Text("Where the details come from").outfitText(18, .bold)
-                Text("The trip in this version is a saved sample journey through Tokyo Haneda. Flight times, gates, venues, queues and previous trips are not live.")
-                    .outfitText(15, .regular, AB.secondary)
-                Text("Walking times start from your walks on previous trips through Haneda. When you connect Apple Health, its walking speed refines them.")
-                    .outfitText(15, .regular, AB.secondary)
+                if store.journey.fixture != nil {
+                    Text("The trip in this version is a saved sample journey through Tokyo Haneda. Flight times, gates, venues, queues and previous trips are not live.")
+                        .outfitText(15, .regular, AB.secondary)
+                    Text("Walking times start from your walks on previous trips through Haneda. When you connect Apple Health, its walking speed refines them.")
+                        .outfitText(15, .regular, AB.secondary)
+                } else {
+                    Text("AirBorder shows the details supplied with this trip. Check with your airline or airport for any missing information.")
+                        .outfitText(15, .regular, AB.secondary)
+                }
             }
             .accessibilityIdentifier("dataSources")
         }
