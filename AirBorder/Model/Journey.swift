@@ -28,6 +28,8 @@ func durationText(_ minutes: Int) -> String {
 struct Airport: Hashable {
     let code: String
     let city: String
+    var displayName: String? = nil
+    var shortName: String { displayName ?? city }
 }
 
 struct FlightLeg: Hashable, Identifiable {
@@ -54,15 +56,60 @@ struct FlightLeg: Hashable, Identifiable {
     var durationMinutes: Int? = nil
 }
 
+/// Presentation assets and synthetic observations must be explicitly selected, never inferred from an airport code.
+enum BundledJourneyFixture: Equatable {
+    case hanedaConnection, naritaTransfer
+}
+
+/// Source-provided instructions for a particular gate. No coordinates or AR are inferred.
+struct GateDirections {
+    let gate: String
+    let instructions: [String]
+}
+
+/// The active legs determine whether an airport change is required.
+struct JourneyDefinition {
+    let inbound: FlightLeg
+    let outbound: FlightLeg
+    let planning: PlanningContext?
+    let boarding: ClockTime?
+    let now: ClockTime
+    var fixture: BundledJourneyFixture? = nil
+    /// Supplied elapsed duration, based on dated times in a common clock or otherwise confirmed.
+    var layoverMinutes: Int? = nil
+    var checklist: JourneyChecklist? = nil
+    var airportWalks: [AirportWalk] = []
+    var queueUpdate: QueueUpdate? = nil
+    var syntheticGateUpdate: String? = nil
+    var transfer: AirportTransferDetails? = nil
+    var presentation: JourneyPresentationDetails? = nil
+    var gateDirections: GateDirections? = nil
+
+    /// Unambiguous journey persistence scope, not a display label.
+    var persistenceIdentifier: String {
+        [inbound.id, inbound.date, inbound.from.code, inbound.to.code, inbound.arrivalTerminal,
+         outbound.id, outbound.date, outbound.from.code, outbound.to.code, outbound.departureTerminal]
+            .map { "\($0.utf8.count):\($0)" }.joined()
+    }
+
+    var changesAirports: Bool {
+        inbound.to.code.caseInsensitiveCompare(outbound.from.code) != .orderedSame
+    }
+    var changesTerminals: Bool {
+        guard !changesAirports, !inbound.arrivalTerminal.isEmpty, !outbound.departureTerminal.isEmpty else { return false }
+        return inbound.arrivalTerminal.caseInsensitiveCompare(outbound.departureTerminal) != .orderedSame
+    }
+}
+
 /// The traveller's trip: Bangkok → Tokyo Haneda → Los Angeles.
 ///
 /// The app ships with one saved sample journey. Help & information and About AirBorder say so;
 /// no flight status here is presented as live.
 enum SampleJourney {
     static let bangkok = Airport(code: "BKK", city: "Bangkok")
-    static let haneda = Airport(code: "HND", city: "Tokyo Haneda")
+    static let haneda = Airport(code: "HND", city: "Tokyo Haneda", displayName: "Haneda")
     static let losAngeles = Airport(code: "LAX", city: "Los Angeles")
-    static let narita = Airport(code: "NRT", city: "Tokyo Narita")
+    static let narita = Airport(code: "NRT", city: "Tokyo Narita", displayName: "Narita")
 
     static let inbound = FlightLeg(
         id: "TG660",
@@ -125,6 +172,34 @@ enum SampleJourney {
         durationMinutes: 10 * 60
     )
 
+    static let departures = [outbound, naritaOutbound]
+
+    static func departure(number: String) -> FlightLeg? {
+        let normalized = number.filter { !$0.isWhitespace }.uppercased()
+        return departures.first { $0.number.filter { !$0.isWhitespace }.uppercased() == normalized }
+    }
+
+    static func definition(for outbound: FlightLeg) -> JourneyDefinition {
+        let usesSamplePlanning = outbound.id == Self.outbound.id
+            && outbound.from.code == inbound.to.code
+            && outbound.departureTerminal == inbound.arrivalTerminal
+        let usesTransfer = outbound.id == naritaOutbound.id
+            && outbound.from.code == naritaOutbound.from.code
+            && outbound.departureTerminal == naritaOutbound.departureTerminal
+        let fixture: BundledJourneyFixture? = usesSamplePlanning ? .hanedaConnection : usesTransfer ? .naritaTransfer : nil
+        return JourneyDefinition(
+            inbound: inbound, outbound: outbound, planning: usesSamplePlanning ? planning : nil,
+            boarding: usesSamplePlanning ? boarding : nil, now: now, fixture: fixture,
+            layoverMinutes: fixture == nil ? nil : outbound.departs - inbound.arrives,
+            checklist: usesSamplePlanning ? .haneda : usesTransfer ? .narita : nil,
+            airportWalks: fixture == nil ? [] : airportWalks,
+            queueUpdate: usesSamplePlanning ? QueueUpdate(stopID: .cafe, waitMinutes: 18) : nil,
+            syntheticGateUpdate: usesSamplePlanning ? updatedGate : nil,
+            transfer: usesTransfer ? groundTransfer : nil,
+            presentation: fixture == nil ? nil : presentation
+        )
+    }
+
     /// Return flight shown from Journey details (Figma 858:13081).
     static let returnFlight = FlightLeg(
         id: "NH105",
@@ -151,6 +226,8 @@ enum SampleJourney {
 
     /// The airline asks passengers to be at the gate 20 minutes before it closes.
     static let gateArrivalTarget = ClockTime(17, 5)
+    static let updatedGate = "108A"
+    static let mapGateAssignments: Set<String> = [outbound.departureGate, updatedGate]
 
     /// Layover length shown in Journey details.
     static var layoverMinutes: Int { outbound.departs - inbound.arrives }
@@ -160,6 +237,27 @@ enum SampleJourney {
 
     /// When stops start if the traveller adds any.
     static let planStart = ClockTime(16, 0)
+
+    /// Bundled evaluation fixture, never a fallback for another airport or unknown venue.
+    static let planning = PlanningContext(
+        planStart: planStart, gateArrivalTarget: gateArrivalTarget, gateCloses: outbound.gateCloses,
+        timelineStart: ClockTime(15, 0), timelineMinutes: 150,
+        preferredArrivals: [.anaLounge: ClockTime(16, 30), .skyLounge: ClockTime(15, 30),
+                            .bento: ClockTime(16, 15), .udon: ClockTime(15, 45), .sushi: ClockTime(15, 15)]
+    ) { a, b in
+        let places: Set<PlaceID> = [.start, .cafe, .anaLounge, .skyLounge, .bento, .udon, .sushi, .gate]
+        guard places.contains(a), places.contains(b) else { return nil }
+        switch Set([a, b]) {
+        case [.start, .cafe]: return 0
+        case [.start, .anaLounge]: return 5
+        case [.start, .skyLounge]: return 8
+        case [.start, .gate]: return 12
+        case [.cafe, .anaLounge]: return 5
+        case [.cafe, .gate]: return 8
+        case [.anaLounge, .gate]: return 4
+        default: return 8  // Bundled estimate for the remaining fixture paths.
+        }
+    }
 
     /// Walks recorded on the traveller's previous trips through Haneda (Figma "Previous trips").
     static let airportWalks = [
