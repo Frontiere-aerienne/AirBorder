@@ -11,6 +11,8 @@ struct FlightFeed: Codable, Equatable {
     var receivedAt: ClockTime
     var previousGate: String? = nil
     var assignmentRevision: Int? = nil
+    /// Required for non-fixture feeds so an unrelated flight cannot provide a gate.
+    var flightID: String? = nil
 }
 
 /// A situation the traveller needs to know about. Each one appears only while its condition holds.
@@ -58,9 +60,9 @@ struct ConditionInputs {
     var feed: FlightFeed?
     /// Nil when the gate-closing time is not known; timing situations are then not worked out.
     var gateCloses: ClockTime?
-    var walkToGate: Int
+    var walkToGate: Int?
     /// When the traveller needs to leave for the gate (after any stops in their plan).
-    var leaveBy: ClockTime
+    var leaveBy: ClockTime?
     /// The traveller confirmed they are at the gate (Journey steps › Gate).
     var atGate: Bool
     /// The next flight leaves from a different airport than the one the traveller landed at.
@@ -78,16 +80,16 @@ enum JourneyConditions {
         if let gate = input.feed?.gate, !gate.isEmpty, gate != previousGate {
             found.append(.gateChanged(from: previousGate, to: gate))
         }
-        if !input.atGate, let closes = input.gateCloses {
-            let arrival = input.now + input.walkToGate
+        if !input.atGate, let closes = input.gateCloses, let walk = input.walkToGate {
+            let arrival = input.now + walk
             let spare = closes - arrival
             let closesIn = closes - input.now
             if spare < 0 {
                 found.append(.arrivesAfterClosure(arrival: arrival, minutesLate: -spare))
             } else if spare < tightMargin {
-                found.append(.boardingAtRisk(closesIn: closesIn, walk: input.walkToGate))
-            } else if input.now >= input.leaveBy {
-                found.append(.returnNow(closesIn: closesIn, walk: input.walkToGate))
+                found.append(.boardingAtRisk(closesIn: closesIn, walk: walk))
+            } else if let leaveBy = input.leaveBy, input.now >= leaveBy {
+                found.append(.returnNow(closesIn: closesIn, walk: walk))
             }
         }
         return found.sorted { $0.priority < $1.priority }
