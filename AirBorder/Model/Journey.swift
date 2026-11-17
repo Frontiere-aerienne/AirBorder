@@ -269,3 +269,109 @@ enum SampleJourney {
     /// Number behind "Call ANA" in the Figma Journey details screen (858:13289).
     static let anaPhone = "+81367411120"
 }
+
+/// Ground-transfer presentation data for a journey that has route coverage.
+struct AirportTransferDetails {
+    let arrivalName: String
+    let departureName: String
+    let transportName: String
+    let departs: ClockTime
+    let arrives: ClockTime
+    let fare: String
+    let recheckBy: ClockTime
+    let baggageCollectionFloor: String
+    let departureLocation: String
+    let zoneLabel: String
+    let routeImage: String?
+    let entryLabel: String
+    let entryInstruction: String
+    let documentsURL: String
+    let arrivalInstruction: String
+    let boardingInstruction: String
+    let groundDepartureInstruction: String
+    let directions: [String]
+    var elapsedMinutes: Int? = nil
+    /// True only when the current journey clock and departure-airport clock share a time basis.
+    var comparesWithJourneyClock: Bool = false
+
+    var minutes: Int? { elapsedMinutes.flatMap { $0 > 0 ? $0 : nil } }
+    var durationLabel: String? { minutes.map { "\($0) min" } }
+}
+
+/// Confirmed or explicitly sampled fare, directions, and baggage data; absence is unavailable.
+struct BaggageAllowance {
+    let checked: String
+    let extraChecked: String
+    let cabin: String
+    let extraBagLimit: String
+}
+
+struct BoardingContact {
+    let name: String
+    let phone: String
+    let hours: String
+    var url: URL? { URL(string: "tel:\(phone)") }
+}
+
+struct AirportAirsideHelp {
+    let returnMinutes: Int
+    let documentLabel: String
+    let documentDetail: String
+    let baggageDetail: String
+    let linkTitle: String
+    let linkURL: String
+}
+
+struct AirportFloorGuide {
+    let startLabel: String
+    let startDetail: String
+    let signLabel: String
+    let walkDetail: String
+    let buttonTitle: String
+    let url: String
+}
+
+/// Presentation metadata supplied by a journey source, never inferred from an airport code.
+struct JourneyPresentationDetails {
+    var baggage: BaggageAllowance? = nil
+    var baggageTaggedThrough: Bool? = nil
+    var returnFlight: FlightLeg? = nil
+    var flightContactPhone: String? = nil
+    var boardingContact: BoardingContact? = nil
+    var airside: AirportAirsideHelp? = nil
+    var floorGuide: AirportFloorGuide? = nil
+
+    var airsideReturnMinutes: Int? { airside?.returnMinutes }
+}
+
+/// The original recorded demonstration; these are not defaults for other journeys.
+extension SampleJourney {
+    static let presentation = JourneyPresentationDetails(
+        baggage: BaggageAllowance(checked: "1 × 32 kg", extraChecked: "2 × 32 kg",
+                                  cabin: "10 kg", extraBagLimit: "32 kg"),
+        baggageTaggedThrough: true, returnFlight: returnFlight, flightContactPhone: anaPhone,
+        boardingContact: BoardingContact(name: "ANA", phone: "+81366260648", hours: "07:00–19:00"),
+        airside: AirportAirsideHelp(returnMinutes: 30, documentLabel: "Passport ready",
+                                  documentDetail: "For Japan arrival checks", baggageDetail: "Stays with the airline",
+                                  linkTitle: "Japan entry information ↗",
+                                  linkURL: "https://www.mofa.go.jp/j_info/visit/visa/index.html"),
+        floorGuide: AirportFloorGuide(startLabel: "Start after transfer security", startDetail: "Terminal 3, 3F",
+                                     signLabel: "Follow Gates 105–109", walkDetail: "Same level, no stairs",
+                                     buttonTitle: "Open Haneda floor guide",
+                                     url: "https://tokyo-haneda.com/en/floor/floor-guide.html?area=9&tab=terminal3&floor=3F")
+    )
+
+    static let groundTransfer = AirportTransferDetails(
+        arrivalName: "Haneda", departureName: "Narita", transportName: "Airport bus",
+        departs: ClockTime(13, 10), arrives: ClockTime(14, 45), fare: "JPY 3,600",
+        recheckBy: ClockTime(20, 0), baggageCollectionFloor: "2F", departureLocation: "1F bus stops",
+        zoneLabel: "JST", routeImage: "busRouteHNDNRT", entryLabel: "Entry document, Japan",
+        entryInstruction: "Have your passport ready",
+        documentsURL: "https://www.mofa.go.jp/j_info/visit/visa/index.html",
+        arrivalInstruction: "Go through passport control, collect your bag, then pass through customs.",
+        boardingInstruction: "Pass through security and departure passport control.",
+        groundDepartureInstruction: "Follow the Bus signs from the 2F access hall to the 1F bus stops.",
+        directions: ["Follow Bus signs", "Continue to the 1F buses", "Stop 5, Narita Airport"],
+        elapsedMinutes: 95, comparesWithJourneyClock: true
+    )
+}
