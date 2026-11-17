@@ -1,5 +1,11 @@
 # Project Context Ledger: AirportXRCompanion
 
+## November 17 runtime LLM removal
+
+In the removal branch based on main `912fbde`, the Worker no longer exposes the former explanation endpoint or contacts the former grounded official-link discovery service. Both Worker configurations omit the inference binding. Sherpa/Timatic resolution, auth and rate limiting are unchanged. Entry fallback still expires immediately, returns bundled official links where available, and never authorizes landside travel. Native and browser planning, on-device OCR, and opt-in Cloud Vision text detection are unchanged.
+
+Verified locally: backend syntax check and 36 backend tests; both Worker deployment dry runs bundle successfully and list no inference binding. No production deployment. The only `Web/` change is Worker configuration; the owner label remains necessary for the frozen-web check. Historical reports retain earlier prototype evidence.
+
 ## Current handoff — HCI review and merge protection
 
 Updated November 8, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.
