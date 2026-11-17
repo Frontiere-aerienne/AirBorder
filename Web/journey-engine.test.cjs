@@ -42,7 +42,7 @@ test('an empty route has no implicit airport, gate, stops, or deadline',()=>{
 });
 
 const {readFileSync}=require('node:fs'),vm=require('node:vm');
-async function browserView({host,at='2027-02-22T10:55:00Z'}={}){
+async function browserView({host,directory,at='2027-02-22T10:55:00Z'}={}){
  const requests=[],items=new Map(),timers=[];
  let now=Date.parse(at);
  const node=selector=>{
@@ -54,7 +54,7 @@ async function browserView({host,at='2027-02-22T10:55:00Z'}={}){
   Date:class extends Date{static now(){return now;}},console,
   setInterval:fn=>{timers.push(fn);},sessionStorage:{getItem:()=>null,setItem:()=>{}},
   fetch:async path=>{requests.push(path);return {ok:true,headers:{get:()=> 'application/json'},json:async()=>{
-   if(path.startsWith('/api/facilities'))return {airportCode:new URLSearchParams(path.split('?')[1]).get('airport'),availability:'registryUnavailable',facilities:[]};
+   if(path.startsWith('/api/facilities'))return directory??{airportCode:new URLSearchParams(path.split('?')[1]).get('airport'),availability:'registryUnavailable',facilities:[]};
    return {canFit:true,spareMinutes:5};
   }};}
  });
@@ -77,6 +77,7 @@ test('host browser itinerary renders its own gate and makes only its own airport
  assert.match(web.screen(),/Last known gate B36/);
  assert.doesNotMatch(web.screen(),/Haneda|Narita|Gate 105/);
  assert.match(web.screen(),/Indoor route unavailable/);
+ assert.doesNotMatch(web.screen(),/data-action="review-plan"/);
  assert.equal(web.eval('progressStorageKey'),null);
  assert.deepEqual(web.requests,['/api/facilities?airport=LHR']);
  web.eval("state.view='flights'; render();");
@@ -99,4 +100,19 @@ test('host browser timing is local, limited to the matched airport and unavailab
  assert.match(web.screen(),/Indoor route unavailable/);
  const mismatch=await browserView({host:{...nonTokyoTrip,timing:{...timing,airportCode:'HND'}}});
  assert.doesNotMatch(mismatch.screen(),/Supplied walking estimate|Haneda/);
+});
+
+test('unknown host baggage stays unconfirmed and a foreign directory record is not rendered',async()=>{
+ const web=await browserView({
+  host:{...nonTokyoTrip,officialDirectoryHosts:['example.com']},
+  directory:{airportCode:'LHR',availability:'officialRecordsIndexed',facilities:[
+   {airportCode:'HND',name:'Foreign directory record',accessZone:'airside',officialRecordURL:'https://example.com/mismatched'},
+   {airportCode:'LHR',name:'Matching directory record',accessZone:'airside',officialRecordURL:'https://example.com/matching'}
+  ]}
+ });
+ assert.equal(web.eval('state.bags'),'unknown');
+ assert.equal((await browserView()).eval('state.bags'),'through');
+ web.eval("state.view='explore'; render();");
+ assert.match(web.screen(),/Matching directory record/);
+ assert.doesNotMatch(web.screen(),/Foreign directory record/);
 });
