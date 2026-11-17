@@ -24,7 +24,9 @@ This Cloudflare Worker keeps provider credentials out of the iOS application, va
 | `POST` | `/v1/scene-ocr` | Explicit-consent JPEG still sent to Google Cloud Vision |
 | `POST` | `/v1/reminders/google-tasks/sync` | Idempotent Google Tasks upsert/delete using the person's short-lived OAuth token |
 
-The combined browser entry point also exposes public `GET /api/health`, `GET /api/facilities?airport=HND`, and `POST /api/connection` routes with bounded inputs and rate limiting. These routes do not expose private journey records.
+The combined browser entry point also exposes public `GET /api/health`, `GET /api/facilities?airport=<IATA>`, and `POST /api/connection` routes with bounded inputs and rate limiting. These routes do not expose private journey records.
+
+Facility lookup requires an explicit airport. Source-backed directories are defined in `src/facility-registry.js` by airport code with publication source and version. The bundled catalog currently covers Haneda; another airport can be added as data without changing the endpoint. An unsupported airport returns an empty directory with `registryUnavailable`, never Haneda records or inferred airside access. `/health` lists the configured registry airports.
 
 All `/v1/*` routes are protected. `/health` is intentionally public and contains no credentials.
 
