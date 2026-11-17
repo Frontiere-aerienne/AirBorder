@@ -1,5 +1,15 @@
 # AirBorder architecture
 
+## Airport-independent runtime and sample boundary
+
+The connection planner takes the active inbound and onward legs, stop records, walking estimates and timing constraints as inputs. Comparing the connection airports and terminals is itinerary logic; selecting a route or calculating a leave-by time also requires coverage for that particular journey. A missing path or unverified timing input is not zero minutes and does not inherit values from the demonstration.
+
+The iOS composition root supplies a `JourneyDefinition` to `JourneyStore`. Timing, supported gate directions, transfer steps and itinerary presentation details are optional, explicit inputs. The browser accepts an [explicit host itinerary](../Web/docs/journey-backend-integration.md); its route engine accepts independent planning data, and its browser host can supply a bounded, matching direct-walk estimate without a synthetic map. The browser sample is isolated in `Web/demo-journey.js`.
+
+Haneda and Narita remain packaged evaluation scenarios. Their gates, walk estimates, transfer instructions, facility cards and simulated updates are sample data, not defaults for an unrelated itinerary. The provider Worker selects official facility records by explicit airport code in `Backend/src/facility-registry.js`. The only bundled official directory today is Haneda; unknown airports return `registryUnavailable` and no facilities. Airport-independent code does not imply that live routes or local guides are available for every airport.
+
+The sections below also describe design targets and historical capabilities. Confirm current support against the running build or the targeted regression tests rather than inferring it from an architectural component name.
+
 ## System shape
 
 Airport XR Companion is a native SwiftUI application with provider-neutral domain models, conservative decision services, actor-backed protected persistence, and a Cloudflare Worker that keeps commercial credentials off-device.

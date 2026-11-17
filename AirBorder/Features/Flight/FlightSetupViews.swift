@@ -12,12 +12,13 @@ struct TicketSummary: View {
     var departs: String?
     var arrives: String?
     var pills: [String] = []
+    var airline: Airline? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 HStack(spacing: 8) {
-                    AirlineBadge(airline: .ana)
+                    if let airline { AirlineBadge(airline: airline) }
                     Text(number).outfitText(16, .semibold, AB.ice)
                 }
                 Spacer()
@@ -156,10 +157,11 @@ struct AddFlightSummaryView: View {
 
     var body: some View {
         let trip = store.tripFlight
+        let flight = store.outbound
         FlightStack {
             LargeTitleHeader(title: "Add a flight") { dismiss() }
-            TicketSummary(number: trip.number, pill: SampleJourney.outbound.cabin, from: "HND", to: "LAX",
-                          pills: ["ANA", TripDate.format(trip.date, "d MMM")])
+            TicketSummary(number: trip.number, pill: flight.cabin, from: flight.from.code, to: flight.to.code,
+                          pills: [flight.airline.name, TripDate.format(trip.date, "d MMM")], airline: flight.airline)
             CenteredButton(title: "Import ticket", identifier: "importTicket") { open(.importFlight) }
             CenteredButton(title: "Check flight details", filled: false) {
                 store.beginEditingFlight()
@@ -178,11 +180,12 @@ struct SavedFlightsView: View {
 
     var body: some View {
         let trip = store.tripFlight
+        let flight = store.outbound
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Your flights") { dismiss() }
-            TicketSummary(number: trip.number, pill: durationText(SampleJourney.outbound.durationMinutes ?? 0),
-                          from: "HND", to: "LAX", departs: "18:00", arrives: "11:45",
-                          pills: [TripDate.format(trip.date, "d MMM")])
+            TicketSummary(number: trip.number, pill: flight.durationMinutes.map(durationText),
+                          from: flight.from.code, to: flight.to.code, departs: flight.departs.description, arrives: flight.arrives.description,
+                          pills: [TripDate.format(trip.date, "d MMM")], airline: flight.airline)
             if !store.manualFlights.isEmpty { ManualFlightsCard(flights: store.manualFlights) }
             CenteredButton(title: "Edit this flight") {
                 store.beginEditingFlight()
@@ -205,7 +208,9 @@ struct EditFlightView: View {
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Edit flight") { dismiss() }
             GroupedList {
-                ListRow(title: "\(draft.number), \(draft.route)", detail: "Flight") { open(.chooseFlight) }
+                let leg = store.departure(number: draft.number)
+                let title = leg.map { "\(draft.number), \($0.from.code) → \($0.to.code)" } ?? draft.number
+                ListRow(title: title, detail: "Flight") { open(.chooseFlight) }
                 RowDivider()
                 ListRow(title: TripDate.format(draft.date, "d MMM yyyy"), detail: "Departure date") { open(.chooseDate) }
                 RowDivider()
@@ -224,10 +229,10 @@ struct ChooseFlightView: View {
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Choose flight") { dismiss() }
             GroupedList {
-                ForEach(Array(TripFlight.flights.enumerated()), id: \.offset) { index, flight in
+                ForEach(Array(store.availableDepartures.enumerated()), id: \.offset) { index, flight in
                     if index > 0 { RowDivider() }
-                    ListRow(title: flight.0, detail: flight.1, selected: store.flightDraft.number == flight.0) {
-                        store.flightDraft.number = flight.0
+                    ListRow(title: flight.number, detail: "\(flight.from.code) → \(flight.to.code)", selected: store.flightDraft.number == flight.number) {
+                        store.flightDraft.number = flight.number
                         dismiss()
                     }
                 }
@@ -244,7 +249,7 @@ struct ChooseDateView: View {
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Departure date") { dismiss() }
             GroupedList {
-                ForEach(Array(TripFlight.dates.enumerated()), id: \.offset) { index, date in
+                ForEach(Array(store.availableTripDates.enumerated()), id: \.offset) { index, date in
                     if index > 0 { RowDivider() }
                     ListRow(title: TripDate.format(date, "d MMMM yyyy"), selected: store.flightDraft.date == date) {
                         store.flightDraft.date = date
@@ -288,7 +293,7 @@ struct CheckFlightView: View {
         let draft = store.flightDraft
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Check flight details") { dismiss() }
-            draftTicket(draft, saved: false)
+            draftTicket(draft, leg: store.departure(number: draft.number), saved: false)
             Text("Local times. Check your ticket for baggage allowance.").outfitText(13, .regular, AB.muted)
             CenteredButton(title: "Save flight", identifier: "saveFlight") {
                 store.saveFlightDraft()
@@ -312,27 +317,26 @@ struct FlightSavedView: View {
             Text("Flight saved").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
             Text("\(store.tripFlight.number) is now in Your flight.")
                 .outfitText(15, .regular, AB.muted)
-            draftTicket(store.tripFlight, saved: true)
+            draftTicket(store.tripFlight, leg: store.outbound, saved: true)
             CenteredButton(title: "View saved flights") { popTo(.savedFlights) }
         }
         .navigationBarBackButtonHidden()
     }
 }
 
-/// NH 106 and NH 6 show their scheduled times; other flights show the route only.
+/// Display only the routing and timing data attached to the selected flight.
 @ViewBuilder
-private func draftTicket(_ trip: TripFlight, saved: Bool) -> some View {
-    let leg = [SampleJourney.outbound, SampleJourney.naritaOutbound].first { $0.number == trip.number }
-    let ends = trip.route.components(separatedBy: " → ")
+private func draftTicket(_ trip: TripFlight, leg: FlightLeg?, saved: Bool) -> some View {
     TicketSummary(
         number: trip.number,
-        pill: leg.map { durationText($0.durationMinutes ?? 0) },
+        pill: leg?.durationMinutes.map(durationText),
         savedPill: saved,
-        from: ends.first ?? "",
-        to: ends.last ?? "",
+        from: leg?.from.code ?? "–",
+        to: leg?.to.code ?? "–",
         departs: leg?.departs.description,
         arrives: leg?.arrives.description,
-        pills: saved ? [TripDate.format(trip.date, "d MMM")] : [TripDate.format(trip.date, "d MMM"), trip.purpose]
+        pills: saved ? [TripDate.format(trip.date, "d MMM")] : [TripDate.format(trip.date, "d MMM"), trip.purpose],
+        airline: leg?.airline
     )
 }
 
@@ -463,31 +467,45 @@ struct BaggageView: View {
         FlightStack {
             LargeTitleHeader(title: store.extraBagDeclared ? "Baggage updated" : "Baggage for this flight") { dismiss() }
             if !store.extraBagDeclared {
-                TicketSummary(number: store.outbound.number, pill: store.outbound.cabin, from: store.outbound.from.code, to: store.outbound.to.code)
+                TicketSummary(number: store.outbound.number, pill: store.outbound.cabin, from: store.outbound.from.code, to: store.outbound.to.code, airline: store.outbound.airline)
             }
-            AllowanceCard(checked: store.extraBagDeclared ? "2 × 32 kg" : "1 × 32 kg", note: store.extraBagDeclared ? "Includes 1 extra bag" : nil)
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("BAG TAG").outfitText(12, .semibold, AB.muted)
-                    Text(store.isAirportTransfer ? "HND" : "LAX").outfitText(22, .bold)
+            if let allowance = store.baggageAllowance {
+                AllowanceCard(checked: store.extraBagDeclared ? allowance.extraChecked : allowance.checked,
+                              cabin: allowance.cabin, note: store.extraBagDeclared ? "Includes 1 extra bag" : nil)
+                if store.transferDetails != nil || (!store.isAirportTransfer && store.journey.presentation?.baggageTaggedThrough == true) {
+                    HStack(spacing: 14) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("BAG TAG").outfitText(12, .semibold, AB.muted)
+                            Text(store.isAirportTransfer ? store.inbound.to.code : store.outbound.to.code).outfitText(22, .bold)
+                        }
+                        Rectangle().fill(AB.navy.opacity(0.12)).frame(width: 1, height: 40)
+                        Text(baggageInstructions).outfitText(15, .regular, AB.muted)
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AB.card, in: RoundedRectangle(cornerRadius: 14))
                 }
-                Rectangle().fill(AB.navy.opacity(0.12)).frame(width: 1, height: 40)
-                Text(store.isAirportTransfer
-                    ? "Collect at Haneda T\(SampleJourney.inbound.arrivalTerminal) 2F. Recheck at Narita T\(store.outbound.departureTerminal) by \(NaritaTransfer.recheckBy)."
-                    : "Stays with the airline at Haneda. Collect in Los Angeles.").outfitText(15, .regular, AB.muted)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AB.card, in: RoundedRectangle(cornerRadius: 14))
-            CenteredButton(title: store.extraBagDeclared ? "Edit extra baggage" : "Add extra baggage", identifier: "extraBaggage") {
-                open(.declareBaggage)
+                CenteredButton(title: store.extraBagDeclared ? "Edit extra baggage" : "Add extra baggage", identifier: "extraBaggage") {
+                    open(.declareBaggage)
+                }
+            } else {
+                Text("Baggage details unavailable. Check your ticket or ask your airline.")
+                    .outfitText(15, .regular, AB.muted)
             }
         }
+    }
+
+    private var baggageInstructions: String {
+        if let transfer = store.transferDetails {
+            return "Collect at \(transfer.arrivalName) T\(store.inbound.arrivalTerminal) \(transfer.baggageCollectionFloor). Recheck at \(transfer.departureName) T\(store.outbound.departureTerminal) by \(transfer.recheckBy)."
+        }
+        return "Stays with the airline at \(store.inbound.to.shortName). Collect in \(store.outbound.to.city)."
     }
 }
 
 struct AllowanceCard: View {
     let checked: String
+    let cabin: String
     var note: String?
 
     var body: some View {
@@ -501,7 +519,7 @@ struct AllowanceCard: View {
             Rectangle().fill(AB.border).frame(width: 1).padding(.trailing, 20)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Cabin + personal").outfitText(16, .semibold)
-                Text("10 kg").outfitText(24, .bold)
+                Text(cabin).outfitText(24, .bold)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -519,16 +537,21 @@ struct DeclareBaggageView: View {
     var body: some View {
         FlightStack {
             LargeTitleHeader(title: "Extra baggage") { dismiss() }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("+1 checked bag").outfitText(24, .bold)
-                Text("Up to 32 kg, \(store.outbound.number)").outfitText(15, .regular, AB.muted)
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AB.card, in: RoundedRectangle(cornerRadius: 18))
-            CenteredButton(title: store.extraBagDeclared ? "Remove extra bag" : "Save", identifier: "saveExtraBag") {
-                store.extraBagDeclared.toggle()
-                dismiss()
+            if let allowance = store.baggageAllowance {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("+1 checked bag").outfitText(24, .bold)
+                    Text("Up to \(allowance.extraBagLimit), \(store.outbound.number)").outfitText(15, .regular, AB.muted)
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AB.card, in: RoundedRectangle(cornerRadius: 18))
+                CenteredButton(title: store.extraBagDeclared ? "Remove extra bag" : "Save", identifier: "saveExtraBag") {
+                    store.extraBagDeclared.toggle()
+                    dismiss()
+                }
+            } else {
+                Text("Baggage limits unavailable. Ask your airline about extra bags.")
+                    .outfitText(15, .regular, AB.muted)
             }
         }
     }
@@ -537,10 +560,10 @@ struct DeclareBaggageView: View {
 // MARK: - Return flight (858:13081)
 
 struct ReturnFlightView: View {
+    @EnvironmentObject private var store: JourneyStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        let flight = SampleJourney.returnFlight
         ScrollView {
             VStack(spacing: 16) {
                 HStack {
@@ -550,11 +573,18 @@ struct ReturnFlightView: View {
                     Spacer()
                     Color.clear.frame(width: 44, height: 44)
                 }
-                Text("RETURN FLIGHT, \(TripDate.format(flight.date, "d MMM").uppercased())").outfitText(12, .semibold, AB.muted).tracking(0.96)
-                TicketCard(flight: flight)
-                Text("Local times. Arrives \(TripDate.format("2026-10-22", "d MMM")). Flight time \(durationText(flight.durationMinutes ?? 0)).")
-                    .outfitText(13, .regular, AB.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let flight = store.returnFlight {
+                    Text("RETURN FLIGHT, \(TripDate.format(flight.date, "d MMM").uppercased())").outfitText(12, .semibold, AB.muted).tracking(0.96)
+                    TicketCard(flight: flight)
+                    let arrivalDate = TripDate.adding(days: flight.arrivalDayOffset ?? 0, to: flight.date)
+                    let arrival = arrivalDate.map { " Arrives \(TripDate.format($0, "d MMM"))." } ?? ""
+                    let duration = flight.durationMinutes.map { " Flight time \(durationText($0))." } ?? ""
+                    Text("Local times.\(arrival)\(duration)")
+                        .outfitText(13, .regular, AB.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("Return flight details unavailable.").outfitText(15, .regular, AB.muted)
+                }
             }
             .padding(.horizontal, 18)
             .padding(.top, 16)
@@ -563,5 +593,27 @@ struct ReturnFlightView: View {
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+
+extension JourneyStore {
+    var baggageAllowance: BaggageAllowance? { journey.presentation?.baggage }
+    var returnFlight: FlightLeg? { journey.presentation?.returnFlight }
+    var flightContactPhone: String? { journey.presentation?.flightContactPhone }
+}
+
+extension TripDate {
+    static func adding(days: Int, to iso: String) -> String? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        guard let date = formatter.date(from: iso),
+              let adjusted = calendar.date(byAdding: .day, value: days, to: date) else { return nil }
+        return formatter.string(from: adjusted)
     }
 }

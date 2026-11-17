@@ -76,10 +76,10 @@ struct GateClosesRow: View {
         HStack(spacing: 8) {
             GateSign(gate: store.gate)
             Text("closes").outfitText(15, .regular, AB.ice.opacity(0.75))
-            LightTimeChip(text: (SampleJourney.outbound.gateCloses ?? SampleJourney.gateArrivalTarget).description)
+            LightTimeChip(text: store.outbound.gateCloses?.description ?? "–")
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Gate \(store.gate) closes \(SampleJourney.outbound.gateCloses?.description ?? "")")
+        .accessibilityLabel("Gate \(store.gate) closes \(store.outbound.gateCloses?.description ?? "")")
     }
 }
 
@@ -128,7 +128,7 @@ struct ReturnToGateView: View {
         PlaceScreen(title: "Gate \(store.gate)") {
             HStack(spacing: 6) {
                 Text("From \(venue.name)").outfitText(15, .regular, AB.muted)
-                TerminalSign(terminal: SampleJourney.outbound.departureTerminal)
+                TerminalSign(terminal: store.outbound.departureTerminal)
                 FloorBadge(floor: venue.floor)
             }
             HStack(spacing: 8) {
@@ -146,12 +146,12 @@ struct ReturnToGateView: View {
             NavyPanel {
                 HStack(spacing: 8) {
                     Text("Leave by").outfitText(18, .semibold, AB.ice)
-                    LightTimeChip(text: (SampleJourney.gateArrivalTarget - walk).description)
+                    LightTimeChip(text: store.gateArrivalTarget.map { ($0 - walk).description } ?? "–")
                 }
                 .accessibilityElement(children: .combine)
                 GateClosesRow()
             }
-            StepList(steps: [(venue.first, nil), ("Follow the overhead signs to Gate \(store.gate)", nil), ("Check \(SampleJourney.outbound.number) on the gate display", nil)])
+            StepList(steps: [(venue.first, nil), ("Follow the overhead signs to Gate \(store.gate)", nil), ("Check \(store.outbound.number) on the gate display", nil)])
             if let phone = venue.phone {
                 Button { if let url = URL(string: "tel:\(phone)") { openURL(url) } } label: {
                     HStack(spacing: 8) {
@@ -334,10 +334,13 @@ struct LandsideRouteView: View {
                 }
                 GateClosesRow()
             }
-            Text("Be at the gate by \(SampleJourney.gateArrivalTarget).").outfitText(13, .regular, AB.muted)
+            if let target = store.gateArrivalTarget {
+                Text("Be at the gate by \(target).").outfitText(13, .regular, AB.muted)
+            }
             CenteredButton(title: "View entry & baggage") { showsLeaving = true }
         }
-        .sheet(isPresented: $showsLeaving) { Sheets.beforeLeavingAirside(walk: store.gateWalkMinutes) }
+        .sheet(isPresented: $showsLeaving) { Sheets.beforeLeavingAirside(walk: store.knownGateWalkMinutes(for: store.routeChoice),
+                                                        details: store.journey.presentation) }
     }
 }
 

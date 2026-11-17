@@ -96,7 +96,7 @@ async function publicFetch(request,env,url){
     capabilities:{airportDirectory:true,connectionTiming:true,liveFlights:Boolean(env.FLIGHTAWARE_AEROAPI_KEY||env.AMADEUS_CLIENT_ID&&env.AMADEUS_CLIENT_SECRET)},
     checkedAt:new Date().toISOString()});
   if(url.pathname==='/api/facilities'){
-    const airport=(url.searchParams.get('airport')||'HND').toUpperCase();
+    const airport=(url.searchParams.get('airport')||'').toUpperCase();
     if(!/^[A-Z]{3}$/.test(airport))return json({error:'invalid_airport'},400);
     return airportFacilities(airport);
   }

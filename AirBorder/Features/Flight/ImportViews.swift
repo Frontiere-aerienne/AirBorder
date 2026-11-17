@@ -336,7 +336,11 @@ struct ReviewImportedView: View {
     let ticket: ParsedTicket
 
     var body: some View {
+        let flight = store.outbound
         let isTrip = ticket.number == store.tripFlight.number
+            && ticket.date == store.tripFlight.date
+            && ticket.from.map { $0 == flight.from.code } != false
+            && ticket.to.map { $0 == flight.to.code } != false
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Check flight details") { dismiss() }
             if isTrip {
@@ -346,8 +350,9 @@ struct ReviewImportedView: View {
                 }
                 .padding(.horizontal, 10).padding(.vertical, 5)
                 .background(AB.card, in: Capsule())
-                TicketSummary(number: ticket.number, pill: durationText(SampleJourney.outbound.durationMinutes ?? 0),
-                              from: "HND", to: "LAX", departs: "18:00", arrives: "11:45")
+                TicketSummary(number: ticket.number, pill: flight.durationMinutes.map(durationText),
+                              from: flight.from.code, to: flight.to.code, departs: flight.departs.description,
+                              arrives: flight.arrives.description, airline: flight.airline)
             } else {
                 TicketSummary(number: ticket.number, from: ticket.from ?? "–", to: ticket.to ?? "–",
                               pills: ticket.date.map { [TripDate.format($0, "d MMM yyyy")] } ?? [])
@@ -399,9 +404,11 @@ struct FlightUpdatedView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let flight = store.outbound
         SubScreen(spacing: 16, top: 52) {
             StackedHeader(title: "Flight updated") { dismiss() }
-            TicketSummary(number: store.tripFlight.number, pill: "Updated", from: "HND", to: "LAX", departs: "18:00", arrives: "11:45")
+            TicketSummary(number: store.tripFlight.number, pill: "Updated", from: flight.from.code, to: flight.to.code,
+                          departs: flight.departs.description, arrives: flight.arrives.description, airline: flight.airline)
             Text("Your gate alerts and ticket details are unchanged.").outfitText(13, .regular, AB.muted)
             CenteredButton(title: "View Journey") {
                 popToRoot()
@@ -418,21 +425,26 @@ struct ReviewFlightView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        let flight = SampleJourney.outbound
+        let flight = store.outbound
         FlightStack {
             LargeTitleHeader(title: "Review flight") { dismiss() }
             VStack(alignment: .leading, spacing: 14) {
-                TicketSummary(number: store.tripFlight.number, pill: flight.cabin, from: "HND", to: "LAX", departs: "18:00", arrives: "11:45")
+                TicketSummary(number: store.tripFlight.number, pill: flight.cabin, from: flight.from.code, to: flight.to.code,
+                              departs: flight.departs.description, arrives: flight.arrives.description, airline: flight.airline)
                 HStack(spacing: 6) {
-                    TerminalSign(terminal: flight.departureTerminal)
-                    GateSign(gate: flight.departureGate)
-                    Text("closes").outfitText(14, .regular, AB.ice.opacity(0.75))
-                    TimeChip(text: flight.gateCloses?.description ?? "–")
+                    if !flight.departureTerminal.isEmpty { TerminalSign(terminal: flight.departureTerminal) }
+                    if !store.gate.isEmpty { GateSign(gate: store.gate) }
+                    if let closes = flight.gateCloses {
+                        Text("closes").outfitText(14, .regular, AB.ice.opacity(0.75))
+                        TimeChip(text: closes.description)
+                    }
                 }
                 .padding(.horizontal, 20).padding(.bottom, 20)
             }
             .background(AB.ticket, in: RoundedRectangle(cornerRadius: 20))
-            AllowanceCard(checked: store.extraBagDeclared ? "2 × 32 kg" : "1 × 32 kg")
+            if let allowance = store.baggageAllowance {
+                AllowanceCard(checked: store.extraBagDeclared ? allowance.extraChecked : allowance.checked, cabin: allowance.cabin)
+            }
             CenteredButton(title: "Save flight to Journey") {
                 store.flightDraft = store.tripFlight
                 store.saveFlightDraft()

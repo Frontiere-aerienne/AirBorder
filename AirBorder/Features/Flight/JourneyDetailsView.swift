@@ -25,11 +25,11 @@ struct JourneyDetailsView: View {
                 }
                 legLabel("FLIGHT 1 OF 2")
                 if flightOneOpen {
-                    Button { flightOneOpen = false } label: { TicketCard(flight: SampleJourney.inbound) }
+                    Button { flightOneOpen = false } label: { TicketCard(flight: store.inbound) }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("flightOne")
                 } else {
-                    Button { flightOneOpen = true } label: { InboundCard(flight: SampleJourney.inbound) }
+                    Button { flightOneOpen = true } label: { InboundCard(flight: store.inbound) }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("flightOne")
                 }
@@ -49,21 +49,23 @@ struct JourneyDetailsView: View {
                     open(.baggage)
                 }
                     .frame(width: 216)
-                CTAButton(title: "View return flight", height: 52, fullWidth: false) { open(.returnFlight) }
-                    .frame(width: 206)
-                    .accessibilityIdentifier("viewReturnFlight")
-                Button {
-                    if let url = URL(string: "tel:\(SampleJourney.anaPhone)") { openURL(url) }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image("icPhone").resizable().frame(width: 18, height: 18)
-                        Text("Call ANA").outfitText(14, .semibold, AB.primary)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 12)
+                if store.returnFlight != nil {
+                    CTAButton(title: "View return flight", height: 52, fullWidth: false) { open(.returnFlight) }
+                        .frame(width: 206)
+                        .accessibilityIdentifier("viewReturnFlight")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("callANA")
+                if let phone = store.flightContactPhone, let url = URL(string: "tel:\(phone)") {
+                    Button { openURL(url) } label: {
+                        HStack(spacing: 8) {
+                            Image("icPhone").resizable().frame(width: 18, height: 18)
+                            Text("Call \(store.outbound.airline.name)").outfitText(14, .semibold, AB.primary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("callANA")
+                }
             }
             .padding(.horizontal, 18)
             .padding(.top, 16)
@@ -83,8 +85,13 @@ struct JourneyDetailsView: View {
             Rectangle().fill(AB.primary.opacity(0.3)).frame(width: 2)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(durationText(store.layoverMinutes)).outfitText(14, .medium, AB.muted)
-                    Text(store.isAirportTransfer ? "layover, change to Narita" : "layover at \(SampleJourney.haneda.city)").outfitText(14, .regular, AB.muted)
+                    if let minutes = store.layoverMinutes {
+                        Text(durationText(minutes)).outfitText(14, .medium, AB.muted)
+                    }
+                    Text(store.isAirportTransfer
+                         ? "\(store.layoverMinutes == nil ? "Change" : "layover, change") to \(store.transferDepartureName)"
+                         : "\(store.layoverMinutes == nil ? "Connection" : "layover") at \(store.inbound.to.city)")
+                        .outfitText(14, .regular, AB.muted)
                 }
                 JourneyProgressStrip(checklist: store.checklist)
                     .padding(.top, 4)
@@ -152,14 +159,15 @@ private struct InboundCard: View {
             .frame(height: 12)
             .accessibilityHidden(true)
             HStack {
-                if (gate ?? flight.departureGate).isEmpty {
+                let currentGate = gate ?? flight.departureGate
+                if !currentGate.isEmpty {
+                    GateSign(gate: currentGate)
+                } else if !flight.departureTerminal.isEmpty {
                     TerminalSign(terminal: flight.departureTerminal)
-                } else {
-                    GateSign(gate: gate ?? flight.departureGate)
                 }
                 Spacer()
-                TerminalSign(terminal: flight.arrivalTerminal)
-                GateSign(gate: flight.arrivalGate, direction: .arrival)
+                if !flight.arrivalTerminal.isEmpty { TerminalSign(terminal: flight.arrivalTerminal) }
+                if !flight.arrivalGate.isEmpty { GateSign(gate: flight.arrivalGate, direction: .arrival) }
             }
         }
         .padding(.horizontal, 20)

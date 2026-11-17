@@ -1,5 +1,13 @@
 # Project Context Ledger: AirportXRCompanion
 
+## November 17 airport-independent runtime refactor
+
+Preserve the Haneda/Narita itineraries and their values as explicit synthetic evaluation data. Derive the active connection from its own legs, with airport-keyed facility coverage and scoped timing/route inputs. No direction, time, queue observation or official facility data should be silently inherited from a different itinerary. An airport without a directory or a journey without route coverage must remain explicitly unsupported. Historical report files and sample data should not be rewritten as live coverage.
+
+Verification on the proposed change: 38 Worker tests; 46 browser-engine, rendering-smoke and API tests; both Worker packaging dry runs; no syntax errors in the 24 edited Swift files under static parsing. Real Chromium and the native iOS build/simulator were not verified locally; hosted checks remain required.
+
+This work is based on the separate runtime LLM-removal change. Test alternate airport inputs as well as the existing demonstration; distinguish Linux checks from hosted iOS verification and from field validation. No production deployment or bypass of the frozen Web review gate is part of this change.
+
 ## November 17 runtime LLM removal
 
 In the removal branch based on main `912fbde`, the Worker no longer exposes the former explanation endpoint or contacts the former grounded official-link discovery service. Both Worker configurations omit the inference binding. Sherpa/Timatic resolution, auth and rate limiting are unchanged. Entry fallback still expires immediately, returns bundled official links where available, and never authorizes landside travel. Native and browser planning, on-device OCR, and opt-in Cloud Vision text detection are unchanged.

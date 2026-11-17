@@ -6,10 +6,15 @@ struct AddedPlanCard: View {
     @Environment(\.openDestination) private var open
 
     var body: some View {
-        let schedule = store.schedule
+        if let schedule = store.schedule, let target = store.gateArrivalTarget {
+            addedPlan(schedule, target: target)
+        }
+    }
+
+    private func addedPlan(_ schedule: Schedule, target: ClockTime) -> some View {
         let stops = schedule.stops
         let leave = stops.isEmpty ? TerminalTwo.leaveBy(gateWalk: store.gateWalkMinutes) : schedule.leave
-        VStack(alignment: .leading, spacing: 16) {
+        return VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 if stops.count == 1, stops[0].stop.id == .anaLounge {
                     AirlineBadge(airline: .ana)
@@ -24,7 +29,7 @@ struct AddedPlanCard: View {
                     store.t2VisitPlanned = false
                 }
             }
-            timeline(leave: leave, arrive: stops.isEmpty ? SampleJourney.gateArrivalTarget : schedule.arriveAtGate, closes: schedule.gateCloses)
+            timeline(leave: leave, arrive: stops.isEmpty ? target : schedule.arriveAtGate, closes: schedule.gateCloses)
         }
         .padding(24)
         .background(AB.card, in: RoundedRectangle(cornerRadius: 18))
@@ -49,17 +54,17 @@ struct AddedPlanCard: View {
         .accessibilityLabel(label)
     }
 
-    private func timeline(leave: ClockTime, arrive: ClockTime, closes: ClockTime) -> some View {
+    private func timeline(leave: ClockTime, arrive: ClockTime, closes: ClockTime?) -> some View {
         GeometryReader { proxy in
             let scale = proxy.size.width / 320
             ZStack(alignment: .topLeading) {
                 Rectangle().fill(AB.primary).frame(width: 180 * scale, height: 3).offset(y: 3)
                 Rectangle().fill(AB.primary.opacity(0.3)).frame(width: 116 * scale, height: 3).offset(x: 180 * scale, y: 3)
-                point("Now", SampleJourney.now, x: 0, filled: true)
+                point("Now", store.now, x: 0, filled: true)
                 point("Leave", leave, x: 175 * scale, filled: true)
                 point("At gate", arrive, x: 233 * scale, filled: false)
                 Image("icGate").resizable().frame(width: 24, height: 24).offset(x: 300 * scale, y: -4)
-                Text(closes.description).outfitText(13, .semibold).offset(x: 296 * scale, y: 18)
+                if let closes { Text(closes.description).outfitText(13, .semibold).offset(x: 296 * scale, y: 18) }
             }
         }
         .frame(height: 48)

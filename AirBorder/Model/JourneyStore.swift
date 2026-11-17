@@ -86,7 +86,7 @@ final class JourneyStore: ObservableObject {
     @Published var onboardingSeen: Bool { didSet { persist() } }
     @Published var firstName: String { didSet { persist() } }
     @Published var lastName: String { didSet { persist() } }
-    @Published var baggagePreference: BaggagePreference { didSet { persist() } }
+    @Published var baggagePreference: BaggagePreference? { didSet { persist() } }
     @Published var profilePhoto: UIImage? { didSet { ProfilePhotoStore.save(profilePhoto) } }
     @Published private(set) var toast: ToastMessage?
     /// The traveller's saved trip flight as they last confirmed it (Edit flight details).
@@ -110,7 +110,7 @@ final class JourneyStore: ObservableObject {
     @Published var cameraAllowed = 0
 
     /// Airport local time the journey is shown at. The sample journey stays at 12:00.
-    @Published private(set) var now: ClockTime = SampleJourney.now
+    @Published private(set) var now: ClockTime
     /// Latest departure-flight report from the flight-status feed.
     @Published private(set) var feed: FlightFeed? { didSet { persist() } }
     /// Alerts the traveller has been shown, keyed by kind.
@@ -118,56 +118,89 @@ final class JourneyStore: ObservableObject {
     /// Set when a new alert should open the Alerts screen.
     @Published var alertToPresent: AlertKind?
 
-    /// Seeded queue report for Curacion Cafe in the sample journey: the wait is now about 18 min.
-    let cafeQueueUpdate = QueueUpdate(stopID: .cafe, waitMinutes: 18)
     private var queueUpdateHandled: Bool { didSet { persist() } }
 
     private let walkingData: WalkingDataSource
     private let defaults: UserDefaults
-    private static let stateKey = "journeyState.v1"
+    private let stateKey: String
+    private let suppliedJourney: JourneyDefinition?
 
     /// Shared with the plan card's one-time hint ("Tap a stop to change its times").
     static let planHintKey = "planHintSeen"
 
-    init(walkingData: WalkingDataSource, defaults: UserDefaults = .standard, reset: Bool = false) {
+    init(walkingData: WalkingDataSource, defaults: UserDefaults = .standard, reset: Bool = false,
+         journey suppliedJourney: JourneyDefinition? = nil) {
         self.walkingData = walkingData
         self.defaults = defaults
+        self.suppliedJourney = suppliedJourney
+        let key = suppliedJourney.map { "journeyState.v2.\($0.persistenceIdentifier)" } ?? "journeyState.v1"
+        self.stateKey = key
         if reset {
-            defaults.removeObject(forKey: Self.stateKey)
+            defaults.removeObject(forKey: key)
             defaults.removeObject(forKey: Self.planHintKey)
         }
-        let saved = defaults.data(forKey: Self.stateKey).flatMap { try? JSONDecoder().decode(SavedState.self, from: $0) }
-        plan = saved?.plan ?? Plan()
-        checklist = saved?.checklist ?? .haneda
+        let saved = defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(SavedState.self, from: $0) }
+        let bundledDeparture = (saved?.tripFlight).flatMap { SampleJourney.departure(number: $0.number) }
+        let active = suppliedJourney ?? SampleJourney.definition(for: bundledDeparture ?? SampleJourney.outbound)
+        let initialTrip = TripFlight(number: active.outbound.number, date: active.outbound.date, purpose: suppliedJourney == nil ? "Business meetings" : "")
+        let savedTrip = (saved?.tripFlight).flatMap { selected -> TripFlight? in
+            guard selected.number == active.outbound.number,
+                  suppliedJourney == nil || selected.date == active.outbound.date else { return nil }
+            return selected
+        }
+        now = active.now
+        plan = savedTrip == nil ? Plan() : saved?.plan ?? Plan()
+        checklist = (savedTrip == nil ? nil : saved?.checklist) ?? active.checklist ?? .minimal
         stepFreeRoutes = saved?.stepFreeRoutes ?? false
         firstName = saved?.firstName ?? ""
         lastName = saved?.lastName ?? ""
-        baggagePreference = saved?.baggagePreference ?? .taggedThrough
-        tripFlight = saved?.tripFlight ?? .sample
-        flightDraft = saved?.tripFlight ?? .sample
+        baggagePreference = saved?.baggagePreference ?? (active.fixture == nil ? nil : .taggedThrough)
+        tripFlight = savedTrip ?? initialTrip
+        flightDraft = savedTrip ?? initialTrip
         manualFlights = saved?.manualFlights ?? []
         extraBagDeclared = saved?.extraBagDeclared ?? false
-        t2VisitPlanned = saved?.t2VisitPlanned ?? false
+        t2VisitPlanned = active.fixture == .hanedaConnection && savedTrip != nil && (saved?.t2VisitPlanned ?? false)
         profilePhoto = reset ? nil : ProfilePhotoStore.load()
         health = saved?.health ?? .notConnected
-        queueUpdateHandled = saved?.queueUpdateHandled ?? false
+        queueUpdateHandled = savedTrip != nil && (saved?.queueUpdateHandled ?? false)
         onboardingSeen = saved?.onboardingSeen ?? false
-        feed = saved?.feed
-        alerts = saved?.alerts ?? [:]
+        feed = savedTrip == nil ? nil : saved?.feed
+        alerts = savedTrip == nil ? [:] : saved?.alerts ?? [:]
         routeChoice = (saved?.stepFreeRoutes ?? false) ? .stepFree : .direct
         refreshSuggestion()
     }
 
     // MARK: Flight status and situations
 
-    /// The next flight leaves from Narita (NH 6 chosen on Edit flight details).
-    var isAirportTransfer: Bool { tripFlight.number == "NH 6" }
+    /// Explicit journey data wins; prototypes only select from their bundled fixture catalog.
+    var journey: JourneyDefinition {
+        if let suppliedJourney { return suppliedJourney }
+        return SampleJourney.definition(for: SampleJourney.departure(number: tripFlight.number) ?? SampleJourney.outbound)
+    }
+    var outbound: FlightLeg { journey.outbound }
+    var availableDepartures: [FlightLeg] { suppliedJourney.map { [$0.outbound] } ?? SampleJourney.departures }
+    var availableTripDates: [String] {
+        suppliedJourney.map { $0.outbound.date.isEmpty ? [] : [$0.outbound.date] } ?? TripFlight.dates
+    }
+    func departure(number: String) -> FlightLeg? {
+        let normalized = number.filter { !$0.isWhitespace }.uppercased()
+        return availableDepartures.first { $0.number.filter { !$0.isWhitespace }.uppercased() == normalized }
+    }
+    var inbound: FlightLeg { journey.inbound }
+    var isAirportTransfer: Bool { journey.changesAirports }
+    var layoverMinutes: Int? { journey.layoverMinutes }
 
-    /// The ticket's departure flight.
-    var outbound: FlightLeg { isAirportTransfer ? SampleJourney.naritaOutbound : SampleJourney.outbound }
+    /// The bundled map only covers the modeled evaluation gate assignments.
+    var hasConcourseCoverage: Bool {
+        journey.fixture == .hanedaConnection && SampleJourney.mapGateAssignments.contains(gate)
+    }
 
-    /// Time between landing at Haneda and the next departure.
-    var layoverMinutes: Int { outbound.departs - SampleJourney.inbound.arrives }
+    var hasPlanningCoverage: Bool {
+        !isAirportTransfer && journey.planning != nil && !gate.isEmpty
+            && (journey.fixture == .hanedaConnection ? hasConcourseCoverage : gate == outbound.departureGate)
+    }
+
+    var gateArrivalTarget: ClockTime? { hasPlanningCoverage ? journey.planning?.gateArrivalTarget : nil }
 
     /// The gate to show everywhere: the feed's latest gate, or the one on the ticket.
     var gate: String {
@@ -178,16 +211,15 @@ final class JourneyStore: ObservableObject {
     var gateAssignmentRevision: Int { feed?.assignmentRevision ?? 0 }
 
     var conditionInputs: ConditionInputs {
-        let schedule = schedule
-        let leave = schedule.stops.isEmpty
-            ? SampleJourney.gateArrivalTarget - gateWalkMinutes
-            : min(schedule.leave, SampleJourney.gateArrivalTarget - schedule.walkToGate)
+        let leave = schedule.flatMap { timed in
+            gateArrivalTarget.map { min(timed.leave, $0 - timed.walkToGate) }
+        }
         return ConditionInputs(
             now: now,
             ticketGate: outbound.departureGate,
             feed: feed,
             gateCloses: outbound.gateCloses,
-            walkToGate: gateWalkMinutes,
+            walkToGate: knownGateWalkMinutes(for: routeChoice),
             leaveBy: leave,
             atGate: checklist.steps.first { $0.id == "gate" }?.state == .confirmed,
             departsFromAnotherAirport: isAirportTransfer
@@ -211,7 +243,9 @@ final class JourneyStore: ObservableObject {
     var hasTimingSituation: Bool { timingCondition != nil }
 
     /// "Boarding soon" from 30 minutes before boarding.
-    var flightStatus: String { now >= SampleJourney.boarding - 30 ? "Boarding soon" : outbound.status }
+    var flightStatus: String {
+        journey.boarding.map { now >= $0 - 30 ? "Boarding soon" : outbound.status } ?? outbound.status
+    }
 
     /// Sets the airport time the journey is shown at (sample data and tests).
     func setNow(_ time: ClockTime) {
@@ -222,7 +256,8 @@ final class JourneyStore: ObservableObject {
 
     /// A departure-flight report arrived from the feed.
     func receive(_ report: FlightFeed) {
-        guard let reportedGate = report.gate, !reportedGate.isEmpty,
+        guard report.flightID.map({ $0 == outbound.id }) ?? (journey.fixture != nil),
+              let reportedGate = report.gate, !reportedGate.isEmpty,
               feed.map({ report.receivedAt >= $0.receivedAt }) ?? true else { return }
         if reportedGate == gate {
             if feed == nil { feed = report }
@@ -237,17 +272,19 @@ final class JourneyStore: ObservableObject {
         alerts.removeValue(forKey: .returnNow)
         alerts.removeValue(forKey: .boardingAtRisk)
         feed = update
+        refreshSuggestion()
         refreshAlerts()
         alertToPresent = .gateChange
     }
 
     /// The sample journey's gate update: Gate 108A, reported a short while after the app opens.
     func startSampleFeed(after delay: Duration) {
-        guard feed == nil, !isAirportTransfer else { return refreshAlerts() }
+        guard feed == nil, let updatedGate = journey.syntheticGateUpdate else { return refreshAlerts() }
+        let departure = tripFlight
         Task { @MainActor in
             try? await Task.sleep(for: delay)
-            guard feed == nil, !isAirportTransfer else { return }
-            receive(FlightFeed(gate: "108A", receivedAt: now))
+            guard feed == nil, tripFlight == departure else { return }
+            receive(FlightFeed(gate: updatedGate, receivedAt: now, flightID: outbound.id))
         }
     }
 
@@ -277,22 +314,27 @@ final class JourneyStore: ObservableObject {
     // MARK: Walking
 
     var pace: WalkingPace {
-        WalkingEstimate.pace(walks: SampleJourney.airportWalks, healthKmh: health == .connected ? walkingSpeedKmh : nil)
+        WalkingEstimate.pace(walks: journey.airportWalks, healthKmh: health == .connected ? walkingSpeedKmh : nil)
     }
 
-    var schedule: Schedule { schedule(for: routeChoice) }
+    var schedule: Schedule? { schedule(for: routeChoice) }
 
-    func schedule(for choice: RouteChoice) -> Schedule {
-        let timedPlan = queueUpdateHandled ? plan : PlanEngine.applying(cafeQueueUpdate, to: plan)
-        return PlanEngine.schedule(timedPlan, pace: pace, directWalk: gateWalkMinutes(for: choice),
+    func schedule(for choice: RouteChoice) -> Schedule? {
+        guard hasPlanningCoverage, let context = journey.planning,
+              let directWalk = knownGateWalkMinutes(for: choice) else { return nil }
+        let timedPlan = applyingPendingQueueUpdate(to: plan)
+        return PlanEngine.schedule(timedPlan, pace: pace, context: context,
+                                   directWalk: directWalk,
                                    gateWalkAdjustment: gateWalkAdjustment(for: choice), notBefore: now)
     }
 
     var guidesDirectlyToGate: Bool { returningDirectly || hasTimingSituation }
 
-    func guidanceSchedule(for choice: RouteChoice) -> Schedule {
+    func guidanceSchedule(for choice: RouteChoice) -> Schedule? {
+        guard hasPlanningCoverage, let context = journey.planning,
+              let directWalk = knownGateWalkMinutes(for: choice) else { return nil }
         if guidesDirectlyToGate {
-            return PlanEngine.schedule(Plan(), pace: pace, directWalk: gateWalkMinutes(for: choice))
+            return PlanEngine.schedule(Plan(), pace: pace, context: context, directWalk: directWalk)
         }
         return schedule(for: choice)
     }
@@ -310,10 +352,15 @@ final class JourneyStore: ObservableObject {
     }
 
     private func gateWalkAdjustment(for choice: RouteChoice) -> Int {
-        gateWalkMinutes(for: choice) - gateWalkMinutes(for: .direct)
+        guard let chosen = knownGateWalkMinutes(for: choice),
+              let base = knownGateWalkMinutes(for: .direct) else { return 0 }
+        return chosen - base
     }
 
-    func walkMinutes(_ from: PlaceID, _ to: PlaceID) -> Int { WalkMatrix.minutes(from, to, pace: pace) }
+    func walkMinutes(_ from: PlaceID, _ to: PlaceID) -> Int? {
+        guard hasPlanningCoverage else { return nil }
+        return journey.planning?.walkMinutes(from, to, pace: pace)
+    }
 
     /// Walk from a venue back to the gate, as on the Layover cards and Return to gate screens (4, 6 and 8 min on average).
     func venueToGateMinutes(_ place: PlaceID) -> Int {
@@ -333,6 +380,12 @@ final class JourneyStore: ObservableObject {
 
     func gateWalkMinutes(for choice: RouteChoice) -> Int {
         WalkingTimes.minutes(average: choice.averageMinutes, pace: pace)
+    }
+
+    func knownGateWalkMinutes(for choice: RouteChoice) -> Int? {
+        guard hasPlanningCoverage else { return nil }
+        if hasConcourseCoverage { return gateWalkMinutes(for: choice) }
+        return choice == .direct ? journey.planning?.walkMinutes(.start, .gate, pace: pace) : nil
     }
 
     var healthAvailable: Bool { walkingData.isAvailable }
@@ -363,11 +416,23 @@ final class JourneyStore: ObservableObject {
 
     // MARK: Plan
 
+    private func orderedStops(_ stops: [PlanStop]) -> [PlanStop] {
+        guard let context = journey.planning else { return stops }
+        func requestedArrival(_ stop: PlanStop) -> ClockTime {
+            stop.arrive ?? context.preferredArrivals[stop.id] ?? context.planStart
+        }
+        return stops.enumerated().sorted { left, right in
+            let first = requestedArrival(left.element)
+            let second = requestedArrival(right.element)
+            return first == second ? left.offset < right.offset : first < second
+        }.map { $0.element }
+    }
+
     func add(_ stop: PlanStop) {
         guard !plan.contains(stop.id) else { return }
         clearUndo()
         plan.stops.append(stop)
-        plan.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
+        plan.stops = orderedStops(plan.stops)
         refreshPlanGuidance()
     }
 
@@ -379,22 +444,21 @@ final class JourneyStore: ObservableObject {
 
     /// Resolve the displayed stop times from the same schedule that drives gate guidance.
     func times(_ id: PlaceID) -> (arrive: ClockTime, leave: ClockTime, latest: ClockTime)? {
-        let timed = schedule
-        guard let index = timed.stops.firstIndex(where: { $0.stop.id == id }) else { return nil }
+        guard let timed = schedule, let target = gateArrivalTarget,
+              let index = timed.stops.firstIndex(where: { $0.stop.id == id }) else { return nil }
         let stop = timed.stops[index]
         let downstream = timed.arriveAtGate - stop.end
-        return (stop.start, stop.end, SampleJourney.gateArrivalTarget - downstream)
+        return (stop.start, stop.end, target - downstream)
     }
 
     func earliestArrival(for id: PlaceID) -> ClockTime? {
-        let stops = schedule.stops
-        guard let index = stops.firstIndex(where: { $0.stop.id == id }) else { return nil }
+        guard let stops = schedule?.stops, let index = stops.firstIndex(where: { $0.stop.id == id }) else { return nil }
         let departure = index == 0 ? now : stops[index - 1].end
-        return max(StopTimes.earliest, departure + stops[index].walkFromPrevious)
+        return max(journey.planning?.timelineStart ?? departure, departure + stops[index].walkFromPrevious)
     }
 
     func earliestLeave(for id: PlaceID) -> ClockTime? {
-        guard let stop = schedule.stops.first(where: { $0.stop.id == id }) else { return nil }
+        guard let stop = schedule?.stops.first(where: { $0.stop.id == id }) else { return nil }
         return stop.start + stop.stop.waitMinutes + PlanEngine.minimumVisit
     }
 
@@ -404,15 +468,16 @@ final class JourneyStore: ObservableObject {
 
     func setTimes(_ id: PlaceID, arrive: ClockTime? = nil, leave: ClockTime? = nil) {
         guard let index = plan.index(of: id), let current = times(id) else { return }
-        let wait = id == cafeQueueUpdate.stopID && !queueUpdateHandled
-            ? cafeQueueUpdate.waitMinutes : plan.stops[index].waitMinutes
+        let update = journey.queueUpdate
+        let wait = id == update?.stopID && !queueUpdateHandled
+            ? update?.waitMinutes ?? plan.stops[index].waitMinutes : plan.stops[index].waitMinutes
         let newVisit = leave.map { $0 - current.arrive - wait } ?? plan.stops[index].plannedVisitMinutes
         guard newVisit >= PlanEngine.minimumVisit else { return }
         clearUndo()
         if let arrive { plan.stops[index].arrive = arrive }
         plan.stops[index].visitMinutes = newVisit
         plan.stops[index].leave = nil
-        plan.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
+        plan.stops = orderedStops(plan.stops)
         refreshPlanGuidance()
     }
 
@@ -424,7 +489,7 @@ final class JourneyStore: ObservableObject {
         showToast(ToastMessage(text: "Removed \(stop.name)", action: "Undo")) { [weak self] in
             guard let self, !self.plan.contains(id) else { return }
             self.plan.stops.insert(stop, at: min(index, self.plan.stops.count))
-            self.plan.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
+            self.plan.stops = self.orderedStops(self.plan.stops)
             self.refreshPlanGuidance()
         }
     }
@@ -439,26 +504,28 @@ final class JourneyStore: ObservableObject {
     func fitWarning(for stop: PlanStop) -> (title: String, message: String)? {
         var proposed = plan
         proposed.stops.append(stop)
-        if !queueUpdateHandled { proposed = PlanEngine.applying(cafeQueueUpdate, to: proposed) }
-        proposed.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
-        let arrival = PlanEngine.schedule(proposed, pace: pace, gateWalkAdjustment: gateWalkAdjustment(for: routeChoice),
-                                          notBefore: now).arriveAtGate
-        guard arrival > SampleJourney.gateArrivalTarget,
+        proposed = applyingPendingQueueUpdate(to: proposed)
+        proposed.stops = orderedStops(proposed.stops)
+        guard hasPlanningCoverage, let context = journey.planning,
+              knownGateWalkMinutes(for: routeChoice) != nil, let arrival = PlanEngine.schedule(proposed, pace: pace, context: context,
+                                                gateWalkAdjustment: gateWalkAdjustment(for: routeChoice),
+                                                notBefore: now)?.arriveAtGate,
+              arrival > context.gateArrivalTarget,
               stop.id.meal?.sitDown == true || plan.stops.count >= 3 else { return nil }
-        let message = "Estimated arrival at Gate \(gate) is \(arrival). Aim to be there by \(SampleJourney.gateArrivalTarget)."
+        let message = "Estimated arrival at Gate \(gate) is \(arrival). Aim to be there by \(context.gateArrivalTarget)."
         return (stop.id.meal?.sitDown == true ? "A sit-down meal may not fit" : "That's a lot to fit in", message)
     }
 
     /// Positive slack is measured against the planning target, after the remaining route.
-    var minutesToSpare: Int {
-        let arrival = plan.stops.isEmpty ? now + gateWalkMinutes : max(now, schedule.leave) + schedule.walkToGate
-        return SampleJourney.gateArrivalTarget - arrival
+    var minutesToSpare: Int? {
+        guard let schedule, let target = gateArrivalTarget else { return nil }
+        let arrival = plan.stops.isEmpty ? now + schedule.walkToGate : max(now, schedule.leave) + schedule.walkToGate
+        return target - arrival
     }
 
     /// Requested start times can conflict with the preceding walk or stop.
     func overlapping(_ id: PlaceID) -> [PlanStop] {
-        let stops = schedule.stops
-        guard let index = stops.firstIndex(where: { $0.stop.id == id }) else { return [] }
+        guard let stops = schedule?.stops, let index = stops.firstIndex(where: { $0.stop.id == id }) else { return [] }
         if index > 0, let requested = stops[index].stop.arrive, requested < stops[index].start {
             return [stops[index - 1].stop]
         }
@@ -503,13 +570,19 @@ final class JourneyStore: ObservableObject {
 
     func clearUndo() { undoPlan = nil }
 
+    private func applyingPendingQueueUpdate(to plan: Plan) -> Plan {
+        guard !queueUpdateHandled, let update = journey.queueUpdate else { return plan }
+        return PlanEngine.applying(update, to: plan)
+    }
+
     /// Recomputes from the active plan; a suggestion for an older plan is dropped.
     private func refreshSuggestion() {
-        guard !queueUpdateHandled, plan.contains(cafeQueueUpdate.stopID) else {
+        guard hasPlanningCoverage, let context = journey.planning, let update = journey.queueUpdate,
+              knownGateWalkMinutes(for: routeChoice) != nil, !queueUpdateHandled, plan.contains(update.stopID) else {
             suggestion = nil
             return
         }
-        suggestion = PlanEngine.suggestion(for: plan, update: cafeQueueUpdate, pace: pace,
+        suggestion = PlanEngine.suggestion(for: plan, update: update, pace: pace, context: context,
                                            gateWalkAdjustment: gateWalkAdjustment(for: routeChoice), notBefore: now)
     }
 
@@ -527,10 +600,10 @@ final class JourneyStore: ObservableObject {
 
     func resetPreferences() {
         stepFreeRoutes = false
-        baggagePreference = .taggedThrough
+        baggagePreference = journey.fixture == nil ? nil : .taggedThrough
         plan = Plan()
         undoPlan = nil
-        checklist = isAirportTransfer ? .narita : .haneda
+        checklist = journey.checklist ?? .minimal
         queueUpdateHandled = false
         routeStep = 1
         UserDefaults.standard.removeObject(forKey: Self.planHintKey)
@@ -543,16 +616,23 @@ final class JourneyStore: ObservableObject {
 
     func beginEditingFlight() { flightDraft = tripFlight }
     func saveFlightDraft() {
-        let changedAirport = (flightDraft.number == "NH 6") != isAirportTransfer
+        guard let selected = departure(number: flightDraft.number),
+              availableTripDates.isEmpty || availableTripDates.contains(flightDraft.date) else { return }
+        let changedLeg = selected.id != outbound.id || tripFlight.date != flightDraft.date
         tripFlight = flightDraft
-        if changedAirport {
-            checklist = isAirportTransfer ? .narita : .haneda
+        if changedLeg {
+            checklist = journey.checklist ?? .minimal
+            plan = Plan()
+            undoPlan = nil
+            queueUpdateHandled = false
+            t2VisitPlanned = false
             feed = nil
             alerts = [:]
             alertToPresent = nil
             returningDirectly = false
             routeStep = 1
         }
+        refreshSuggestion()
         refreshAlerts()
     }
     func addManualFlight(_ flight: ManualFlight) { manualFlights.append(flight) }
@@ -613,7 +693,7 @@ final class JourneyStore: ObservableObject {
             alerts: alerts
         )
         if let data = try? JSONEncoder().encode(state) {
-            defaults.set(data, forKey: Self.stateKey)
+            defaults.set(data, forKey: stateKey)
         }
     }
 }
@@ -645,8 +725,8 @@ struct TripFlight: Codable, Equatable {
     var date: String
     var purpose: String
 
-    static let sample = TripFlight(number: "NH 106", date: SampleJourney.outbound.date, purpose: "Business meetings")
-    static let flights = [("NH 106", "HND → LAX"), ("NH 6", "NRT → LAX")]
+    static let sample = TripFlight(number: SampleJourney.outbound.number, date: SampleJourney.outbound.date, purpose: "Business meetings")
+    static let flights = SampleJourney.departures.map { ($0.number, "\($0.from.code) → \($0.to.code)") }
     static let dates = ["2026-10-15", "2026-10-16", "2026-10-17"]
     static let purposes = ["Business meetings", "Tourism", "Transit"]
 

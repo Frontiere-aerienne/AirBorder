@@ -82,37 +82,54 @@ struct InfoSheet: View {
 
 /// The sheets used across the app, copied from the Figma "Popups" section.
 enum Sheets {
-    static func whyAirside() -> InfoSheet {
+    static func whyAirside(returnMinutes: Int? = nil) -> InfoSheet {
         InfoSheet(title: "Airside or landside?", rows: [
-            SheetRow(icon: "tileShield", label: "Airside", detail: "After security, near your gate"),
-            SheetRow(icon: "tileTransfer", label: "Landside", detail: "Before security, 30 min to get back"),
+            SheetRow(icon: "tileShield", label: "Airside", detail: returnMinutes == nil ? "After security" : "After security, near your gate"),
+            SheetRow(icon: "tileTransfer", label: "Landside", detail: returnMinutes.map { "Before security, \($0) min to get back" } ?? "Before security; check how to return to your gate"),
         ])
     }
 
-    static func baggage(update: @escaping () -> Void) -> InfoSheet {
-        InfoSheet(title: "Your bag", rows: [
-            SheetRow(icon: "tileBag", label: "Checked to LAX", detail: "Stays with the airline at Haneda"),
-            SheetRow(icon: "tileInfo", label: "Allowance", detail: "1 × 32 kg checked, 10 kg cabin"),
-        ], button: ("Update baggage preference", update))
+    static func baggage(
+        allowance: BaggageAllowance? = nil, arrival: Airport? = nil, destination: Airport? = nil,
+        update: @escaping () -> Void
+    ) -> InfoSheet {
+        let rows: [SheetRow]
+        if let allowance, let arrival, let destination {
+            rows = [
+                SheetRow(icon: "tileBag", label: "Checked to \(destination.code)", detail: "Stays with the airline at \(arrival.shortName)"),
+                SheetRow(icon: "tileInfo", label: "Allowance", detail: "\(allowance.checked) checked, \(allowance.cabin) cabin"),
+            ]
+        } else {
+            rows = [SheetRow(icon: "tileInfo", label: "Baggage details unavailable", detail: "Check your ticket or ask your airline.")]
+        }
+        return InfoSheet(title: "Your bag", rows: rows, button: ("Update baggage preference", update))
     }
 
-    static func beforeLeavingAirside(walk: Int) -> InfoSheet {
-        InfoSheet(title: "Leaving airside", rows: [
-            SheetRow(icon: "tileClock", label: "30 min to get back", detail: "Security plus a \(walk) min walk"),
-            SheetRow(icon: "tileShield", label: "Passport ready", detail: "For Japan arrival checks"),
-            SheetRow(icon: "tileBag", label: "Your bag", detail: "Stays with the airline"),
-        ], link: ("Japan entry information ↗", "https://www.mofa.go.jp/j_info/visit/visa/index.html"))
+    static func beforeLeavingAirside(walk: Int?, details: JourneyPresentationDetails? = nil) -> InfoSheet {
+        guard let airside = details?.airside else {
+            return InfoSheet(title: "Leaving airside", rows: [
+                SheetRow(icon: "tileShield", label: "Check requirements before leaving", detail: "Confirm entry, security and baggage rules with official sources and your airline."),
+            ])
+        }
+        return InfoSheet(title: "Leaving airside", rows: [
+            SheetRow(icon: "tileClock", label: "\(airside.returnMinutes) min to get back", detail: walk.map { "Security plus a \($0) min walk" }),
+            SheetRow(icon: "tileShield", label: airside.documentLabel, detail: airside.documentDetail),
+            SheetRow(icon: "tileBag", label: "Your bag", detail: airside.baggageDetail),
+        ], link: (airside.linkTitle, airside.linkURL))
     }
 
-    static func aboutMap(walk: Int) -> InfoSheet {
-        InfoSheet(title: "Your route", rows: [
-            SheetRow(icon: "tileMap", label: "Start after transfer security", detail: "Terminal 3, 3F"),
-            SheetRow(icon: "tileGate", label: "Follow Gates 105–109"),
-            SheetRow(icon: "tileWalk", label: "\(walk) min walk", detail: "Same level, no stairs"),
-        ], button: ("Open Haneda floor guide", {
-            if let url = URL(string: "https://tokyo-haneda.com/en/floor/floor-guide.html?area=9&tab=terminal3&floor=3F") {
-                UIApplication.shared.open(url)
-            }
+    static func aboutMap(walk: Int?, details: JourneyPresentationDetails? = nil) -> InfoSheet {
+        guard let guide = details?.floorGuide else {
+            return InfoSheet(title: "Your route", rows: [
+                SheetRow(icon: "tileMap", label: "Indoor directions unavailable", detail: "Check your airport’s map or follow airport signs."),
+            ])
+        }
+        return InfoSheet(title: "Your route", rows: [
+            SheetRow(icon: "tileMap", label: guide.startLabel, detail: guide.startDetail),
+            SheetRow(icon: "tileGate", label: guide.signLabel),
+            SheetRow(icon: "tileWalk", label: walk.map { "\($0) min walk" } ?? "Walk time unavailable", detail: guide.walkDetail),
+        ], button: (guide.buttonTitle, {
+            if let url = URL(string: guide.url) { UIApplication.shared.open(url) }
         }))
     }
 

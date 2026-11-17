@@ -31,20 +31,32 @@ struct RouteStep: Equatable {
 @MainActor
 enum RouteSteps {
     /// Map units to metres, so the direct route measures the Figma 570 m.
-    static let metresPerUnit: CGFloat = 570 / RouteMap.length(of: RouteMap.route(through: [], choice: .direct).nodes)
+    static let metresPerUnit: CGFloat = 570 / SampleConcourseMap.length(of: SampleConcourseMap.route(through: [], choice: .direct).nodes)
 
     static func steps(for choice: RouteChoice, store: JourneyStore) -> [RouteStep] {
         let gate = store.gate
-        let board = "Board at \(SampleJourney.boarding)"
-        let timed = store.guidanceSchedule(for: choice)
+        guard store.hasConcourseCoverage else {
+            guard choice == .direct, let directions = store.journey.gateDirections,
+                  !gate.isEmpty, directions.gate == gate,
+                  store.plan.stops.isEmpty || store.guidesDirectlyToGate else { return [] }
+            let instructions = directions.instructions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            return instructions.enumerated().map { index, text in
+                RouteStep(distance: "", text: text, turn: index == instructions.count - 1 ? .gate : .straight,
+                          remaining: "", remainingDetail: "")
+            }
+        }
+        guard let timed = store.guidanceSchedule(for: choice) else { return [] }
+        let board = store.journey.boarding.map { "Board at \($0)" } ?? ""
         let stops = timed.stops.map(\.stop)
-        let route = RouteMap.route(through: stops.map { RouteMap.node(for: $0.id) }, choice: choice)
+        let stopNodes = stops.compactMap { SampleConcourseMap.node(for: $0.id) }
+        guard stopNodes.count == stops.count else { return [] }
+        let route = SampleConcourseMap.route(through: stopNodes, choice: choice)
         let nodes = route.nodes
         let last = RouteStep(distance: "At Gate \(gate)", text: "Check \(store.outbound.number) on the gate screen", turn: .gate,
                              remaining: "Arrived", remainingDetail: board, position: CGFloat(nodes.count - 1))
         let stopAt = Dictionary(uniqueKeysWithValues: zip(route.stopIndices, stops))
-        let edges = zip(nodes, nodes.dropFirst()).map { RouteMap.edge($0, $1) }
-        let metres = { (from: Int) in RouteMap.length(of: Array(nodes[from...])) * metresPerUnit }
+        let edges = zip(nodes, nodes.dropFirst()).map { SampleConcourseMap.edge($0, $1) }
+        let metres = { (from: Int) in SampleConcourseMap.length(of: Array(nodes[from...])) * metresPerUnit }
         let ends = route.stopIndices + [nodes.count - 1]
         let durations = timed.stops.map(\.walkFromPrevious) + [timed.walkToGate]
         // Use the schematic only to apportion the time within each already timed leg.
@@ -52,8 +64,8 @@ enum RouteSteps {
             guard let leg = ends.firstIndex(where: { $0 > from }) else { return 0 }
             let start = leg == 0 ? 0 : ends[leg - 1]
             let end = ends[leg]
-            let legLength = RouteMap.length(of: Array(nodes[start...end]))
-            let remaining = RouteMap.length(of: Array(nodes[from...end]))
+            let legLength = SampleConcourseMap.length(of: Array(nodes[start...end]))
+            let remaining = SampleConcourseMap.length(of: Array(nodes[from...end]))
             let current = legLength > 0 ? Int((Double(durations[leg]) * Double(remaining / legLength)).rounded(.up)) : 0
             return current + durations.dropFirst(leg + 1).reduce(0, +)
         }
@@ -69,7 +81,7 @@ enum RouteSteps {
             let a = nodes[first], b = nodes[first + 1]
             let leavingFourthFloor = stopAt[first]?.id.requiresLift == true
             defer { legStarts = stop != nil }
-            let length = group.map { RouteMap.length(of: [nodes[$0], nodes[$0 + 1]]) }.reduce(0, +) * metresPerUnit
+            let length = group.map { SampleConcourseMap.length(of: [nodes[$0], nodes[$0 + 1]]) }.reduce(0, +) * metresPerUnit
             let (text, turn): (String, RouteStep.Turn) = {
                 if let stop {
                     if stop.id.requiresLift { return ("Take the lift to \(stop.name), 4F", .lift) }
@@ -106,7 +118,7 @@ enum RouteSteps {
             if let open = group.last {
                 let previous = edges[open]
                 let onlyLeavingDoor = group.count == 1 && stopAt[group[0]] != nil
-                let sameWay = RouteMap.heading(nodes[open], nodes[open + 1]) == RouteMap.heading(nodes[i], nodes[i + 1])
+                let sameWay = SampleConcourseMap.heading(nodes[open], nodes[open + 1]) == SampleConcourseMap.heading(nodes[i], nodes[i + 1])
                 let flows = previous.kind != .stairs && edge.kind != .stairs && previous.kind != .lift && edge.kind != .lift
                 if !(edge.kind == .door || onlyLeavingDoor || (sameWay && flows)) { flush() }
             }
@@ -119,11 +131,11 @@ enum RouteSteps {
 
     /// Plan stops in the order the traveller will reach them.
     static func stopsInOrder(_ store: JourneyStore) -> [PlanStop] {
-        store.guidanceSchedule(for: store.routeChoice).stops.map(\.stop)
+        store.guidanceSchedule(for: store.routeChoice)?.stops.map(\.stop) ?? []
     }
 
     /// What to do on a stretch of the map, worded like the Figma route steps.
-    private static func phrase(_ a: RouteMap.Node, _ b: RouteMap.Node, gate: String) -> (String, RouteStep.Turn) {
+    private static func phrase(_ a: SampleConcourseMap.Node, _ b: SampleConcourseMap.Node, gate: String) -> (String, RouteStep.Turn) {
         switch (a, b) {
         case (.start, .cafeDoor): ("Follow the Gates 105–109 sign", .straight)
         case (.cafeDoor, .junction), (.cafe, .cafeDoor): ("Continue to the junction", .straight)
@@ -146,9 +158,11 @@ enum RouteSteps {
         }
     }
 
-    static func transfer() -> [RouteStep] {
-        TransferRouteContent.steps.enumerated().map { index, text in
-            RouteStep(distance: "", text: text, turn: index == 2 ? .stop : .straight, remaining: index == 0 ? "\(NaritaTransfer.busMinutes) min" : "", remainingDetail: "")
+    static func transfer(_ details: AirportTransferDetails?) -> [RouteStep] {
+        guard let details else { return [] }
+        return details.directions.enumerated().map { index, text in
+            RouteStep(distance: "", text: text, turn: index == details.directions.count - 1 ? .stop : .straight,
+                      remaining: index == 0 ? (details.minutes.map { "\($0) min" } ?? "") : "", remainingDetail: "")
         }
     }
 }
@@ -166,14 +180,21 @@ struct RouteView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if !(mode == .camera && cameraCovers) {
-                    Text(store.isAirportTransfer ? "Route to Narita" : "Route to Gate \(store.gate)").outfitText(30, .bold).tracking(-1.1)
+                    Text(store.isAirportTransfer ? "Route to \(store.outbound.from.shortName)"
+                         : store.gate.isEmpty ? "Route" : "Route to Gate \(store.gate)").outfitText(30, .bold).tracking(-1.1)
                         .accessibilityAddTraits(.isHeader)
-                    modeSwitch
+                    if !guidanceSteps.isEmpty && supportsCamera { modeSwitch }
                     if let condition = store.primaryCondition, !store.isAirportTransfer {
                         TravelUpdateBanner(condition: condition, place: .route)
                     }
                 }
-                if mode == .camera {
+                if guidanceSteps.isEmpty {
+                    Text("Directions are unavailable for this connection.")
+                        .outfitText(15, .regular, AB.muted)
+                    if store.isAirportTransfer && store.transferDetails != nil {
+                        TransferRouteContent().padding(.top, 14)
+                    }
+                } else if mode == .camera && supportsCamera {
                     CameraGuide(sign: sign, arrow: currentTurn.cameraArrow, mirrorArrow: currentTurn.mirrorsCameraArrow,
                                 exit: { mode = .map }, covers: $cameraCovers) { routeCard(map: false) }
                 } else {
@@ -193,18 +214,24 @@ struct RouteView: View {
         // Camera access is asked in the AirBorder pop-up (RootView); open the camera once it's allowed.
         .onChange(of: store.cameraAllowed) { mode = .camera }
         .onChange(of: store.guidesDirectlyToGate) { store.routeStep = 1 }
+        .onChange(of: store.hasConcourseCoverage) { mode = .map }
     }
 
     private var currentTurn: RouteStep.Turn {
         let steps = guidanceSteps
-        return steps[min(max(store.routeStep, 1), steps.count) - 1].turn
+        let index = min(max(store.routeStep, 1), steps.count) - 1
+        return steps.indices.contains(index) ? steps[index].turn : .straight
     }
 
     private var guidanceSteps: [RouteStep] {
-        store.isAirportTransfer ? RouteSteps.transfer() : RouteSteps.steps(for: store.routeChoice, store: store)
+        store.isAirportTransfer ? RouteSteps.transfer(store.transferDetails) : RouteSteps.steps(for: store.routeChoice, store: store)
     }
 
-    /// The sign the camera looks for at the current step.
+    private var supportsCamera: Bool {
+        store.hasConcourseCoverage || store.journey.fixture == .naritaTransfer
+    }
+
+    /// Bundled evaluation sign targets, never applied to another itinerary.
     private var sign: SignTarget {
         if store.isAirportTransfer { return .bus }
         if store.gate != SampleJourney.outbound.departureGate && store.routeStep >= 2 { return .gates108to149 }
@@ -212,15 +239,16 @@ struct RouteView: View {
     }
 
     private func routeCard(map: Bool) -> some View {
-        RouteCard(step: $store.routeStep, steps: guidanceSteps, showsChoice: !store.isAirportTransfer) {
-            if map && !store.isAirportTransfer { concourse }
+        RouteCard(step: $store.routeStep, steps: guidanceSteps, showsChoice: store.hasConcourseCoverage) {
+            if map && store.hasConcourseCoverage { concourse }
         } end: {
             mode = .map
             store.finishRoute()
             Haptics.success()
             guard !store.isAirportTransfer else { return }
             if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
-            store.showToast(ToastMessage(text: "Arrived, Gate \(store.gate), \(store.outbound.number), boarding \(SampleJourney.boarding)."))
+            let boarding = store.journey.boarding.map { ", boarding \($0)" } ?? ""
+            store.showToast(ToastMessage(text: "Arrived, Gate \(store.gate), \(store.outbound.number)\(boarding)."))
         }
     }
 
@@ -252,10 +280,12 @@ struct RouteView: View {
         .accessibilityIdentifier("mode-\(title.lowercased())")
     }
 
+    @ViewBuilder
     private var concourse: some View {
         let steps = RouteSteps.steps(for: store.routeChoice, store: store)
         let index = min(max(store.routeStep, 1), steps.count) - 1
-        return RouteMap(stops: RouteSteps.stopsInOrder(store), gate: store.gate, choice: store.routeChoice, position: steps[index].position) { id in
+        if steps.indices.contains(index) {
+            SampleConcourseMap(stops: RouteSteps.stopsInOrder(store), gate: store.gate, choice: store.routeChoice, position: steps[index].position) { id in
             // Tapping a stop on the map jumps to that stop's step.
             guard let name = store.plan.stops.first(where: { $0.id == id })?.name,
                   let target = steps.firstIndex(where: { $0.turn == .stop && $0.text.hasPrefix("Stop at \(name),") }) else { return }
@@ -267,13 +297,15 @@ struct RouteView: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("About this map")
             .accessibilityIdentifier("routeSummary")
-            .sheet(isPresented: $showsMapInfo) { Sheets.aboutMap(walk: store.gateWalkMinutes) }
+            .sheet(isPresented: $showsMapInfo) { Sheets.aboutMap(walk: store.knownGateWalkMinutes(for: store.routeChoice),
+                                                       details: store.hasConcourseCoverage ? store.journey.presentation : nil) }
+        }
     }
 }
 
 /// Terminal 3, 3F floor plan with the walking route drawn on it. Each route choice takes its own corridors;
 /// stops in the plan are rooms the route detours into, in arrive order. The walked part fills in as you go.
-struct RouteMap: View {
+struct SampleConcourseMap: View {
     let stops: [PlanStop]
     let gate: String
     let choice: RouteChoice
@@ -281,7 +313,7 @@ struct RouteMap: View {
     var select: (PlaceID) -> Void = { _ in }
 
     var body: some View {
-        let route = Self.route(through: stops.map { Self.node(for: $0.id) }, choice: choice)
+        let route = Self.route(through: stops.compactMap { Self.node(for: $0.id) }, choice: choice)
         GeometryReader { proxy in
             let scale = proxy.size.width / Self.size.width
             let p = { (n: Node) in CGPoint(x: Self.points[n]!.x * scale, y: Self.points[n]!.y * scale) }
@@ -391,14 +423,15 @@ struct RouteMap: View {
         (.windowsEast, .windowsGate, .windows),
     ]
 
-    static func node(for id: PlaceID) -> Node {
+    static func node(for id: PlaceID) -> Node? {
         switch id {
         case .cafe: .cafe
         case .anaLounge: .lounge
         case .bento: .bento
         case .udon: .udon
         case .sushi: .sushi
-        default: .sky
+        case .skyLounge: .sky
+        default: nil
         }
     }
 

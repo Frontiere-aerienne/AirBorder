@@ -37,3 +37,40 @@ Verification combines authenticated API/storage tests, client offline/conflict/l
 Requests are limited to 2,048 bytes and validated before mutation. An owner mismatch returns `403`; revision or event-ID reuse conflicts return `409`. Repeating an identical event returns its original acknowledgement; clients must retain any newer fetched revision. These endpoints do not accept passport numbers, health records, provider credentials or arbitrary plan content.
 
 The [backend implementation status](journey-backend-plan.md) lists remaining production work. The [November verification record](../../Documentation/Verification-2026-11-08.md) identifies tested revisions and coverage limits.
+
+### Airport-neutral browser itinerary input
+
+The static browser app still opens with the explicit Tokyo fixture in
+`demo-journey.js` when the host has not provided an itinerary. Before
+`app.js` runs, a host can set `window.AIRBORDER_ITINERARY` to a two-leg
+connection. It takes `id`, `date`, and `inbound` and `onward` records with
+`id` (flight identifier), `airline`, `from` and `to` airport records,
+`departure` and `arrival` in local `HH:mm`, `terminal`, `gate`, and a
+published `target` in local `HH:mm` when available. Airport records can
+contain `code` (three-letter IATA), `name`, `city`, `country` (two-letter
+ISO), `zone` (display abbreviation), and `timeZone` (IANA zone).
+An incomplete supplied itinerary stays incomplete; it does not borrow
+fields or facility links from Tokyo. A different arrival and departure
+airport produces a transfer checklist, not estimated transport or border
+clearance.
+
+The public facility lookup requires an explicit airport parameter. A host
+that expects official links can provide the exact permitted HTTPS hostnames
+in `officialDirectoryHosts`; the browser also rejects a mismatched airport
+in the service response. The directory displays unavailable for unsupported
+airports. The presence of a published directory entry does not provide
+route geometry, live queues or permission to enter.
+
+For a same-airport trip with a sourced point-to-gate estimate, the host may
+provide a `timing` object with matching `airportCode`, `flightId`, and
+`gate`, integer `walkMinutes` (0–1440), and offset-qualified ISO date-times
+`observedAt`, `expiresAt`, and `arrivalTargetAt`. The browser limits the
+validity and target horizon to 24 hours from observation, rejects future or
+expired observations for numeric guidance, and uses the departure airport’s
+IANA zone. This enables local timing estimates, not turn-by-turn navigation,
+a claim of live airport coverage, or an eligibility determination. A new or
+updated source must supply a fresh itinerary; the browser does not fetch a
+live walk estimate itself. It does not submit host timing to the public
+calculation API. Unbound supplied-trip checklist progress stays in the
+current page and is isolated from the demo session; authenticated binding
+still uses `AIRBORDER_JOURNEY` and its existing account controls.

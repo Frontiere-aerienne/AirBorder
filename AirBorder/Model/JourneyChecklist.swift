@@ -34,6 +34,11 @@ struct JourneyChecklist: Codable, Equatable {
         let previous: StepState
     }
 
+    /// No procedure is asserted when a journey has no reviewed checklist.
+    static let minimal = JourneyChecklist(steps: [
+        JourneyStep(id: "gate", title: "Gate and boarding", canSkip: false),
+    ])
+
     static let haneda = JourneyChecklist(steps: [
         JourneyStep(id: "arrival", title: "Arrival", canSkip: false, state: .confirmed),
         JourneyStep(id: "connection", title: "Connection", canSkip: false, state: .confirmed),
