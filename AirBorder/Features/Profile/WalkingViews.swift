@@ -159,7 +159,7 @@ extension AirportWalkingView {
     private var healthUsed: Bool { store.health == .connected && store.walkingSpeedKmh != nil }
 
     private var source: String {
-        let walks = SampleJourney.airportWalks.count
+        let walks = store.journey.airportWalks.count
         if walks == 0 { return "From Apple Health" }
         return healthUsed ? "From \(walks) airport walks and Apple Health" : "From \(walks) airport walks, walking only"
     }
@@ -198,6 +198,7 @@ struct HealthPermissionView: View {
 
 /// Figma "Previous trips" (997:31915).
 struct PreviousTripsView: View {
+    @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     @Environment(\.dismiss) private var dismiss
 
@@ -221,10 +222,11 @@ struct PreviousTripsView: View {
             BackButton { dismiss() }
             Text("Previous trips").outfitText(28, .bold).accessibilityAddTraits(.isHeader)
             InfoCard {
-                Text("These walks shape your estimates").outfitText(16, .regular)
+                Text(store.journey.fixture == nil ? "No trip history to show" : "These walks shape your estimates")
+                    .outfitText(16, .regular)
             }
             VStack(spacing: 12) {
-                ForEach(trips) { trip in
+                ForEach(store.journey.fixture == nil ? [] : trips) { trip in
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Text(trip.date).outfitText(13, .semibold, AB.secondary).frame(maxWidth: .infinity, alignment: .leading)
