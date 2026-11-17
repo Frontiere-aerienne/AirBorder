@@ -65,7 +65,7 @@ Our interactive Figma prototype used an iPhone 13 frame with Flight, Layover, Ro
 
 \paragraph{Continuity across directions.} Map provides a terminal overview and a stable reference for the destination. Camera is useful when the traveler is looking at a sign and needs the instruction for the current step. We gave these views a shared current step so a switch preserves the place in the route. A conspicuous Exit camera action returns the traveler to the route view. The overall destination belongs at the top of the route while the step text can change as the traveler advances. The route interaction also needs separate physical-device verification because switching views in a staged journey cannot expose every camera or movement problem.
 
-\paragraph{Reviewing a change before applying it.} A queue update can affect the arrival estimate even when the traveler wants to retain the full lounge visit. The proposal distinguishes the new wait from the optional edit it motivates. Keeping the visit still incorporates that wait. Shortening the visit remains an edit the traveler can accept or decline. The displayed consequence is a clock time the traveler can compare with their target. Explainability studies support showing why guidance changed and making the basis for verification accessible \cite{ref7,ref220}. The revised plan exposes the venue, added wait, changed visit and resulting arrival.
+\paragraph{Acting on a longer wait.} The notice appears inline in the Your plan card on Flight. It shows the longer wait and its effect on gate arrival alongside an optional shorter lounge visit. Keep my plan retains the selected visit lengths and still counts the new wait. Apply commits the shorter visit. Both actions are available in the card. Explainability studies support showing why guidance changed and making the basis for verification accessible \cite{ref7,ref220}. The notice names the visit and gives the clock time to compare with the arrival target.
 
 \begin{figure*}[t]
 \centering
@@ -86,7 +86,7 @@ The store separates an airline observation from a traveler action. Accepting a s
 \subsection{Planning under a gate deadline}
 The planner adds the walk to each stop, the wait and the visit duration, and then the walk from the last stop to the gate. For a direct return, the latest time to leave is the gate-arrival target minus the walk. For a sequence of planned stops, the timeline instead shows the scheduled end of the last visit and its projected gate arrival. In the Haneda sample, 17:05 is the planning target, 17:25 is gate closure and 18:00 is scheduled departure. The 20-minute allowance in the scenario is a planning choice. The interface distinguishes arriving by the target, having little time before closure, and arriving after closure.
 
-A caf\'e with an 8-minute queue and a 20-minute visit followed by a 28-minute lounge visit produces a 17:05 arrival. When the caf\'e wait increases to 18 minutes, arrival moves to 17:15. Reducing the lounge visit to 18 minutes restores 17:05. The proposal identifies the queue increase and the visit it would shorten. Applying it changes the selected visit and offers Undo. Keeping the plan preserves the visit but still incorporates the longer wait. Other stops and required steps retain their state. Table~\ref{tab:worked} shows the timing changes.
+An 8-minute wait at Curacion Cafe, a 20-minute caf\'e visit and a 28-minute lounge visit yield a 17:05 arrival. The native prototype supplies an 18-minute caf\'e wait for this scenario, moving expected arrival to 17:15. Reducing the lounge visit to 18 minutes restores 17:05. The proposal identifies the queue increase and the visit it would shorten. Applying it changes the selected visit and offers Undo. Keeping the plan preserves the visit but still incorporates the longer wait. Other stops and required steps retain their state. Table~\ref{tab:worked} shows the timing changes.
 
 \begin{table}[t]\small\centering
 \begin{tabular}{@{}lccc@{}}\toprule
@@ -98,7 +98,7 @@ At the gate & 17:05 & 17:15 & 17:05\\\bottomrule
 \caption{Worked timing for the sample plan at average walking pace (5-minute walk from café to lounge, 4 minutes from lounge to gate; target 17:05, gate closes 17:25).}\label{tab:worked}
 \end{table}
 
-The proposal function first checks that the updated venue belongs to the plan. It recalculates arrival with the new wait and measures how far the result exceeds the target. Among stops that follow the affected venue, it looks for a visit that can absorb the difference while retaining at least 10 minutes. If no visit meets that condition, the function produces no shortening proposal. This makes the proposed edit traceable to a single change while letting the traveler edit the plan directly. Before applying a proposal, the app checks that its source plan still matches the current plan.
+The proposal function first checks that the updated venue belongs to the plan. It recalculates arrival with the new wait and measures how far the result exceeds the target. Among later stops, it tries a visit that would still last at least ten minutes and recomputes the full arrival. If every candidate falls short of the minimum or still misses the target, it offers no shortening. This makes the proposed edit traceable to a single change while letting the traveler edit the plan directly. Before applying a proposal, the app checks that its source plan still matches the current plan.
 
 Walking times come from a table of average durations at 4.2~km/h. A valid estimate of personal pace \(k\) in km/h rescales an average leg of \(w\) minutes to \(\lceil 4.2w/k \rceil\) minutes. The estimator can combine a HealthKit speed with an airport-walk estimate derived from total distance divided by total walking time. With both inputs it takes their mean. With a single input it uses that value. With neither it uses the table. The current Haneda build supplies the airport-walk history from the sample journey, at 4.2~km/h. Collection of a traveler's own airport walks remains future work. HealthKit access is read-only and requires consent. Fernandes et al.\ showed that how a display conveys uncertainty affects transit departure decisions \cite{ref8}. The prototype displays a point estimate for each scripted walk.
 
@@ -118,49 +118,49 @@ We use $T$ for the plan's gate-arrival target and $C$ for closure. The two relev
 \paragraph{Facts, estimates and their source.} The trip includes a staged reported gate and scheduled flight times, an internal planning target and estimated walks. A delay to scheduled departure, by itself, entails no change to the boarding cutoff. The journey treats a change to scheduled departure and a change to gate closure as separate events. A product with live inputs would need to match a report to the flight and departure date, retain its source and age, and surface a missing closure as unknown. The fixture uses explicitly supplied values for the comparison. It also leaves the traveler a way to inspect which change caused the displayed arrival. This is the relevant connection to evidence on uncertainty displays and verification \cite{ref8,ref219,ref222}.
 
 \subsection{A queue update from calculation to decision}\label{sec:queue-rule}
-In the Haneda example, the plan holds the ordered stops and the duration the traveler has chosen for each. The queue event supplies the identity of the affected stop and a revised wait. The planner copies the current plan, replaces the wait in the copy and reruns the same schedule used by My plan. It then measures the new overrun against 17:05. The queue grew by ten minutes in the worked example, and the original plan had zero slack. Consequently the overrun is also ten minutes. If there had been four minutes of spare time, the same increase would require recovering only six minutes. That distinction matters to a person who wants to retain as much of the lounge visit as possible.
+The iPhone prototype supplies one controlled update, an 18-minute wait at Curacion Cafe, when the caf\'e is in the saved plan and the update is still pending. The planner tests the longer wait in a copy and uses the same schedule as the plan card, including the current clock, walking pace, selected route and saved arrival times. The worked plan had zero slack, so the ten-minute increase pushes arrival ten minutes past 17:05. With four minutes of slack, the same increase would require recovering only six minutes of the lounge visit.
 
-\noindent\textbf{Listing 1. Queue replanning rule.} Plain-language pseudocode for the prototype's selected-stop rule. Each time is expressed in whole minutes on the sample airport clock.
+\noindent\textbf{Listing 1. Caf\'e wait replanning.} The iPhone prototype's Curacion Cafe case, in whole minutes. Arrival uses the current schedule constraints.
 \begin{verbatim}
-propose(saved plan, changed stop, new wait, pace):
-    if changed stop is absent or wait did not rise:
+propose(saved plan, schedule inputs):
+    if the pending cafe wait does not increase
+       a wait at a selected Curacion Cafe stop:
         return no proposal
-
-    updated = copy saved plan with new wait
-    overrun = arrival(updated, pace) - gate target
-    if overrun <= 0:
-        return no proposal
+    updated = copy plan with the 18-minute wait
+    overrun = arrival(updated) - gate target
+    if overrun <= 0: return no proposal
 
     for each later stop, from last to first:
-        new visit = its visit - overrun
-        if new visit >= 10 minutes:
-            revised = copy updated with new visit
-            return proposal(saved plan, new wait, revised)
-
+        new visit = its planned visit - overrun
+        if new visit < 10 minutes: continue
+        revised = copy updated with new visit
+        clear revised stop's saved leave time
+        if arrival(revised) <= gate target:
+            return proposal(saved plan, revised)
     return no proposal
 
 resolve(proposal, action, current plan):
     if current plan differs from proposal.base:
-        recalculate and leave the plan unchanged
+        refresh proposal and leave plan unchanged
     else if action is Apply:
         save current plan for Undo
         commit proposal.revised
-    else if action is Keep:
-        commit revised wait only
+    else if action is Keep my plan:
+        retain visit lengths, record longer wait
 \end{verbatim}
 
 The candidate order is a design choice. Searching backwards favors intervening later in the trip, after the disruption, when the traveler can still use their first selected stop. The prototype adjusts one visit at a time and keeps a minimum ten-minute visit. Two later stops might jointly absorb a delay that either stop alone cannot absorb. That case produces no proposal under this rule, leaving the traveler free to choose a different sequence or head to the gate. This bounded behavior keeps the proposed change small enough to describe on the screen.
 
-The saved-plan check belongs to the action handler. If the traveler opens Edit stop while a proposal exists and then saves a different visit or order, a proposal made for the earlier plan can no longer be applied. My plan can show the recalculated proposal for the current sequence. Apply commits the adjusted wait and the shorter visit together. Keep my plan keeps each visit length but incorporates the staged wait. Undo restores the previous saved plan after an applied adjustment. The visible distinction between discovering a delay and accepting a change gives the traveler control at the moment it matters. It also gives the evaluator an observable decision, even when the traveler declines the offered adjustment.
+Saving a different visit or order recalculates the notice in the plan card. Apply and Keep my plan each check that the proposal was calculated for the saved plan. If the plans differ, the app refreshes the proposal and leaves that attempted choice unapplied. Apply saves the adjusted wait and shorter visit together, and Undo restores the prior plan and its pending wait notice. Keep my plan retains the visit lengths and records the longer wait. The evaluator can observe which action the traveler takes on the plan card.
 
-\paragraph{Previewing a manual edit.} In Edit stop, a traveler can shorten a visit in a five-minute step, restore its original saved duration, or change the stop order. The screen evaluates the draft using the same walking legs and durations as the saved plan. Save commits that draft. Going back leaves the saved sequence in place. Remove acts on the selected stop and returns the traveler to the plan. Retaining a separate draft protects the traveler who wants to inspect the timing effect without committing to the edit. For a venue later in the route, even a simple reorder can change the direction and length of the walks between stops, so the preview recalculates the schedule as a whole. The existing timing table and Listing~1 show the quantities a reader needs to audit the result.
+\paragraph{Editing a stop on Flight.} Tapping a stop opens inline Arrive and Leave controls. They step through a 15-minute grid and can stop at a timing bound. Arrival respects the current time and preceding walk. Leaving must allow for the wait and at least ten minutes at the venue, with the remaining route setting the latest leave time. Each accepted change updates the saved plan immediately. Changing Arrive can reorder the stops, so the app recomputes the walks, full arrival and any proposal for the new order. Remove takes the selected stop out of the plan and offers Undo.
 
 \subsection{How a saved plan changes under a different constraint}
 The timing equation and Listing~1 can be applied to three variations of the same selected activities. At the reference pace with the caf\'e first, the original plan arrives at 17:05 and the longer queue moves arrival to 17:15. The planner proposes recovering ten minutes by reducing ANA LOUNGE to 18 minutes. With the same queue and itinerary at 3.15~km/h, the five-minute venue-to-venue walk becomes seven minutes and the four-minute walk from the lounge to the gate becomes six. The updated plan now arrives at 17:19. It takes a fourteen-minute adjustment to reach 17:05, leaving a fourteen-minute lounge visit. The queue report has not changed. The walk consumes four additional minutes and changes the feasible visit. At either pace, keeping the selected visits preserves their durations and incurs the revised wait.
 
 Reordering the original plan creates a different case. Starting at 16:00, the sample walk to ANA LOUNGE takes five minutes and the 28-minute visit ends at 16:33. Walking five minutes back to the caf\'e and spending eight minutes waiting and twenty minutes visiting gives a 17:06 departure from the caf\'e. Its eight-minute walk to the gate gives a 17:14 arrival at the reference pace. The same two venues and visit durations now miss the planning target. The caf\'e is last, so a new caf\'e queue report has no later stop from which the rule can recover time. The app's plan preview can show the effect of the reordering. A shortening suggestion cannot solve this configuration without relaxing the rule about which part of the plan may change.
 
-These cases expose two separate constraints in the design. The traveler selects the activities and their order, and the proposal only adjusts a downstream visit when it can restore the target above the minimum. The rule therefore has a specific, inspectable scope. It examines the selected plan once to calculate arrival and scans later stops in reverse order until it finds one that can absorb the overrun. It assumes that shortening a visit changes elapsed time by the same number of minutes and preserves the walk and wait estimates for the selected route. If a venue's queue depended on the new arrival time, that assumption would require a different calculation. Showing the walk and wait contributions is what makes the current proposal explainable with a small set of values.
+These cases expose two separate constraints in the design. The traveler selects the activities and their order, and the proposal only adjusts a downstream visit when it can restore the target above the minimum. The rule computes the overrun, then tests each later stop in reverse order until a full schedule reaches the target. A saved arrival time at a subsequent stop can absorb some of the recovered minutes, so shortening by the overrun alone cannot establish feasibility. The calculation holds the walk and wait estimates fixed for the selected route. A wait that changes with arrival time would require a different calculation. Showing the walk and wait contributions is what makes the current proposal explainable with a small set of values.
 
 \subsection{Triggering and clearing a time-sensitive notice}
 The condition engine takes the scenario clock, ticket gate, staged flight report, applicable closure, selected walk and leave-by time. It also receives whether the traveler has confirmed arrival at the gate and whether the onward flight leaves from another airport. For a same-airport connection, it first identifies any changed gate by comparing the reported gate with the one on the ticket. It then estimates arrival if the traveler starts walking now. When closure is known and the traveler is still away from the gate, $\text{closure}-(\text{now}+\text{walk})$ determines the urgency. An arrival later than closure produces an arrival-after-closure condition. Zero through nine minutes to spare produces boarding risk. With at least ten minutes to spare, reaching the leave-by time produces a return-now condition. The ten-minute threshold controls the prototype's notice. This is a prototype threshold.
@@ -346,7 +346,7 @@ In the browser's queue fixture, the opening plan has 18 minutes of travel and 70
 The browser engine adds a shuttle wait only when the route includes that shuttle. Consider two sample itineraries with the same caf\'e stop and a minute-60 target. When the transfer is in the itinerary, a report increasing its duration from ten to thirty minutes changes travel from 22 to 42 minutes. At event minute 1, projected gate arrival is minute 68. With no shuttle in the itinerary, the same report leaves travel at 12 minutes and projected arrival is minute 38. Holding the stop fixed shows what drives the difference. A delay somewhere in the terminal network does not by itself create a reason to remove a stop that lies on an unaffected route. The prototype keeps the link between the selected route and the relevant observation explicit.
 
 \section{Implementation Status}\label{sec:status}
-The November main-branch build supports stop selection and editing, the timing display, gate and queue updates, map and camera guidance, journey steps, ticket input and onboarding.
+The November main-branch build supports stop selection and editing, the timing display, staged gate updates and a controlled Curacion Cafe wait, map and camera guidance, journey steps, ticket input and onboarding.
 
 \begin{table}[t]\centering\small
 \begin{tabular}{@{}p{.23\columnwidth}p{.71\columnwidth}@{}}\toprule
