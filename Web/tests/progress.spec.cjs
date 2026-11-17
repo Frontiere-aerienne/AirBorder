@@ -48,7 +48,7 @@ test('border preparation advice is scoped to the current stage and airport',asyn
   await expect(dialog.getByText('Confirm entry requirements separately.')).toBeVisible();
   await dialog.getByLabel('Journey stage').selectOption('departure');
   await expect(dialog.getByRole('link',{name:'Visit Japan Web'})).toHaveCount(0);
-  const advice=await page.evaluate(()=>({uk:progressAdvice('arrival','LHR','passport'),japan:progressAdvice('transfer','HND','passport'),wrong:progressAdvice('departure','LHR','passport'),other:progressAdvice('arrival','SIN','passport')}));
+  const advice=await page.evaluate(()=>({uk:progressAdvice('arrival','GB','passport'),japan:progressAdvice('transfer','JP','passport'),wrong:progressAdvice('departure','GB','passport'),other:progressAdvice('arrival','SG','passport')}));
   expect(advice.uk).toContain('gov.uk/registered-traveller'); expect(advice.uk).toContain('Check eligibility');
   expect(advice.japan).toContain('digital.go.jp'); expect(advice.wrong).toBe(''); expect(advice.other).toBe('');
 });
