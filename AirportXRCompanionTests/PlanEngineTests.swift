@@ -6,15 +6,15 @@ import XCTest
 final class PlanEngineTests: XCTestCase {
     private let both = Plan(stops: [.cafe, .anaLounge])
 
-    func testNoStopsLeavesInTimeToArriveAtTarget() {
-        let schedule = PlanEngine.schedule(Plan(), pace: .average)
+    func testNoStopsLeavesInTimeToArriveAtTarget() throws {
+        let schedule = try XCTUnwrap(PlanEngine.schedule(Plan(), pace: .average, context: SampleJourney.planning))
         XCTAssertEqual(schedule.leave.description, "16:53")
         XCTAssertEqual(schedule.arriveAtGate.description, "17:05")
         XCTAssertEqual(durationText(schedule.leave - SampleJourney.now), "4h 53m")
     }
 
-    func testCafeThenLoungeMatchesMyPlan() {
-        let schedule = PlanEngine.schedule(both, pace: .average)
+    func testCafeThenLoungeMatchesMyPlan() throws {
+        let schedule = try XCTUnwrap(PlanEngine.schedule(both, pace: .average, context: SampleJourney.planning))
         XCTAssertEqual(PlanText.timing(schedule.stops[0]), "16:00–16:28, 8 min wait + 20 min visit")
         XCTAssertEqual(PlanText.timing(schedule.stops[1]), "16:33–17:01, 28 min visit")
         XCTAssertEqual(PlanText.walk(schedule.stops[1]), "5 min walk from the café")
@@ -22,15 +22,15 @@ final class PlanEngineTests: XCTestCase {
         XCTAssertEqual(PlanText.arrivalDetail(schedule), "Leave ANA LOUNGE at 17:01. Gate closes at 17:25.")
     }
 
-    func testShorterCafeAndReorderRecompute() {
+    func testShorterCafeAndReorderRecompute() throws {
         var shorter = both
         shorter.stops[0].visitMinutes = 15
-        let first = PlanEngine.schedule(shorter, pace: .average)
+        let first = try XCTUnwrap(PlanEngine.schedule(shorter, pace: .average, context: SampleJourney.planning))
         XCTAssertEqual(first.stops[1].start.description, "16:28")
         XCTAssertEqual(first.arriveAtGate.description, "17:00")
 
         let reordered = Plan(stops: [.anaLounge, .cafe])
-        let second = PlanEngine.schedule(reordered, pace: .average)
+        let second = try XCTUnwrap(PlanEngine.schedule(reordered, pace: .average, context: SampleJourney.planning))
         XCTAssertEqual(second.stops[0].start.description, "16:05")
         XCTAssertEqual(second.stops[1].end.description, "17:06")
         XCTAssertEqual(second.arriveAtGate.description, "17:14")
@@ -38,10 +38,10 @@ final class PlanEngineTests: XCTestCase {
 
     func testQueueUpdateSuggestsShorteningTheLaterSelectedStop() throws {
         let update = QueueUpdate(stopID: .cafe, waitMinutes: 18)
-        let suggestion = try XCTUnwrap(PlanEngine.suggestion(for: both, update: update, pace: .average))
+        let suggestion = try XCTUnwrap(PlanEngine.suggestion(for: both, update: update, pace: .average, context: SampleJourney.planning))
         XCTAssertEqual(suggestion.title, "Allow 10 more minutes for the café queue")
         XCTAssertEqual(suggestion.detail, "Shorten ANA LOUNGE to 18 min to still arrive by 17:05.")
-        let applied = PlanEngine.schedule(suggestion.proposed, pace: .average)
+        let applied = try XCTUnwrap(PlanEngine.schedule(suggestion.proposed, pace: .average, context: SampleJourney.planning))
         XCTAssertEqual(PlanText.timing(applied.stops[0]), "16:00–16:38, 18 min for the queue + 20 min visit")
         XCTAssertEqual(PlanText.timing(applied.stops[1]), "16:43–17:01, 18 min visit")
         XCTAssertEqual(applied.arriveAtGate.description, "17:05")
@@ -51,8 +51,36 @@ final class PlanEngineTests: XCTestCase {
 
     func testNoSuggestionWhenNothingLaterCanAbsorbTheDelay() {
         let cafeLast = Plan(stops: [.anaLounge, .cafe])
-        XCTAssertNil(PlanEngine.suggestion(for: cafeLast, update: QueueUpdate(stopID: .cafe, waitMinutes: 18), pace: .average))
-        XCTAssertNil(PlanEngine.suggestion(for: Plan(stops: [.cafe]), update: QueueUpdate(stopID: .cafe, waitMinutes: 18), pace: .average))
+        XCTAssertNil(PlanEngine.suggestion(for: cafeLast, update: QueueUpdate(stopID: .cafe, waitMinutes: 18), pace: .average, context: SampleJourney.planning))
+        XCTAssertNil(PlanEngine.suggestion(for: Plan(stops: [.cafe]), update: QueueUpdate(stopID: .cafe, waitMinutes: 18), pace: .average, context: SampleJourney.planning))
+    }
+
+    func testDifferentAirportRouteUsesSuppliedNodesTimesAndDeadline() throws {
+        let food = PlanStop(id: PlaceID(rawValue: "atl-B-food"), name: "Concourse B deli",
+                            shortName: "deli", waitMinutes: 5, visitMinutes: 10)
+        let lounge = PlanStop(id: PlaceID(rawValue: "atl-B-lounge"), name: "Concourse B lounge",
+                              shortName: "lounge", waitMinutes: 0, visitMinutes: 20)
+        let context = PlanningContext(planStart: ClockTime(8, 0), gateArrivalTarget: ClockTime(8, 55), gateCloses: ClockTime(9, 5)) { from, to in
+            switch (from, to) {
+            case (.start, food.id): return 4
+            case (food.id, lounge.id): return 6
+            case (lounge.id, .gate): return 7
+            default: return nil
+            }
+        }
+        let plan = Plan(stops: [food, lounge])
+        let schedule = try XCTUnwrap(PlanEngine.schedule(plan, pace: .average, context: context))
+        XCTAssertEqual(schedule.stops.map(\.walkFromPrevious), [4, 6])
+        XCTAssertEqual(schedule.arriveAtGate, ClockTime(8, 52))
+        XCTAssertEqual(schedule.gateCloses, ClockTime(9, 5))
+        let update = QueueUpdate(stopID: food.id, waitMinutes: 12)
+        let suggestion = try XCTUnwrap(PlanEngine.suggestion(for: plan, update: update, pace: .average, context: context))
+        XCTAssertEqual(suggestion.shortenedStop.visitMinutes, 16)
+        XCTAssertTrue(suggestion.detail.contains("08:55"))
+        XCTAssertNil(PlanEngine.schedule(Plan(stops: [lounge, food]), pace: .average, context: context),
+                     "An unmodeled direction must not inherit a fixture walking time")
+        XCTAssertNil(PlanEngine.schedule(Plan(), pace: .average, context: context),
+                     "A missing direct walk must not be guessed")
     }
 
     func testPersonalPaceScalesWalkingTimes() {
@@ -117,6 +145,84 @@ final class JourneyStoreTests: XCTestCase {
         return JourneyStore(walkingData: FixedWalkingData(kmh: kmh), defaults: defaults)
     }
 
+    private func flight(id: String, from: Airport, to: Airport, departureGate: String,
+                        departs: ClockTime, arrives: ClockTime) -> FlightLeg {
+        FlightLeg(id: id, airline: Airline(code: "AS", name: "Alaska Airlines"), number: id, from: from, to: to, departs: departs, arrives: arrives,
+                  arrivalDayOffset: nil, status: "Scheduled", departureTerminal: "B", departureGate: departureGate,
+                  gateCloses: nil, arrivalTerminal: "B", arrivalGate: "B2", baggageBelt: nil, date: "2026-11-17")
+    }
+
+    func testSuppliedJourneyDoesNotInheritFixtureData() async {
+        let lax = Airport(code: "LAX", city: "Los Angeles")
+        let atl = Airport(code: "ATL", city: "Atlanta")
+        let bos = Airport(code: "BOS", city: "Boston")
+        let connection = JourneyDefinition(
+            inbound: flight(id: "EX 12", from: lax, to: atl, departureGate: "A2", departs: ClockTime(8, 0), arrives: ClockTime(12, 0)),
+            outbound: flight(id: "EX 18", from: atl, to: bos, departureGate: "B9", departs: ClockTime(13, 0), arrives: ClockTime(15, 0)),
+            planning: PlanningContext(planStart: ClockTime(12, 0), gateArrivalTarget: ClockTime(12, 40), gateCloses: nil) {
+                $0 == .start && $1 == .gate ? 17 : nil
+            },
+            boarding: nil, now: ClockTime(12, 5)
+        )
+        let defaults = UserDefaults(suiteName: "SuppliedJourneyTests-\(UUID().uuidString)")!
+        let sample = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults)
+        sample.add(.cafe)
+        sample.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 0)))
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil), defaults: defaults, journey: connection)
+        XCTAssertEqual(store.inbound.to.code, "ATL")
+        XCTAssertEqual(store.outbound.to.code, "BOS")
+        XCTAssertEqual(store.outbound.airline.code, "AS")
+        XCTAssertNil(store.outbound.airline.logoAsset)
+        XCTAssertNil(store.baggagePreference)
+        XCTAssertNil(store.layoverMinutes, "Do not subtract local clocks across airports")
+        XCTAssertFalse(store.isAirportTransfer)
+        XCTAssertFalse(store.hasConcourseCoverage)
+        XCTAssertNil(store.transferDetails)
+        XCTAssertTrue(store.plan.stops.isEmpty)
+        XCTAssertNil(store.feed)
+        XCTAssertEqual(store.pace, .average)
+        XCTAssertEqual(store.knownGateWalkMinutes(for: .direct), 17)
+        XCTAssertNil(store.knownGateWalkMinutes(for: .stepFree))
+        XCTAssertEqual(store.schedule?.leave, ClockTime(12, 23))
+        XCTAssertTrue(RouteSteps.steps(for: .direct, store: store).isEmpty, "No fixture map without its coverage")
+        store.startSampleFeed(after: .zero)
+        await Task.yield()
+        XCTAssertEqual(store.gate, "B9")
+        store.receive(FlightFeed(gate: "108A", receivedAt: ClockTime(12, 15), flightID: "NH106"))
+        XCTAssertEqual(store.gate, "B9")
+        store.receive(FlightFeed(gate: "B11", receivedAt: ClockTime(12, 15), flightID: connection.outbound.id))
+        XCTAssertEqual(store.gate, "B11")
+        XCTAssertNil(store.schedule, "A different gate needs its own timing input")
+
+        var withDirections = connection
+        withDirections.gateDirections = GateDirections(gate: "B9", instructions: ["Follow the Concourse B signs", "Check the gate display"])
+        let routed = JourneyStore(walkingData: FixedWalkingData(kmh: nil),
+                                  defaults: UserDefaults(suiteName: "DirectDirections-\(UUID().uuidString)")!, journey: withDirections)
+        XCTAssertEqual(RouteSteps.steps(for: .direct, store: routed).map(\.text), ["Follow the Concourse B signs", "Check the gate display"])
+        XCTAssertFalse(routed.hasConcourseCoverage, "Text instructions are not a map or AR coverage")
+        routed.receive(FlightFeed(gate: "B11", receivedAt: ClockTime(12, 15), flightID: withDirections.outbound.id))
+        XCTAssertTrue(RouteSteps.steps(for: .direct, store: routed).isEmpty, "Do not reuse the old gate's directions")
+    }
+
+    func testSuppliedAirportChangeDoesNotInheritNaritaInstructions() {
+        let jfk = Airport(code: "JFK", city: "New York")
+        let lga = Airport(code: "LGA", city: "New York")
+        let bos = Airport(code: "BOS", city: "Boston")
+        let definition = JourneyDefinition(
+            inbound: flight(id: "EX 12", from: bos, to: jfk, departureGate: "B3", departs: ClockTime(8, 0), arrives: ClockTime(9, 0)),
+            outbound: flight(id: "EX 18", from: lga, to: bos, departureGate: "B9", departs: ClockTime(13, 0), arrives: ClockTime(15, 0)),
+            planning: nil, boarding: nil, now: ClockTime(10, 0)
+        )
+        let store = JourneyStore(walkingData: FixedWalkingData(kmh: nil),
+                                 defaults: UserDefaults(suiteName: "TransferCoverage-\(UUID().uuidString)")!, journey: definition)
+        XCTAssertTrue(store.isAirportTransfer)
+        XCTAssertEqual(store.outbound.from.code, "LGA")
+        XCTAssertEqual(store.primaryCondition, .airportTransfer)
+        XCTAssertNil(store.transferDetails)
+        XCTAssertFalse(store.hasConcourseCoverage)
+        XCTAssertNil(store.schedule)
+    }
+
     func testSuggestionAppliesOnlyAfterApplyAndCanBeUndone() {
         let store = makeStore()
         store.add(.cafe)
@@ -138,7 +244,7 @@ final class JourneyStoreTests: XCTestCase {
         store.keepPlan()
         XCTAssertEqual(store.plan.stops[1].visitMinutes, 28)
         XCTAssertEqual(store.plan.stops[0].waitMinutes, 18)
-        XCTAssertEqual(store.schedule.arriveAtGate.description, "17:15")
+        XCTAssertEqual(store.schedule?.arriveAtGate.description, "17:15")
     }
 
     func testPlanChangeDropsStaleSuggestion() {
@@ -334,12 +440,13 @@ final class JourneySituationStoreTests: XCTestCase {
         for turn in [RouteStep.Turn.stairs, .lift, .stop, .gate] { XCTAssertNil(turn.cameraArrow) }
     }
 
-    func testStopsMoveTheLeaveTimeForReturnNow() {
+    func testStopsMoveTheLeaveTimeForReturnNow() throws {
         let store = makeStore()
         store.setNow(ClockTime(16, 40))
         XCTAssertNil(store.primaryCondition)
         store.add(.cafe)
-        XCTAssertEqual(store.conditionInputs.leaveBy, SampleJourney.gateArrivalTarget - store.schedule.walkToGate)
+        let schedule = try XCTUnwrap(store.schedule)
+        XCTAssertEqual(store.conditionInputs.leaveBy, SampleJourney.gateArrivalTarget - schedule.walkToGate)
     }
 
     func testChoosingNH6StartsTheNaritaTransfer() {
@@ -390,7 +497,7 @@ final class TerminalTwoTimingTests: XCTestCase {
         XCTAssertEqual(StopTimes.earlierLeave(latest, earliestAllowed: ClockTime(16, 28))?.description, "16:45")
         XCTAssertEqual(StopTimes.laterLeave(ClockTime(16, 45), latest: latest)?.description, "16:59")
         XCTAssertNil(StopTimes.laterLeave(latest, latest: latest), "Never past the latest leave")
-        XCTAssertNil(StopTimes.earlierArrive(ClockTime(15, 0)), "Plan starts at 15:00")
+        XCTAssertNil(StopTimes.earlierArrive(ClockTime(15, 0), earliestAllowed: SampleJourney.planning.timelineStart), "Plan starts at 15:00")
         XCTAssertNil(StopTimes.laterArrive(ClockTime(16, 30), latestAllowed: ClockTime(16, 44)), "Keeps at least 15 min")
         XCTAssertEqual(StopTimes.laterArrive(ClockTime(16, 0), latestAllowed: ClockTime(16, 44))?.description, "16:15")
     }
@@ -426,16 +533,16 @@ final class TerminalTwoTimingTests: XCTestCase {
         store.setNow(ClockTime(12, 0))
         store.add(.cafe)
         store.add(.anaLounge)
-        XCTAssertEqual(store.schedule.arriveAtGate, ClockTime(17, 15))
+        XCTAssertEqual(store.schedule?.arriveAtGate, ClockTime(17, 15))
         store.setTimes(.anaLounge, leave: ClockTime(17, 1))
-        XCTAssertEqual(store.schedule.arriveAtGate, ClockTime(17, 5))
+        XCTAssertEqual(store.schedule?.arriveAtGate, ClockTime(17, 5))
         XCTAssertEqual(store.minutesToSpare, 0)
         XCTAssertTrue(RouteSteps.steps(for: .direct, store: store).contains {
             $0.text == "Stop at ANA LOUNGE, leave by 17:01"
         })
         store.setTimes(.anaLounge, arrive: ClockTime(16, 45))
         XCTAssertEqual(store.times(.anaLounge)?.leave, ClockTime(17, 3))
-        XCTAssertEqual(store.schedule.arriveAtGate, ClockTime(17, 7))
+        XCTAssertEqual(store.schedule?.arriveAtGate, ClockTime(17, 7))
     }
 
     @MainActor
@@ -490,7 +597,7 @@ final class TerminalTwoTimingTests: XCTestCase {
         XCTAssertNil(store.fitWarning(for: .bento), "A quick bite still fits")
         store.add(.bento)
         XCTAssertEqual(store.fitWarning(for: .udon)?.title, "That's a lot to fit in")
-        let bento = store.schedule.stops.first { $0.stop.id == .bento }
+        let bento = store.schedule?.stops.first { $0.stop.id == .bento }
         XCTAssertNotNil(bento)
         if let bento { XCTAssertEqual(bento.end - bento.start, 10) }
         store.remove(.bento)
