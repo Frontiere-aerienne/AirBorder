@@ -1,6 +1,7 @@
 import { JourneyStore, validateJourneyEvent } from "./journey-store.js";
 export { JourneyStore };
 import countries from "i18n-iso-countries";
+import { FACILITY_CATALOG, FACILITY_CATALOG_VERSION } from "./facility-registry.js";
 
 const PROVIDERS = Object.freeze({
   flightAwareBaseURL: "https://aeroapi.flightaware.com/aeroapi",
@@ -46,7 +47,7 @@ const CACHE_TTLS = Object.freeze({
   entryRequirementsSeconds: 3_600
 });
 
-const PROVIDER_POLICY_VERSION = "provider-policy-2026-11-17-v4";
+const PROVIDER_POLICY_VERSION = "provider-policy-2026-11-17-v5";
 const GOOGLE_TASKS_CONSENT_REVISION = "google-tasks-consent-2026-07-14-v1";
 const GOOGLE_TASKS_MARKER_VERSION = "v1";
 
@@ -79,7 +80,7 @@ const PROVIDER_POLICIES = Object.freeze({
     trainingPurposes: [],
     expirySource: "response receipt plus revalidation interval"
   },
-  hndOfficialRegistry: {
+  officialAirportRegistry: {
     capability: "airport-facilities",
     persistence: "versioned-registry",
     trainingAllowed: false,
@@ -108,94 +109,6 @@ const OFFICIAL_ENTRY_LINKS = Object.freeze({
   JP: [{ label: "Ministry of Foreign Affairs of Japan - Visa Exemption", url: "https://www.mofa.go.jp/j_info/visit/visa/short/novisa.html" }],
   US: [{ label: "U.S. Department of State - Visa Wizard", url: "https://travel.state.gov/content/travel/en/us-visas/visa-information-resources/wizard.html" }]
 });
-
-const HND_REGISTRY_VERSION = "2026-07-14.1";
-const HND_FACILITIES = Object.freeze([
-  {
-    id: "hnd-work-boxes",
-    airportCode: "HND",
-    terminal: null,
-    name: "Work booths / work boxes",
-    category: "workPod",
-    accessZone: "airportLandside",
-    openingWindows: [{ weekdays: [1, 2, 3, 4, 5, 6, 7], start: "07:00", end: "21:30", timeZone: "Asia/Tokyo" }],
-    hoursStatus: "officialRecordVerifyFreshness",
-    dayRoomVerified: false,
-    officialRecordURL: "https://tokyo-haneda.com/en/service/facilities/work_box.html"
-  },
-  {
-    id: "hnd-terminal-hotels",
-    airportCode: "HND",
-    terminal: null,
-    name: "The Royal Park Hotel Tokyo Haneda (Transit)",
-    category: "transitHotel",
-    accessZone: "airside",
-    openingWindows: [{ weekdays: [1, 2, 3, 4, 5, 6, 7], allDay: true, timeZone: "Asia/Tokyo" }],
-    hoursStatus: "officialRecordVerifyAvailability",
-    dayRoomVerified: false,
-    officialRecordURL: "https://tokyo-haneda.com/en/service/facilities/hotel.html"
-  },
-  {
-    id: "hnd-shower-rooms",
-    airportCode: "HND",
-    terminal: null,
-    name: "Haneda Airport shower rooms",
-    category: "shower",
-    accessZone: "airportLandside",
-    openingWindows: [{ weekdays: [1, 2, 3, 4, 5, 6, 7], allDay: true, timeZone: "Asia/Tokyo" }],
-    hoursStatus: "officialRecordNoReservations",
-    dayRoomVerified: false,
-    officialRecordURL: "https://tokyo-haneda.com/en/service/facilities/shower_room.html"
-  },
-  {
-    id: "hnd-lounges",
-    airportCode: "HND",
-    terminal: null,
-    name: "Haneda Airport lounges",
-    category: "lounge",
-    accessZone: "mixed",
-    openingWindows: [],
-    hoursStatus: "verifyOfficialSource",
-    dayRoomVerified: false,
-    officialRecordURL: "https://tokyo-haneda.com/en/service/facilities/lounge.html"
-  },
-  {
-    id: "hnd-observation-decks",
-    airportCode: "HND",
-    terminal: null,
-    name: "Haneda observation decks",
-    category: "attraction",
-    accessZone: "airportLandside",
-    openingWindows: [],
-    hoursStatus: "verifyOfficialSource",
-    dayRoomVerified: false,
-    officialRecordURL: "https://tokyo-haneda.com/en/service/facilities/observation_deck.html"
-  },
-  {
-    id: "hnd-edo-koji",
-    airportCode: "HND",
-    terminal: "3",
-    name: "Edo Koji",
-    category: "foodAndAttraction",
-    accessZone: "airportLandside",
-    openingWindows: [],
-    hoursStatus: "verifyOfficialSource",
-    dayRoomVerified: false,
-    officialRecordURL: "https://tokyo-haneda.com/en/shop_and_dine/search_r.html"
-  },
-  {
-    id: "hnd-airport-garden",
-    airportCode: "HND",
-    terminal: "3",
-    name: "Haneda Airport Garden",
-    category: "foodHotelAndAttraction",
-    accessZone: "nearbyLandside",
-    openingWindows: [],
-    hoursStatus: "verifyOperatorSource",
-    dayRoomVerified: false,
-    officialRecordURL: "https://www.shopping-sumitomo-rd.com/haneda/english/"
-  }
-]);
 
 let amadeusTokenCache = null;
 const accessKeyCache = new Map();
@@ -472,7 +385,8 @@ function health(env) {
       entryRequirementBackup: Boolean(env.TIMATIC_API_URL && env.TIMATIC_API_KEY),
       cloudVision: Boolean(env.GOOGLE_VISION_API_KEY)
     },
-    facilityRegistryVersion: HND_REGISTRY_VERSION
+    facilityRegistryVersion: FACILITY_CATALOG_VERSION,
+    facilityRegistryAirports: Object.keys(FACILITY_CATALOG).sort()
   });
 }
 
@@ -973,33 +887,35 @@ async function searchActivities(url, env) {
   return capabilityJSON({ activities, query }, amadeusSource(env, "amadeusActivities", CACHE_TTLS.activitiesSeconds));
 }
 
-export function airportFacilities(rawCode) {
-  const airportCode = rawCode.toUpperCase();
+export function airportFacilities(rawCode, catalog = FACILITY_CATALOG) {
+  const airportCode = String(rawCode ?? "").trim().toUpperCase();
   if (!/^[A-Z0-9]{3,4}$/.test(airportCode)) return json({ error: "invalid_airport" }, 400);
-  if (airportCode !== "HND") {
+  const registry = Object.hasOwn(catalog, airportCode) ? catalog[airportCode] : null;
+  const facilities = (registry?.facilities ?? []).filter(facility => facility.airportCode === airportCode);
+  if (!facilities.length) {
     return capabilityJSON({
       airportCode,
       facilities: [],
       availability: "registryUnavailable",
-      advisory: "Use native MapKit discovery for public nearby places; airside claims require an airport or operator record."
+      advisory: "Use a public map for nearby places; airside claims require an airport or operator record."
     }, {
-      provider: "Airport XR Companion facility registry",
+      provider: "AirBorder facility registry",
       dataMode: "publicRegistry",
       ttlSeconds: CACHE_TTLS.facilitiesSeconds,
-      policy: "hndOfficialRegistry"
+      policy: "officialAirportRegistry"
     });
   }
   return capabilityJSON({
     airportCode,
-    registryVersion: HND_REGISTRY_VERSION,
-    facilities: HND_FACILITIES,
+    registryVersion: registry.version,
+    facilities,
     availability: "officialRecordsIndexed",
     advisory: "Opening hours and access conditions must be rechecked against the linked official record before use."
   }, {
-    provider: "Haneda Airport and facility operator records",
+    provider: registry.provider,
     dataMode: "publicRegistry",
     ttlSeconds: CACHE_TTLS.facilitiesSeconds,
-    policy: "hndOfficialRegistry"
+    policy: "officialAirportRegistry"
   });
 }
 
@@ -1819,7 +1735,7 @@ function sourceMetadata({
 function capabilityJSON(body, sourceOptions) {
   const source = sourceMetadata(sourceOptions);
   const ttl = Math.max(0, Number(sourceOptions.ttlSeconds) || 0);
-  const cacheControl = sourceOptions.policy === "hndOfficialRegistry"
+  const cacheControl = sourceOptions.policy === "officialAirportRegistry"
     ? `public, max-age=${ttl}, stale-while-revalidate=${ttl}`
     : `private, max-age=${ttl}, must-revalidate`;
   return json({ ...body, source }, 200, { "cache-control": cacheControl, "x-data-mode": source.dataMode });
