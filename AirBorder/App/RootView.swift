@@ -144,17 +144,17 @@ struct RootView: View {
         case let .reviewImported(ticket): ReviewImportedView(ticket: ticket)
         case .flightUpdated: FlightUpdatedView()
         case .reviewFlight: ReviewFlightView()
-        case let .returnToGate(place): ReturnToGateView(place: place)
-        case .anaLounge: ANALoungeView()
-        case .loungeMap: LoungeMapView()
-        case let .landsideRoute(deck): LandsideRouteView(observationDeck: deck)
-        case .facilityGuide: FacilityGuideView()
-        case .t2Deck: T2DeckView()
-        case .t2NotEnoughTime: T2NotEnoughTimeView()
-        case .toTerminal2: ToTerminal2View()
-        case .atTerminal2: AtTerminal2View()
-        case .returnFromT2: ReturnFromT2View()
-        case .shuttleFull: ShuttleFullView()
+        case let .returnToGate(place): coveredFacility { ReturnToGateView(place: place) }
+        case .anaLounge: coveredFacility { ANALoungeView() }
+        case .loungeMap: coveredFacility { LoungeMapView() }
+        case let .landsideRoute(deck): coveredFacility { LandsideRouteView(observationDeck: deck) }
+        case .facilityGuide: coveredFacility { FacilityGuideView() }
+        case .t2Deck: coveredFacility { T2DeckView() }
+        case .t2NotEnoughTime: coveredFacility { T2NotEnoughTimeView() }
+        case .toTerminal2: coveredFacility { ToTerminal2View() }
+        case .atTerminal2: coveredFacility { AtTerminal2View() }
+        case .returnFromT2: coveredFacility { ReturnFromT2View() }
+        case .shuttleFull: coveredFacility { ShuttleFullView() }
         case .connectedAccounts: ConnectedAccountsView()
         case .healthPermission: HealthPermissionView()
         case .removeHealth: RemoveHealthView()
@@ -167,6 +167,18 @@ struct RootView: View {
         case .editProfile: EditProfileView()
         case .tutorial: TutorialReplay()
         case let .alerts(kind): AlertsView(kind: kind)
+        }
+    }
+
+    @ViewBuilder
+    private func coveredFacility<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if store.hasConcourseCoverage {
+            content()
+        } else {
+            PlaceScreen(title: "Facilities") {
+                Text("This connection has no available facility directions.")
+                    .outfitText(15, .regular, AB.muted)
+            }
         }
     }
 }
