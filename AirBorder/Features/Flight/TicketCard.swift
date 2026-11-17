@@ -110,13 +110,17 @@ struct TicketCard: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
-                    if flight.departureGate.isEmpty {
-                        TerminalSign(terminal: flight.departureTerminal, size: 26)
-                    } else {
-                        GateSign(gate: gate ?? flight.departureGate, size: 26, previous: gate.flatMap { $0 == flight.departureGate ? nil : flight.departureGate })
+                    let currentGate = gate ?? flight.departureGate
+                    if !currentGate.isEmpty {
+                        let previousGate = flight.departureGate.isEmpty || flight.departureGate == currentGate ? nil : flight.departureGate
+                        GateSign(gate: currentGate, size: 26, previous: previousGate)
                         if !flight.departureTerminal.isEmpty {
                             Text("Terminal \(flight.departureTerminal)").outfitText(13, .medium, AB.ice.opacity(0.7))
                         }
+                    } else if !flight.departureTerminal.isEmpty {
+                        TerminalSign(terminal: flight.departureTerminal, size: 26)
+                    } else {
+                        Text("Gate information unavailable").outfitText(13, .medium, AB.ice.opacity(0.7))
                     }
                 }
             }
@@ -124,9 +128,9 @@ struct TicketCard: View {
             HStack(alignment: .top) {
                 detail("ARRIVES", flight.arrives.description + (flight.arrivalDayOffset.map { " +\($0)" } ?? ""))
                 Spacer()
-                detail("TERMINAL", flight.arrivalTerminal)
+                detail("TERMINAL", flight.arrivalTerminal.isEmpty ? "–" : flight.arrivalTerminal)
                 Spacer()
-                detail("GATE", flight.arrivalGate)
+                detail("GATE", flight.arrivalGate.isEmpty ? "–" : flight.arrivalGate)
                 Spacer()
                 detail("BAGS", flight.baggageBelt ?? "–")
             }
