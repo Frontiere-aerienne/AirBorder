@@ -11,11 +11,8 @@ extension AB {
     static let riskTag = Color(hex: 0xDB5247)
 }
 
-/// ANA reservations and boarding help, as on the Figma alerts and Boarding assistance sheet.
-enum ANAHelp {
-    static let phone = "+81366260648"
-    static let hours = "07:00–19:00"
-    static var url: URL? { URL(string: "tel:\(phone)") }
+extension JourneyStore {
+    var boardingContact: BoardingContact? { journey.presentation?.boardingContact }
 }
 
 /// Where a travel update is shown; the copy and action follow the Figma screen for that place.
@@ -96,9 +93,9 @@ struct TravelUpdateBanner: View {
 
     private var transferTitle: String {
         switch place {
-        case .flight: "Change airports: Haneda → Narita"
-        case .details: "Next flight leaves from Narita"
-        case .layover, .route: "Transfer to Narita comes first"
+        case .flight: "Change airports: \(store.transferArrivalName) → \(store.transferDepartureName)"
+        case .details: "Next flight leaves from \(store.transferDepartureName)"
+        case .layover, .route: "Transfer to \(store.transferDepartureName) comes first"
         }
     }
 
@@ -127,7 +124,12 @@ struct TravelUpdateBanner: View {
 
     private var action: (title: String, perform: () -> Void)? {
         let route = ("Route", { store.openRoute(directToGate: true) })
-        let call = ("Call ANA", { if let url = ANAHelp.url { openURL(url) } })
+        let call: (title: String, perform: () -> Void)
+        if let contact = store.boardingContact, let url = contact.url {
+            call = ("Call \(contact.name)", { openURL(url) })
+        } else {
+            call = ("Get help", { showsAssistance = true })
+        }
         switch (condition, place) {
         case (.returnNow, .details), (.returnNow, .layover): return route
         case (.boardingAtRisk, .flight), (.boardingAtRisk, .route): return call
@@ -208,9 +210,11 @@ struct GateChangeAlert: View {
 
     var body: some View {
         let previousGate = store.feed?.previousGate ?? store.outbound.departureGate
+        let walk = store.knownGateWalkMinutes(for: store.routeChoice)
+        let direction = walk.map { "It’s a \($0) min walk." } ?? "Indoor directions aren’t available here."
         AirBorderPopup(
             title: "Gate changed",
-            message: "\(store.outbound.number) now departs from Gate \(store.gate). It’s a \(store.gateWalkMinutes) min walk.",
+            message: "\(store.outbound.number) now departs from Gate \(store.gate). \(direction)",
             id: "gateAlert",
             secondary: ("Dismiss", "alertDismiss", dismiss),
             primary: ("View route", "alertRoute", {
@@ -279,6 +283,7 @@ struct AlertsView: View {
     @Environment(\.openURL) private var openURL
     let kind: AlertKind
     @State private var reminder = false
+    @State private var showsAssistance = false
 
     var body: some View {
         let record = store.alerts[kind]
@@ -312,6 +317,7 @@ struct AlertsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showsAssistance) { BoardingAssistanceSheet() }
         .onAppear {
             reminder = record?.isReminder(at: Date()) ?? false
             store.alertSeen(kind)
@@ -334,13 +340,17 @@ struct AlertsView: View {
                     .background(AB.ice.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
             }
             .accessibilityElement(children: .combine)
-            HStack(spacing: 6) {
-                Image("icWalkSmall").renderingMode(.template).resizable().foregroundStyle(AB.sky).frame(width: 18, height: 18)
-                Text(walkText).outfitText(14, .semibold, AB.sky)
+            if let walkText {
+                HStack(spacing: 6) {
+                    Image("icWalkSmall").renderingMode(.template).resizable().foregroundStyle(AB.sky).frame(width: 18, height: 18)
+                    Text(walkText).outfitText(14, .semibold, AB.sky)
+                }
+                .accessibilityElement(children: .combine)
             }
-            .accessibilityElement(children: .combine)
-            TextLink(title: "Get help", color: AB.sky) { if let url = ANAHelp.url { openURL(url) } }
-                .accessibilityLabel("Get help, call ANA")
+            TextLink(title: "Get help", color: AB.sky) {
+                if let url = store.boardingContact?.url { openURL(url) } else { showsAssistance = true }
+            }
+            .accessibilityLabel(store.boardingContact.map { "Get help, call \($0.name)" } ?? "Get help")
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -371,8 +381,8 @@ struct AlertsView: View {
         }
     }
 
-    private var walkText: String {
-        let walk = store.gateWalkMinutes
+    private var walkText: String? {
+        guard let walk = store.knownGateWalkMinutes(for: store.routeChoice) else { return nil }
         guard kind == .boardingAtRisk, let closes = store.outbound.gateCloses else { return "\(walk) min walk" }
         return "\(walk) min walk, \(closes - (store.now + walk)) min spare"
     }
@@ -389,16 +399,21 @@ struct BoardingAssistanceSheet: View {
     @Environment(\.openDestination) private var open
 
     var body: some View {
-        let arrival = store.now + store.gateWalkMinutes
-        let closes = store.outbound.gateCloses?.description ?? "–"
+        let arrival = store.knownGateWalkMinutes(for: store.routeChoice).map { store.now + $0 }
+        let closes = store.outbound.gateCloses
+        let contact = store.boardingContact
+        let gateName = store.gate.isEmpty ? "Gate" : "Gate \(store.gate)"
+        let closure = closes.map { "\(gateName) closes \($0)" } ?? "Gate closing time unavailable"
         InfoSheet(
             title: "Boarding assistance",
             rows: [
-                SheetRow(icon: "tileClock", label: "Arriving \(arrival)", detail: "Gate \(store.gate) closes \(closes)"),
-                SheetRow(icon: "tileBell", label: "Ask about the next flight", detail: "ANA can rebook \(store.outbound.number)"),
+                SheetRow(icon: "tileClock", label: arrival.map { "Arriving \($0)" } ?? "Arrival estimate unavailable", detail: closure),
+                SheetRow(icon: "tileBell", label: "Ask about the next flight", detail: contact == nil ?
+                         "Check your airline’s app or contact an airport agent." : "\(store.outbound.airline.name) can rebook \(store.outbound.number)"),
+            ] + (store.isAirportTransfer || store.journey.presentation?.baggageTaggedThrough != true ? [] : [
                 SheetRow(icon: "tileBag", label: "Bag tagged to \(store.outbound.to.code)", detail: store.extraBagDeclared ? "1 checked, 1 extra" : "1 checked"),
-            ],
-            link: ("Call ANA, \(ANAHelp.hours)", "tel:\(ANAHelp.phone)"),
+            ]),
+            link: contact.map { ("Call \($0.name), \($0.hours)", "tel:\($0.phone)") },
             button: ("View journey details", { open(.journeyDetails) })
         )
     }
