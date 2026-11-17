@@ -1,6 +1,5 @@
 import { JourneyStore, validateJourneyEvent } from "./journey-store.js";
 export { JourneyStore };
-import { handleAIExplain } from "./ai-explainer.js";
 import countries from "i18n-iso-countries";
 
 const PROVIDERS = Object.freeze({
@@ -8,7 +7,6 @@ const PROVIDERS = Object.freeze({
   amadeusTestBaseURL: "https://test.api.amadeus.com",
   amadeusProductionBaseURL: "https://api.amadeus.com",
   sherpaRequirementsURL: "https://requirements-api.joinsherpa.com/v3/trips?include=restriction%2Cprocedure",
-  geminiInteractionsURL: "https://generativelanguage.googleapis.com/v1beta/interactions",
   googleVisionURL: "https://vision.googleapis.com/v1/images:annotate",
   googleTasksBaseURL: "https://tasks.googleapis.com/tasks/v1"
 });
@@ -48,7 +46,7 @@ const CACHE_TTLS = Object.freeze({
   entryRequirementsSeconds: 3_600
 });
 
-const PROVIDER_POLICY_VERSION = "provider-policy-2026-07-14-v3";
+const PROVIDER_POLICY_VERSION = "provider-policy-2026-11-17-v4";
 const GOOGLE_TASKS_CONSENT_REVISION = "google-tasks-consent-2026-07-14-v1";
 const GOOGLE_TASKS_MARKER_VERSION = "v1";
 
@@ -103,34 +101,12 @@ const PROVIDER_POLICIES = Object.freeze({
     trainingPurposes: [],
     expirySource: "contract adapter response or conservative proxy interval",
     canAuthorizeEntry: false
-  },
-  geminiEntryDiscovery: {
-    capability: "official-entry-source-discovery",
-    persistence: "protected-until-expiry",
-    trainingAllowed: false,
-    trainingPurposes: [],
-    expirySource: "response receipt plus discovery revalidation interval",
-    canAuthorizeEntry: false
-  },
-  workersAIExplanation: {
-    capability: "grounded-explanation-ordering",
-    persistence: "no-store",
-    trainingAllowed: false,
-    trainingPurposes: [],
-    expirySource: "not cached; every operational fact remains client-supplied and sourced",
-    canAffectSafetyDecision: false,
-    canAuthorizeEntry: false
   }
 });
 
 const OFFICIAL_ENTRY_LINKS = Object.freeze({
   JP: [{ label: "Ministry of Foreign Affairs of Japan - Visa Exemption", url: "https://www.mofa.go.jp/j_info/visit/visa/short/novisa.html" }],
   US: [{ label: "U.S. Department of State - Visa Wizard", url: "https://travel.state.gov/content/travel/en/us-visas/visa-information-resources/wizard.html" }]
-});
-
-const OFFICIAL_ENTRY_DOMAINS = Object.freeze({
-  JP: ["mofa.go.jp", "moj.go.jp", "isa.go.jp", "evisa.mofa.go.jp"],
-  US: ["travel.state.gov", "cbp.gov", "uscis.gov", "esta.cbp.dhs.gov"]
 });
 
 const HND_REGISTRY_VERSION = "2026-07-14.1";
@@ -262,9 +238,6 @@ export default {
       if (request.method === "POST" && url.pathname === "/v1/scene-ocr") {
         return await sceneOCR(request, env);
       }
-      if (request.method === "POST" && url.pathname === "/v1/ai/explain") {
-        return await handleAIExplain(request, env, { providerPolicyVersion: PROVIDER_POLICY_VERSION });
-      }
       if (request.method === "POST" && url.pathname === "/v1/reminders/google-tasks/sync") {
         return await syncGoogleTasks(request);
       }
@@ -277,7 +250,7 @@ export default {
       if (url.pathname === "/v1/flights/search") return await searchFlights(url, env);
       if (url.pathname === "/v1/hotels/search") return await searchHotels(url, env);
       if (url.pathname === "/v1/activities") return await searchActivities(url, env);
-      if (url.pathname === "/v1/entry-requirements") return await legacyEntryRequirements(url, env);
+      if (url.pathname === "/v1/entry-requirements") return await legacyEntryRequirements(url);
 
       const facilityMatch = url.pathname.match(/^\/v1\/facilities\/airports\/([A-Z0-9]{3,4})$/i);
       if (facilityMatch) return airportFacilities(facilityMatch[1]);
@@ -480,7 +453,6 @@ function quotaBucket(pathname) {
   if (pathname.startsWith("/v1/hotels/") || pathname === "/v1/activities") return "discovery";
   if (pathname === "/v1/entry-requirements") return "entry";
   if (pathname === "/v1/scene-ocr") return "vision";
-  if (pathname === "/v1/ai/explain") return "ai-explanation";
   if (pathname.startsWith("/v1/reminders/")) return "reminders";
   return "metadata";
 }
@@ -498,9 +470,7 @@ function health(env) {
       hotelsAndActivities: Boolean(env.AMADEUS_CLIENT_ID && env.AMADEUS_CLIENT_SECRET),
       entryRequirements: Boolean(env.SHERPA_API_KEY || (env.TIMATIC_API_URL && env.TIMATIC_API_KEY)),
       entryRequirementBackup: Boolean(env.TIMATIC_API_URL && env.TIMATIC_API_KEY),
-      entryOfficialSourceDiscovery: Boolean(env.GEMINI_API_KEY),
-      cloudVision: Boolean(env.GOOGLE_VISION_API_KEY),
-      groundedExplanation: Boolean(env.AI && typeof env.AI.run === "function")
+      cloudVision: Boolean(env.GOOGLE_VISION_API_KEY)
     },
     facilityRegistryVersion: HND_REGISTRY_VERSION
   });
@@ -1056,7 +1026,7 @@ async function entryRequirements(request, env) {
   return resolveEntryRequirements(query, env);
 }
 
-async function legacyEntryRequirements(url, env) {
+async function legacyEntryRequirements(url) {
   if ([...url.searchParams.keys()].some(key => PROHIBITED_ENTRY_FIELDS.has(normalizedFieldName(key)))) {
     return json({ error: "sensitive_field_prohibited" }, 400);
   }
@@ -1070,7 +1040,7 @@ async function legacyEntryRequirements(url, env) {
   };
   // The legacy query lacks the ordered segments and local-time facts required
   // by structured providers, so it can return links but never an assessment.
-  return entryDiscoveryResponse(query, env, ["Legacy query: structured assessment skipped"]);
+  return entryRegistryResponse(query, ["Legacy query: structured assessment skipped"]);
 }
 
 function containsProhibitedEntryField(value) {
@@ -1177,7 +1147,7 @@ async function resolveEntryRequirements(query, env) {
       if (!(error instanceof ProviderError)) throw error;
     }
   }
-  return entryDiscoveryResponse(query, env, attempts);
+  return entryRegistryResponse(query, attempts);
 }
 
 async function sherpaEntryResult(query, env) {
@@ -1427,22 +1397,9 @@ function structuredEntryResponse(query, result, attempts) {
   });
 }
 
-async function entryDiscoveryResponse(query, env, attempts) {
-  const registryLinks = OFFICIAL_ENTRY_LINKS[query.destinationCountry] || [];
-  let discoveredLinks = [];
-  let usedGemini = false;
-  if (env.GEMINI_API_KEY && officialDomainsFor(query.destinationCountry, env).length) {
-    attempts.push("Gemini Google Search discovery");
-    try {
-      discoveredLinks = await discoverOfficialEntryLinks(query.destinationCountry, env);
-      usedGemini = true;
-    } catch {
-      // Discovery is never a safety dependency; retain only the bundled links.
-    }
-  }
-  const officialVerificationLinks = mergeOfficialLinks(registryLinks, discoveredLinks);
+function entryRegistryResponse(query, attempts) {
+  const officialVerificationLinks = mergeOfficialLinks(OFFICIAL_ENTRY_LINKS[query.destinationCountry] || []);
   const receivedAt = new Date().toISOString();
-  const ttlSeconds = usedGemini ? CACHE_TTLS.activitiesSeconds : 0;
   return capabilityJSON({
     queryFingerprint: query.fingerprint,
     assessment: {
@@ -1450,79 +1407,23 @@ async function entryDiscoveryResponse(query, env, attempts) {
       canEnter: null,
       decisionAuthority: "discoveryOnly",
       reason: officialVerificationLinks.length
-        ? "Structured providers were unavailable. These links are discovery aids only; no visa or entry conclusion was derived."
-        : "Structured providers were unavailable and no allowlisted official source was found. Keep the plan airside and verify manually.",
+        ? "Structured providers were unavailable. These bundled links are informational only; no visa or entry conclusion was derived."
+        : "Structured providers were unavailable and no bundled official link is available. Keep the plan airside and verify manually.",
       requirements: [],
       officialVerificationLinks
     },
     decisionSupportOnly: true
   }, {
-    provider: usedGemini ? "Gemini Google Search official-link discovery" : "Bundled official-link registry",
-    dataMode: usedGemini ? "liveDiscovery" : "publicRegistry",
-    ttlSeconds,
-    policy: usedGemini ? "geminiEntryDiscovery" : null,
+    provider: "Bundled official-link registry",
+    dataMode: "publicRegistry",
+    ttlSeconds: 0,
     recordID: `entry-discovery-${query.fingerprint}`,
     observedAt: receivedAt,
     receivedAt,
-    expiresAt: new Date(Date.parse(receivedAt) + ttlSeconds * 1_000).toISOString(),
-    evidenceKind: usedGemini ? "officialSourceDiscovery" : "informationalFallback",
+    expiresAt: receivedAt,
+    evidenceKind: "informationalFallback",
     providerChain: attempts
   });
-}
-
-async function discoverOfficialEntryLinks(destinationCountry, env) {
-  const domains = officialDomainsFor(destinationCountry, env);
-  const siteQuery = domains.map(domain => `site:${domain}`).join(" OR ");
-  const response = await providerFetch(PROVIDERS.geminiInteractionsURL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": env.GEMINI_API_KEY
-    },
-    body: JSON.stringify({
-      model: boundedText(env.GEMINI_ENTRY_DISCOVERY_MODEL, 80) || "gemini-3.5-flash",
-      input: `Find current official national-government visa, transit, and entry-information pages for destination country ${destinationCountry}. Search only ${siteQuery}. Do not decide or state whether any traveler can enter.`,
-      tools: [{ type: "google_search" }]
-    }),
-    cf: { cacheTtl: 0 }
-  });
-  const payload = await readBoundedJSON(response, LIMITS.providerResponseBytes);
-  if (!Array.isArray(payload?.steps)) throw new ProviderError(502);
-  const links = [];
-  for (const step of payload.steps) {
-    if (step?.type !== "model_output" || !Array.isArray(step.content)) continue;
-    for (const block of step.content) {
-      for (const annotation of Array.isArray(block?.annotations) ? block.annotations : []) {
-        if (annotation?.type !== "url_citation") continue;
-        const url = allowlistedOfficialURL(annotation.url, domains);
-        if (url) links.push({ label: boundedText(annotation.title, 160) || new URL(url).hostname, url });
-      }
-    }
-  }
-  return mergeOfficialLinks([], links);
-}
-
-function officialDomainsFor(countryCode, env) {
-  const defaults = OFFICIAL_ENTRY_DOMAINS[countryCode] || [];
-  let configured = [];
-  try {
-    const value = JSON.parse(String(env.ENTRY_OFFICIAL_DOMAINS_JSON || "{}"));
-    if (Array.isArray(value?.[countryCode])) {
-      configured = value[countryCode]
-        .map(domain => String(domain || "").trim().toLowerCase().replace(/^\.+/, ""))
-        .filter(domain => /^[a-z0-9.-]+$/.test(domain) && domain.includes("."));
-    }
-  } catch {
-    configured = [];
-  }
-  return [...new Set([...defaults, ...configured])].sort();
-}
-
-function allowlistedOfficialURL(value, domains) {
-  const safe = safeExternalURL(value);
-  if (!safe) return null;
-  const hostname = new URL(safe).hostname.toLowerCase();
-  return domains.some(domain => hostname === domain || hostname.endsWith(`.${domain}`)) ? safe : null;
 }
 
 function normalizeOfficialLinks(value) {
