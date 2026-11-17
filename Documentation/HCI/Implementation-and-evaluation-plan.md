@@ -6,7 +6,7 @@ AirBorder helps connecting passengers understand their onward gate and decide wh
 
 Keep one revisioned journey shared by Flight, My plan, Map, Camera and notifications. Ordered stops use stable IDs and active/completed/removed state. Observations carry entity/source, event time, receipt time, expiry and live/synthetic origin. A disruption updates matching facts without replacing selections. Recalculate walking, queue, visit, transfer and security components once each. Unknown inputs cannot produce a definitive fit; departure delays do not extend airline deadlines. Distinguish an internal arrival target from a confirmed airline cutoff.
 
-The canonical provider implementation is `Backend/src/index.js`; the browser adapter is `Web/backend/index.mjs`. Keep provider credentials, authentication and optional inference on the server. Do not fork provider-policy logic into the UI. Current local browser serving is a development/test facility, not a production security configuration. Review server bindings, feature flags, source rights and deployed provider access before any live-service claim.
+The canonical provider implementation is `Backend/src/index.js`; the browser adapter is `Web/backend/index.mjs`. Keep provider credentials and authentication on the server. Do not fork provider-policy logic into the UI. Current local browser serving is a development/test facility, not a production security configuration. Review server bindings, feature flags, source rights and deployed provider access before any live-service claim.
 
 Implement and verify in this order:
 
@@ -15,7 +15,7 @@ Implement and verify in this order:
 3. Complete B1/B2 critical navigation, prominent gate update and route progress behaviour; then additive planning, lounges, Map/Camera continuity and alternatives. Complete typed input, camera/location denial and recovery rather than testing only happy paths.
 4. Implement automatic walking-source selection, consent/revocation and Previous Trips. Specify quality/outlier and retention rules before collecting history; separate airport walking from waiting and everyday health activity. Average estimates remain available without health access.
 5. Add one source adapter at a time: flight identity/date/gate/deadline first; airport-coordinate/time-window weather next; operator/café/accessibility only when an authorized real source exists. Weather supports relevant selected-outdoor-stop advice, not invented closures or flight cancellations. Retain offline/unknown paths and isolated synthetic sessions.
-6. Add optional LLM explanation only after deterministic calculation passes. Supply approved fact/candidate IDs, keep numerical values/actions under program control, validate returned references, and use templates after timeout/refusal/invalid output. The model cannot create stops, calculate authoritative deadlines, apply changes or receive ticket images/passports/raw health data.
+6. Render explanations from deterministic templates and the verified calculation trace. Keep numerical values, stop selection, authoritative deadlines, and plan changes under program control; send no request to a language model.
 
 From a clean checkout, install Backend dependencies before starting the browser server or its HTTP tests (`npm ci --prefix Backend`). Run these checks from the indicated directories. Save results against the exact reviewed revision. Browser API fixtures and intercepted responses are controlled tests, not evidence that a provider is deployed.
 

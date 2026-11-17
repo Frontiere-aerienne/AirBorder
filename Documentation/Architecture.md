@@ -77,7 +77,7 @@ Indoor routing uses multi-label Pareto filtering plus lexicographic cost vectors
 
 Each external category has a boundary protocol. The default flight path is secure proxy followed by a clearly labeled demo provider only when fallback is enabled. HND official facilities and the informational entry provider remain separate from commercial discovery. MapKit supplies nearby discovery; accommodation availability is an optional provider result and booking opens externally.
 
-Entry requirements are a stricter chain: a bounded normalized itinerary/profile request reaches Sherpa v3 first and an independently configured Timatic contract adapter second. Malformed or explicitly stale structured data is rejected before fallback. Optional Gemini Google Search grounding can discover only allowlisted official-government URLs; model prose is discarded and the response is typed `officialSourceDiscovery`, which cannot authorize entry or positive landside/city feasibility.
+Entry requirements are a stricter chain: a bounded normalized itinerary/profile request reaches Sherpa v3 first and an independently configured Timatic contract adapter second. Malformed or explicitly stale structured data is rejected before fallback. If neither structured provider can answer, the Worker returns bundled official links when available. These immediately expired informational pointers cannot authorize entry or positive landside/city feasibility. The runtime does not call an LLM.
 
 Provider fallback cannot convert an authentication failure, rate limit, malformed record, stale record, discovery-only result, or unknown field into a live success. Cache policy is provider-specific through `ProviderPolicyRegistry`.
 

@@ -58,8 +58,7 @@ SwiftUI six-tab shell
 iOS native adapters -> MapKit / Vision / EventKit
 iOS HTTPS adapters  -> protected Cloudflare Worker
 Worker               -> FlightAware / Amadeus / Sherpa / Timatic adapter /
-                        Gemini official-link discovery / Google Vision /
-                        Google Tasks / Workers AI
+                        Google Cloud Vision (OCR) / Google Tasks
 Direct feed boundary -> GTFS / GTFS-Realtime / WeatherKit
 ```
 
@@ -255,15 +254,14 @@ Resolution order:
 ```text
 Sherpa Requirements API, if configured
   -> Timatic deployment adapter, if separately configured
-     -> Gemini Google Search official-link discovery, if configured
-        -> bundled official-link registry
+     -> bundled official-link registry
 ```
 
 An upstream `429` propagates and stops fallback. Other normalized provider failures may continue to the next independent provider. An explicitly stale structured response is rejected before fallback.
 
 Sherpa and Timatic results are normalized as structured guidance with a bounded maximum expiry. The current Worker deliberately returns `requiresConfirmation` and `canEnter: null`; it does not promise admission. Every response includes official verification links when available.
 
-Gemini is **not** a backup visa decision engine. Its prompt contains only the destination country and an allowlisted set of official government domains. The Worker ignores generated prose, accepts only URL citations whose host matches that country allowlist, returns no requirements, and marks the response `officialSourceDiscovery`. Discovery can never support a positive landside decision.
+The bundled registry returns only fixed official links when available, no requirements, and zero freshness. It cannot support a positive landside decision.
 
 The legacy `GET /v1/entry-requirements` accepts only a minimal country query. It can return links but never a structured assessment. New clients should use POST.
 
@@ -408,27 +406,9 @@ Google Tasks discards time-of-day in `due`. The Worker puts the exact intended i
 
 The Google OAuth client ID is configuration, not a secret. No iOS client secret is required. Access and refresh tokens belong in Google Sign-In/Keychain storage, not `Secrets.xcconfig`, UserDefaults, analytics, or Worker persistence.
 
-## Optional AI and free/trial integrations
+## No-LLM runtime
 
-### Implemented Workers AI explainer
-
-`POST /v1/ai/explain` accepts a strict calculation-trace or facility schema. The model sees opaque fact IDs and minimized descriptors. It can only order each input ID exactly once and choose a presentation focus. Deterministic Worker code renders all values, formulas, sources, hours, and URLs.
-
-Guardrails:
-
-- arbitrary prompts are rejected;
-- entry/visa/passport/nationality/immigration domains are rejected before inference;
-- traveler profile fields and precise location history are outside the schema;
-- malformed, missing, duplicated, or invented IDs cause deterministic fallback order;
-- raw model prose is never returned;
-- responses are `no-store`; and
-- AI cannot affect feasibility, entry, or training authorization.
-
-The backend is implemented and tested with a mock `AI` binding. No iOS explanation affordance or request mapping is wired.
-
-### Optional provider selection
-
-The implemented Workers AI explanation and Gemini official-link discovery paths have bounded roles described in [AI Integrations](AIIntegrations.md). Provider pricing, quotas, model availability and data terms require deployment-specific review; this guide does not promise a free tier. Additional inference providers remain proposed work until an adapter and acceptance evidence exist.
+Planning explanations come from the deterministic calculation trace. Entry fallback uses only the bundled official-link registry; no model or search grounding service is contacted. See the [removal and deployment notes](AIIntegrations.md).
 
 ## Secrets, entitlements, and authentication
 
@@ -464,19 +444,17 @@ npx wrangler secret put SHERPA_API_KEY
 npx wrangler secret put TIMATIC_API_URL
 npx wrangler secret put TIMATIC_API_KEY
 npx wrangler secret put TIMATIC_SERVICE_TOKEN
-npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put GOOGLE_VISION_API_KEY
 ```
 
-`TIMATIC_API_URL` must point to the deployment's reviewed normalized adapter because account schemas are contract-specific. `TIMATIC_SERVICE_TOKEN` is optional. `GEMINI_ENTRY_DISCOVERY_MODEL` and `ENTRY_OFFICIAL_DOMAINS_JSON` are non-secret deployment configuration, but every domain must still pass the Worker's hostname allowlist logic.
+`TIMATIC_API_URL` must point to the deployment's reviewed normalized adapter because account schemas are contract-specific. `TIMATIC_SERVICE_TOKEN` is optional.
 
 Reserved-but-unused names in the current Worker:
 
 - `GOOGLE_PLACES_API_KEY`
 - `TRANSITLAND_API_KEY`
-- `HUGGINGFACE_TOKEN`
 
-Do not provision unused secrets. Workers AI uses the `AI` binding and no application secret. Google Tasks uses the person's short-lived OAuth token and must not have an API-key fallback.
+Do not provision unused secrets. Google Tasks uses the person's short-lived OAuth token and must not have an API-key fallback.
 
 ### Worker request authentication
 
@@ -502,7 +480,6 @@ The iOS client does not yet acquire/attach a Cloudflare Access session, and App 
 | `GET` | `/v1/entry-requirements` | Legacy country-link discovery only. |
 | `POST` | `/v1/scene-ocr` | Explicit-consent, bounded JPEG still to Google Vision. iOS upload not wired. |
 | `POST` | `/v1/reminders/google-tasks/sync` | User-OAuth Google Tasks scoped synchronization. iOS OAuth/runtime not wired. |
-| `POST` | `/v1/ai/explain` | Optional grounded fact ordering. iOS affordance not wired. |
 
 All `/v1` routes are protected. Provider 429 responses propagate with bounded `Retry-After`; the flight search does not use fallback to bypass rate limiting. Error responses are bounded and omit credentials, provider payloads, queries, and profiles.
 
@@ -605,7 +582,7 @@ cd Backend
 npx wrangler dev --var DEPLOYMENT_ENVIRONMENT:development --var REQUEST_AUTH_MODE:none --var REQUIRE_RATE_LIMITER:false
 ```
 
-Use unauthenticated mode only for explicit local development. Workers AI bindings can consume Cloudflare account usage even during local `wrangler dev`; automated tests mock the binding.
+Use unauthenticated mode only for explicit local development.
 
 ## Adding a provider
 
@@ -706,10 +683,9 @@ Re-export to a separate temporary root with the same timestamp and compare SHA-2
 - Current airport weather is composed from keyless providers. Verified regional routing, live queues, congestion and operational-feed acceptance remain separate work.
 - The independent triangular duration model does not represent correlated disruption or heavy tails.
 - The `0.90`/`0.70` thresholds are provisional research policy, not empirically certified.
-- Structured entry providers return guidance and official links, not admission guarantees; search/AI fallback discovers links only.
+- Structured entry providers return guidance and official links, not admission guarantees; the bundled fallback provides informational links only.
 - Hotel offers and activities have Worker routes but are not wired into the current app experience.
 - Cloud Vision consent/configuration exists, but the iOS OCR screen remains local-only.
-- Workers AI explanation has no iOS affordance.
 - Apple Calendar is wired into Settings/AppContainer and locally tested; Google Tasks remains disabled because Google OAuth is not configured.
 - Google Tasks cannot express an exact due time through its API.
 - Delay learning is a simple local historical baseline; weather/congestion prediction is not implemented.
@@ -727,6 +703,6 @@ Re-export to a separate temporary root with the same timestamp and compare SHA-2
 - [Data sources](DataSources.md)
 - [Live data and freshness](LiveDataPlan.md)
 - [Cross-device reminders](CrossDeviceReminders.md)
-- [Optional AI integrations](AIIntegrations.md)
+- [No-LLM runtime](AIIntegrations.md)
 - [Security review](SecurityReview.md)
 - [Privacy and security](PrivacyAndSecurity.md)

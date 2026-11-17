@@ -8,7 +8,7 @@ The Worker exposes normalized routes for flight search/boards/status, hotels, ac
 
 ## Key placement
 
-Provider values are Worker secrets only: `AMADEUS_CLIENT_ID`, `AMADEUS_CLIENT_SECRET`, optional `FLIGHTAWARE_AEROAPI_KEY`, `SHERPA_API_KEY`, `TIMATIC_API_URL`, `TIMATIC_API_KEY`, `TIMATIC_SERVICE_TOKEN`, `GEMINI_API_KEY`, `GOOGLE_PLACES_API_KEY`, `TRANSITLAND_API_KEY`, and `GOOGLE_VISION_API_KEY`. The app receives only an HTTPS proxy URL through ignored `Config/Secrets.xcconfig`. MapKit has no app API key; native WeatherKit uses the application entitlement.
+Provider values are Worker secrets only: `AMADEUS_CLIENT_ID`, `AMADEUS_CLIENT_SECRET`, optional `FLIGHTAWARE_AEROAPI_KEY`, `SHERPA_API_KEY`, `TIMATIC_API_URL`, `TIMATIC_API_KEY`, `TIMATIC_SERVICE_TOKEN`, `GOOGLE_PLACES_API_KEY`, `TRANSITLAND_API_KEY`, and `GOOGLE_VISION_API_KEY`. The app receives only an HTTPS proxy URL through ignored `Config/Secrets.xcconfig`. MapKit has no app API key; native WeatherKit uses the application entitlement.
 
 ## Dynamic freshness
 
@@ -37,7 +37,7 @@ HTTP `Retry-After` is authoritative when present. Provider authentication/rate-l
 
 ## Provider fallback
 
-Fallback is explicit by endpoint and error class. A demo provider is a development experience, not a live fallback masquerading as current data. FlightAware/Amadeus adapter ordering does not bypass an upstream 429. Entry uses Sherpa's current v3 trip endpoint, then an independently contracted Timatic adapter on malformed, stale, timeout, or compatible upstream failure. If both are unavailable, Gemini Google Search may discover links only from a deployment-controlled official-government domain allowlist. Search/AI prose is discarded, the result is marked `discoveryOnly`, and it can never promise admission or unlock landside/city feasibility.
+Fallback is explicit by endpoint and error class. A demo provider is a development experience, not a live fallback masquerading as current data. FlightAware/Amadeus adapter ordering does not bypass an upstream 429. Entry uses Sherpa's current v3 trip endpoint, then an independently contracted Timatic adapter on malformed, stale, timeout, or compatible upstream failure. If no structured provider can answer, the Worker falls back to bundled official-government links where available. The result is marked `discoveryOnly`, has zero freshness, and cannot promise admission or unlock landside/city feasibility.
 
 ## License-aware learning
 

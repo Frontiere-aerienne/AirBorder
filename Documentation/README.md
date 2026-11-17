@@ -13,7 +13,7 @@ Use the repository README for a quick start. These documents describe implementa
 | Product acceptance and coverage limitations | [Acceptance and Review](HCI/Acceptance-and-review.md) |
 | Design references and code locations | [Figma Mapping](HCI/Figma-code-mapping.md) |
 | HCI implementation and evaluation scope | [Implementation and Evaluation Plan](HCI/Implementation-and-evaluation-plan.md) |
-| Data use, security, and bounded AI | [Data Sources](DataSources.md), [Privacy and Security](PrivacyAndSecurity.md), [AI Integrations](AIIntegrations.md) |
+| Data use, security, and runtime scope | [Data Sources](DataSources.md), [Privacy and Security](PrivacyAndSecurity.md), [No-LLM runtime](AIIntegrations.md) |
 
 The native source directory is `AirBorder/`. Test targets and some identifiers retain the historical `AirportXRCompanion` name. The browser application lives in `Web/`, and the canonical provider Worker lives in `Backend/`.
 

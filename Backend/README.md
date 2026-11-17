@@ -20,10 +20,9 @@ This Cloudflare Worker keeps provider credentials out of the iOS application, va
 | `GET` | `/v1/hotels/search` | Amadeus nearby hotel discovery and optional availability |
 | `GET` | `/v1/activities` | Amadeus nearby activities |
 | `GET` | `/v1/facilities/airports/:iata` | Versioned official/operator facility registry |
-| `POST` | `/v1/entry-requirements` | Sherpa v3 trip guidance, Timatic adapter fallback, then official-link discovery |
+| `POST` | `/v1/entry-requirements` | Sherpa v3 trip guidance, Timatic adapter fallback, then bundled official links |
 | `POST` | `/v1/scene-ocr` | Explicit-consent JPEG still sent to Google Cloud Vision |
 | `POST` | `/v1/reminders/google-tasks/sync` | Idempotent Google Tasks upsert/delete using the person's short-lived OAuth token |
-| `POST` | `/v1/ai/explain` | Optional grounded ordering of already-sourced calculation/facility facts |
 
 The combined browser entry point also exposes public `GET /api/health`, `GET /api/facilities?airport=HND`, and `POST /api/connection` routes with bounded inputs and rate limiting. These routes do not expose private journey records.
 
@@ -61,7 +60,6 @@ npx wrangler secret put SHERPA_API_KEY
 npx wrangler secret put TIMATIC_API_URL
 npx wrangler secret put TIMATIC_API_KEY
 npx wrangler secret put TIMATIC_SERVICE_TOKEN
-npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put GOOGLE_VISION_API_KEY
 ```
 
@@ -69,9 +67,7 @@ npx wrangler secret put GOOGLE_VISION_API_KEY
 - `AMADEUS_CLIENT_ID` and `AMADEUS_CLIENT_SECRET` enable hotels, activities, and the flight-search fallback.
 - `SHERPA_API_KEY` enables the primary structured entry adapter through Sherpa's current `/v3/trips` POST endpoint.
 - `TIMATIC_API_URL` and `TIMATIC_API_KEY` enable an independent IATA Timatic fallback. IATA publishes that AutoCheck is an API but supplies implementation details during customer onboarding, so `TIMATIC_API_URL` must point to the deployment's reviewed adapter for the documented `airportxr-entry-query-v1` normalized contract. Set `TIMATIC_SERVICE_TOKEN` only when that contract requires it.
-- `GEMINI_API_KEY` optionally enables Gemini Google Search grounding after both structured providers are unavailable. The Worker discards model prose, accepts citation URLs only from a destination-specific official-government allowlist, and always returns `discoveryOnly`; this path can never authorize entry or a landside/city plan. Google currently marks Search grounding unavailable on the API free tier, even though paid projects include a limited monthly allowance, so it is not treated as a guaranteed free dependency.
 - `GOOGLE_VISION_API_KEY` is optional and enables consented cloud OCR.
-- The optional AI explainer uses the configured Cloudflare Workers AI `AI` binding. It needs no app API key and accepts no traveler-profile or entry-requirement fields.
 - `AMADEUS_ENVIRONMENT` is a non-secret `test`/`production` variable. Amadeus test flight-status data can be cached test data rather than live operations.
 - `GOOGLE_PLACES_API_KEY` and `TRANSITLAND_API_KEY` are reserved names for optional future adapters. The current Worker does not read them, so do not provision them until those routes and their provider-policy tests exist.
 
@@ -103,7 +99,6 @@ npx wrangler dev --var DEPLOYMENT_ENVIRONMENT:development --var REQUEST_AUTH_MOD
 
 Tests use Node’s built-in test runner, mocked upstream providers, generated signing keys, and Miniflare SQLite Durable Objects. They cover authenticated account isolation, concurrent commits, replay and restart persistence without live provider calls or real credentials. Deployment packaging can be checked from the repository root with `npx --prefix Backend wrangler deploy --dry-run --config Web/wrangler.toml`.
 
-Workers AI is the exception during an actual `wrangler dev` session: Cloudflare documents that its binding reaches the account even from local development and consumes account usage. The automated tests replace the binding with an in-memory mock.
 
 ## Data and failure behavior
 
@@ -111,13 +106,14 @@ Workers AI is the exception during an actual `wrangler dev` session: Cloudflare 
 - Provider JSON must have the expected content type, stay within byte limits, and have the expected record shape.
 - Provider calls time out after the named limit in `src/index.js`; timeout, malformed, oversized, and unexpected failures become bounded JSON errors.
 - The optional OCR route accepts one consent-marked JPEG still up to 512 KB. It does not accept video or queue failed images.
-- The optional AI route cannot generate operational facts. The model only orders validated fact IDs; Worker code renders all values and provenance, preserves every input fact, rejects entry/visa domains, and falls back to the original order when model output is malformed. See [`Documentation/AIIntegrations.md`](../Documentation/AIIntegrations.md).
 - Flight search can fall back from transient FlightAware failure to Amadeus. It never falls back after an upstream `429`, and boards/status-by-ID remain FlightAware-only because their provider identifiers/contracts are not interchangeable.
 - Provider policy metadata is versioned. All currently configured commercial policies deny model training; changing a response alone cannot authorize iOS learning.
 - Entry responses are keyed locally by a one-way fingerprint of the complete normalized traveler/itinerary query. An unexpired structured result may support a recommendation only after explicit official confirmation; an expired cache record remains displayable with its original provider, record ID, observation/receipt/expiry times, and provider chain, but cannot authorize a landside or city plan.
-- Sherpa recommends no more than one hour of caching for `/trips`; the Worker caps structured entry expiry at that interval even if an upstream response requests longer storage. Malformed or explicitly stale Sherpa data falls through to the independently configured Timatic adapter. Search/AI output is never converted into a visa rule.
+- Sherpa recommends no more than one hour of caching for `/trips`; the Worker caps structured entry expiry at that interval even if an upstream response requests longer storage. Malformed or explicitly stale Sherpa data falls through to the independently configured Timatic adapter. If neither structured provider can answer, the deterministic fallback supplies only bundled official links where available and no entry decision.
 
-Current provider references: [Sherpa Requirements API](https://docs.joinsherpa.io/requirements-api/index.html), [Sherpa Trips](https://docs.joinsherpa.io/requirements-api/endpoints/trips.html), [IATA Timatic AutoCheck](https://www.iata.org/en/services/compliance/timatic/autocheck/), and [Gemini Grounding with Google Search](https://ai.google.dev/gemini-api/docs/google-search).
+No language model is part of the runtime. See the [removal and deployment notes](../Documentation/AIIntegrations.md).
+
+Current provider references: [Sherpa Requirements API](https://docs.joinsherpa.io/requirements-api/index.html), [Sherpa Trips](https://docs.joinsherpa.io/requirements-api/endpoints/trips.html), [IATA Timatic AutoCheck](https://www.iata.org/en/services/compliance/timatic/autocheck/), and the bundled official-link registry for informational fallback.
 
 ## Remaining production limitations
 

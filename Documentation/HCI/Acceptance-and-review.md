@@ -2,7 +2,7 @@
 
 The programmed prototype must preserve the traveller's selected plan while changing its guidance in response to relevant facts. The authoritative visual reference is the [AirBorder Prototype page](https://www.figma.com/design/zQaZKxZ1rrX4EMYQkY3j00/AirBorder-Travel-Companion?node-id=858-8324). This contract translates the reviewed implementation plan into release checks. It does not certify the current branch, physical navigation or live-provider operation.
 
-The peer-review record contains 14 substantive responses and eight blank records. All substantive suggestions remain in scope; repeated suggestions share requirements without losing their response numbers. Positive feedback constrains preservation of the original colours, introductory guidance, facility cards, backgrounds and airside/landside grouping. Engineering additions such as the synthetic driver, provider adapters and bounded LLM are implementation choices, not quotations from peers.
+The peer-review record contains 14 substantive responses and eight blank records. All substantive suggestions remain in scope; repeated suggestions share requirements without losing their response numbers. Positive feedback constrains preservation of the original colours, introductory guidance, facility cards, backgrounds and airside/landside grouping. Engineering additions such as the synthetic driver and provider adapters are implementation choices, not quotations from peers.
 
 ## Status and evidence rules
 

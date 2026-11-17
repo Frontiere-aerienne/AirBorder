@@ -84,7 +84,7 @@ The [AirBorder Figma reference](https://www.figma.com/design/zQaZKxZ1rrX4EMYQkY3
 - Missing or expired timing inputs remain unknown rather than becoming zero.
 - Recommendations preserve selected stops and require explicit application and Undo.
 - Security, passport-control, customs, and boarding completion require passenger confirmation.
-- Provider facts retain provenance and expiry; AI explanations cannot authorize entry or change feasibility.
+- Provider facts retain provenance and expiry. Planning and explanations use deterministic code without an LLM.
 - Simulation results, simulator AR, and provider adapters are not evidence of real-airport accuracy.
 
 ## Documentation
