@@ -20,10 +20,10 @@ test('lookalike and non-Figma origins are rejected',async()=>{
 });
 test('the observed Figma cached-preview hostname can read public data only',async()=>{
  const headers={origin:'https://9b8ca9d2-8ce6-4257-b1d5-e745080d57c9-figmacachedpreview.figma.site'};
- assert.equal((await worker.fetch(request('/api/facilities',{headers}),env)).status,200);
+ assert.equal((await worker.fetch(request('/api/facilities?airport=HND',{headers}),env)).status,200);
  assert.equal((await worker.fetch(request('/v1/flights/search',{headers}),env)).status,403);
  headers.origin='https://9b8ca9d2-8ce6-4257-b1d5-e745080d57c9-figmacachedpreview.figma.site.evil.test';
- assert.equal((await worker.fetch(request('/api/facilities',{headers}),env)).status,403);
+ assert.equal((await worker.fetch(request('/api/facilities?airport=HND',{headers}),env)).status,403);
 });
 test('provider routes remain protected and do not inherit public Figma CORS',async()=>{
  assert.equal((await worker.fetch(request('/v1/flights/search'),env)).status,403);
@@ -76,4 +76,18 @@ test('malformed limiter success values fail closed and preview access requires c
  const preview='https://9b8ca9d2-8ce6-4257-b1d5-e745080d57c9-figmacachedpreview.figma.site';
  const r=await worker.fetch(request('/api/health',{headers:{origin:preview}}),{...env,PUBLIC_FIGMA_PREVIEW_SUFFIX:''});
  assert.equal(r.status,403);
+});
+
+test('facility API requires an explicit airport and does not substitute a known registry',async()=>{
+ for(const path of ['/api/facilities','/api/facilities?airport=','/api/facilities?airport=HEATHROW']){
+  const missing=await worker.fetch(request(path),env);
+  assert.equal(missing.status,400);
+  assert.equal((await missing.json()).error,'invalid_airport');
+ }
+ const uncataloged=await worker.fetch(request('/api/facilities?airport=LHR'),env);
+ const data=await uncataloged.json();
+ assert.equal(uncataloged.status,200);
+ assert.equal(data.airportCode,'LHR');
+ assert.equal(data.availability,'registryUnavailable');
+ assert.deepEqual(data.facilities,[]);
 });
