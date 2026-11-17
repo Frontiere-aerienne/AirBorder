@@ -22,9 +22,9 @@ struct AirBorderApp: App {
             if parts.count == 2 { store.setNow(ClockTime(parts[0], parts[1])) }
         }
         // "-flight NH6" opens the trip on NH 6 from Narita (the Haneda → Narita transfer).
-        if let index = arguments.firstIndex(of: "-flight"), arguments.indices.contains(index + 1), arguments[index + 1] == "NH6" {
+        if let index = arguments.firstIndex(of: "-flight"), arguments.indices.contains(index + 1), let flight = SampleJourney.departure(number: arguments[index + 1]) {
             store.beginEditingFlight()
-            store.flightDraft.number = "NH 6"
+            store.flightDraft.number = flight.number
             store.saveFlightDraft()
         }
         var gateUpdateDelay: Double? = 45
