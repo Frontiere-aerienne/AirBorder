@@ -14,7 +14,7 @@ struct FlightView: View {
                         TravelUpdateBanner(condition: condition, place: .flight)
                             .padding(.bottom, 16)
                     }
-                    TicketCard(flight: store.outbound, previous: SampleJourney.inbound, status: store.flightStatus, gate: store.gate)
+                    TicketCard(flight: store.outbound, previous: store.inbound, status: store.flightStatus, gate: store.gate)
                     links
                 }
                 if store.isAirportTransfer {
@@ -66,7 +66,7 @@ struct FlightView: View {
     private var planSection: some View {
         PlanStripCard()
         // ponytail: the T2 deck visit keeps its own card; it is landside and not on the airside strip.
-        if store.t2VisitPlanned && store.plan.stops.isEmpty { AddedPlanCard() }
+        if store.hasConcourseCoverage && store.t2VisitPlanned && store.plan.stops.isEmpty { AddedPlanCard() }
     }
 }
 
@@ -91,15 +91,24 @@ struct PlanStripCard: View {
     /// The hint teaches the rows once; it goes away after the first stop is opened.
     @AppStorage(JourneyStore.planHintKey) private var hintSeen = false
 
-    static let stripStart = ClockTime(15, 0)
-    static let stripMinutes = 150
-
     var body: some View {
-        let stops = store.schedule.stops.map(\.stop)
-        VStack(alignment: .leading, spacing: 20) {
-            header
+        if let schedule = store.schedule, let context = store.journey.planning {
+            planCard(schedule, context: context)
+        } else {
+            Text("Gate timing is unavailable for this connection.")
+                .outfitText(15, .regular, AB.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(18)
+                .background(.white, in: RoundedRectangle(cornerRadius: 24))
+        }
+    }
+
+    private func planCard(_ schedule: Schedule, context: PlanningContext) -> some View {
+        let stops = schedule.stops.map(\.stop)
+        return VStack(alignment: .leading, spacing: 20) {
+            header(schedule)
             if let suggestion = store.suggestion {
-                cafeNotice(suggestion)
+                queueNotice(suggestion, arrival: schedule.arriveAtGate)
             }
             if stops.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
@@ -114,9 +123,9 @@ struct PlanStripCard: View {
                         Text("Tap a stop to change its times").outfitText(15, .regular, AB.secondary)
                             .transition(.opacity.combined(with: .offset(y: -4)))
                     }
-                    hours
+                    hours(context)
                     ForEach(stops) { stop in
-                        lane(stop)
+                        lane(stop, context: context)
                             .transition(.opacity.combined(with: .offset(y: -8)))
                         if openStop == stop.id {
                             StopTimesEditor(stop: stop) { openStop = nil }
@@ -125,7 +134,7 @@ struct PlanStripCard: View {
                                     removal: .opacity.animation(.easeOut(duration: 0.12))))
                         }
                     }
-                    legend.padding(.top, 4)
+                    legend(context).padding(.top, 4)
                 }
             }
         }
@@ -140,15 +149,14 @@ struct PlanStripCard: View {
         .accessibilityIdentifier("planCard")
     }
 
-    private var header: some View {
-        let timed = store.schedule
-        return HStack(spacing: 12) {
+    private func header(_ timed: Schedule) -> some View {
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Your plan").outfitText(22, .bold).accessibilityAddTraits(.isHeader)
                 Text(timed.stops.isEmpty
                     ? "Leave by \(timed.leave)"
                     : "Estimated gate arrival \(timed.arriveAtGate)")
-                    .outfitText(15, .semibold, store.minutesToSpare < 0 ? AB.alert : AB.primary)
+                    .outfitText(15, .semibold, (store.minutesToSpare ?? 0) < 0 ? AB.alert : AB.primary)
                     .accessibilityIdentifier("planGateTiming")
             }
             Spacer()
@@ -166,12 +174,12 @@ struct PlanStripCard: View {
         }
     }
 
-    private func cafeNotice(_ suggestion: PlanSuggestion) -> some View {
+    private func queueNotice(_ suggestion: PlanSuggestion, arrival: ClockTime) -> some View {
         InfoCard(padding: 14, radius: 16, background: AB.ticket) {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Café wait increased by \(suggestion.extraMinutes) min").outfitText(17, .bold, .white)
-                    Text("Gate arrival \(store.schedule.arriveAtGate). \(suggestion.detail)")
+                    Text("\(suggestion.delayedStop.shortName.capitalized) wait increased by \(suggestion.extraMinutes) min").outfitText(17, .bold, .white)
+                    Text("Gate arrival \(arrival). \(suggestion.detail)")
                         .outfitText(14, .regular, AB.ice)
                 }
                 .accessibilityElement(children: .combine)
@@ -204,11 +212,11 @@ struct PlanStripCard: View {
         .accessibilityIdentifier("addStop")
     }
 
-    private var hours: some View {
+    private func hours(_ context: PlanningContext) -> some View {
         GeometryReader { proxy in
-            ForEach([0, 60, 120], id: \.self) { offset in
-                Text((Self.stripStart + offset).description).outfitText(13, .medium, AB.secondary)
-                    .offset(x: proxy.size.width * CGFloat(offset) / CGFloat(Self.stripMinutes))
+            ForEach(Array(stride(from: 0, to: context.timelineMinutes, by: 60)), id: \.self) { offset in
+                Text((context.timelineStart + offset).description).outfitText(13, .medium, AB.secondary)
+                    .offset(x: proxy.size.width * CGFloat(offset) / CGFloat(context.timelineMinutes))
             }
         }
         .frame(height: 18)
@@ -216,10 +224,10 @@ struct PlanStripCard: View {
     }
 
     /// Figma "Legend": what the yellow and red lines mean.
-    private var legend: some View {
+    private func legend(_ context: PlanningContext) -> some View {
         HStack(spacing: 16) {
-            legendItem(AB.gateYellow, "Be at gate \(SampleJourney.gateArrivalTarget)")
-            legendItem(AB.alert, "Gate closes \(store.outbound.gateCloses ?? SampleJourney.gateArrivalTarget)")
+            legendItem(AB.gateYellow, "Be at gate \(context.gateArrivalTarget)")
+            if let closes = context.gateCloses { legendItem(AB.alert, "Gate closes \(closes)") }
         }
     }
 
@@ -230,7 +238,7 @@ struct PlanStripCard: View {
         }
     }
 
-    private func lane(_ stop: PlanStop) -> some View {
+    private func lane(_ stop: PlanStop, context: PlanningContext) -> some View {
         let times = store.times(stop.id)
         let isOpen = openStop == stop.id
         return Button {
@@ -240,10 +248,10 @@ struct PlanStripCard: View {
         } label: {
             GeometryReader { proxy in
                 let width = proxy.size.width
-                let x = { (time: ClockTime) in width * CGFloat(time - Self.stripStart) / CGFloat(Self.stripMinutes) }
+                let x = { (time: ClockTime) in width * CGFloat(time - context.timelineStart) / CGFloat(context.timelineMinutes) }
                 ZStack(alignment: .leading) {
                     if let times {
-                        Text(stop.id == .cafe ? "Café" : stop.id.shortLabel.capitalized)
+                        Text(store.hasConcourseCoverage ? (stop.id == .cafe ? "Café" : stop.id.shortLabel.capitalized) : stop.shortName)
                             .outfitText(13, .bold, Self.textColor(stop.id))
                             .minimumScaleFactor(0.75)
                             .lineLimit(1)
@@ -253,8 +261,10 @@ struct PlanStripCard: View {
                             .shadow(color: Self.color(stop.id).opacity(isOpen ? 0.35 : 0), radius: 6, y: 2)
                             .offset(x: x(times.arrive))
                     }
-                    Rectangle().fill(AB.gateYellow).frame(width: 2).offset(x: x(SampleJourney.gateArrivalTarget))
-                    Rectangle().fill(AB.alert).frame(width: 2).offset(x: x(store.outbound.gateCloses ?? SampleJourney.gateArrivalTarget))
+                    Rectangle().fill(AB.gateYellow).frame(width: 2).offset(x: x(context.gateArrivalTarget))
+                    if let closes = context.gateCloses {
+                        Rectangle().fill(AB.alert).frame(width: 2).offset(x: x(closes))
+                    }
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .bold))
                         .rotationEffect(.degrees(isOpen ? 180 : 0))
@@ -282,7 +292,7 @@ struct PlanStripCard: View {
     /// Figma home Route: opens the route, which passes every stop in the plan.
     private func route() {
         if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
-        if store.plan.stops.isEmpty && store.t2VisitPlanned { return open(.t2Deck) }
+        if store.hasConcourseCoverage && store.plan.stops.isEmpty && store.t2VisitPlanned { return open(.t2Deck) }
         store.openRoute()
     }
 
@@ -319,8 +329,12 @@ private struct StopTimesEditor: View {
                             removeButton
                         }
                         HStack(spacing: 6) {
-                            fact("building.2", "Terminal 3, \(stop.id.floor)")
-                            fact("figure.walk", "\(store.walkMinutes(stop.id, .gate)) min to gate")
+                            if store.hasConcourseCoverage {
+                                fact("building.2", "Terminal \(store.outbound.departureTerminal), \(stop.id.floor)")
+                            }
+                            if let walk = store.walkMinutes(stop.id, .gate) {
+                                fact("figure.walk", "\(walk) min to gate")
+                            }
                         }
                     }
                 }
@@ -342,7 +356,7 @@ private struct StopTimesEditor: View {
                 ForEach(store.overlapping(stop.id)) { other in
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 14, weight: .bold)).foregroundStyle(AB.alert)
-                        Text("Overlaps \(other.id.shortLabel)").outfitText(15, .bold, AB.alert)
+                        Text("Overlaps \(store.hasConcourseCoverage ? other.id.shortLabel : other.shortName)").outfitText(15, .bold, AB.alert)
                             .lineLimit(1).minimumScaleFactor(0.85)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .accessibilityLabel("Overlaps with \(other.name)")
@@ -412,9 +426,9 @@ private struct StopTimesEditor: View {
 
     /// Leave enough room for the walk as well as the next stop.
     private func fix(for mine: (arrive: ClockTime, leave: ClockTime, latest: ClockTime), other: PlanStop) -> (title: String, apply: () -> Void)? {
-        guard let theirs = store.times(other.id) else { return nil }
+        guard let theirs = store.times(other.id), let walk = store.walkMinutes(stop.id, other.id) else { return nil }
         let requested = other.arrive ?? theirs.arrive
-        let leave = requested - store.walkMinutes(stop.id, other.id)
+        let leave = requested - walk
         if mine.arrive <= requested && store.canLeave(stop.id, at: leave) {
             return ("Leave \(leave)", { store.setTimes(stop.id, leave: leave) })
         }
