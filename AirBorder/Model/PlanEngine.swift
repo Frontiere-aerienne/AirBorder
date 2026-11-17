@@ -48,9 +48,28 @@ enum WalkingEstimate {
     }
 }
 
-/// Places in Haneda Terminal 3 a plan can visit.
-enum PlaceID: String, Codable, Hashable, CaseIterable {
-    case start, cafe, anaLounge, skyLounge, bento, udon, sushi, gate
+/// Stable routing identifiers. Reserved endpoints are independent of any airport.
+struct PlaceID: RawRepresentable, Codable, Hashable {
+    let rawValue: String
+    init(rawValue: String) { self.rawValue = rawValue }
+    init(from decoder: Decoder) throws { rawValue = try decoder.singleValueContainer().decode(String.self) }
+    func encode(to encoder: Encoder) throws {
+        var value = encoder.singleValueContainer()
+        try value.encode(rawValue)
+    }
+
+    static let start = PlaceID(rawValue: "start")
+    static let gate = PlaceID(rawValue: "gate")
+}
+
+// Legacy identifiers retained for the bundled Haneda fixture and existing saves.
+extension PlaceID {
+    static let cafe = PlaceID(rawValue: "cafe")
+    static let anaLounge = PlaceID(rawValue: "anaLounge")
+    static let skyLounge = PlaceID(rawValue: "skyLounge")
+    static let bento = PlaceID(rawValue: "bento")
+    static let udon = PlaceID(rawValue: "udon")
+    static let sushi = PlaceID(rawValue: "sushi")
 
     /// How long a meal usually takes here, and whether it is a sit-down meal (sample estimates).
     var meal: (minutes: Int, sitDown: Bool)? {
@@ -81,24 +100,34 @@ enum PlaceID: String, Codable, Hashable, CaseIterable {
     }
 }
 
-/// Average walking minutes between places (Terminal 3, airside, 3F–4F).
-enum WalkMatrix {
-    static func averageMinutes(_ a: PlaceID, _ b: PlaceID) -> Int {
-        if a == b { return 0 }
-        switch Set([a, b]) {
-        case [.start, .cafe]: return 0
-        case [.start, .anaLounge]: return 5
-        case [.start, .skyLounge]: return 8
-        case [.start, .gate]: return 12
-        case [.cafe, .anaLounge]: return 5
-        case [.cafe, .gate]: return 8
-        case [.anaLounge, .gate]: return 4
-        default: return 8 // SKY LOUNGE legs use its 8 min card estimate
-        }
+/// The timing inputs for a particular journey. A missing path is not an estimate.
+struct PlanningContext {
+    let planStart: ClockTime
+    let gateArrivalTarget: ClockTime
+    let gateCloses: ClockTime?
+    let timelineStart: ClockTime
+    let timelineMinutes: Int
+    let preferredArrivals: [PlaceID: ClockTime]
+    /// Minutes at the reference walking pace, or nil without coverage.
+    let averageWalkMinutes: (PlaceID, PlaceID) -> Int?
+
+    init(planStart: ClockTime, gateArrivalTarget: ClockTime, gateCloses: ClockTime?,
+         timelineStart: ClockTime? = nil, timelineMinutes: Int? = nil,
+         preferredArrivals: [PlaceID: ClockTime] = [:],
+         averageWalkMinutes: @escaping (PlaceID, PlaceID) -> Int?) {
+        self.planStart = planStart
+        self.gateArrivalTarget = gateArrivalTarget
+        self.gateCloses = gateCloses
+        self.timelineStart = timelineStart ?? planStart
+        self.timelineMinutes = min(1440, max(1, timelineMinutes ?? (gateCloses ?? gateArrivalTarget) - self.timelineStart))
+        self.preferredArrivals = preferredArrivals
+        self.averageWalkMinutes = averageWalkMinutes
     }
 
-    static func minutes(_ a: PlaceID, _ b: PlaceID, pace: WalkingPace) -> Int {
-        WalkingTimes.minutes(average: averageMinutes(a, b), pace: pace)
+    func walkMinutes(_ from: PlaceID, _ to: PlaceID, pace: WalkingPace) -> Int? {
+        if from == to { return 0 }
+        guard let average = averageWalkMinutes(from, to), (0...1440).contains(average) else { return nil }
+        return WalkingTimes.minutes(average: average, pace: pace)
     }
 }
 
@@ -113,7 +142,7 @@ struct PlanStop: Identifiable, Equatable, Codable {
     var visitMinutes: Int
     /// The wait came from a queue update rather than the usual estimate.
     var queueUpdated = false
-    /// Times the traveller chose on the Flight plan card; nil uses the defaults in `StopTimes`.
+    /// Times the traveller chose on the Flight plan card; nil leaves the start to the journey’s timing plan.
     var arrive: ClockTime?
     var leave: ClockTime?
 
@@ -152,7 +181,7 @@ struct Schedule: Equatable {
     let leave: ClockTime
     let walkToGate: Int
     let arriveAtGate: ClockTime
-    let gateCloses: ClockTime
+    let gateCloses: ClockTime?
 }
 
 struct QueueUpdate: Equatable, Codable {
@@ -168,10 +197,11 @@ struct PlanSuggestion: Equatable {
     let extraMinutes: Int
     let delayedStop: PlanStop
     let shortenedStop: PlanStop
+    let gateArrivalTarget: ClockTime
 
     var title: String { "Allow \(extraMinutes) more minutes for the \(delayedStop.shortName) queue" }
     var detail: String {
-        "Shorten \(shortenedStop.name) to \(shortenedStop.visitMinutes) min to still arrive by \(SampleJourney.gateArrivalTarget)."
+        "Shorten \(shortenedStop.name) to \(shortenedStop.visitMinutes) min to still arrive by \(gateArrivalTarget)."
     }
 }
 
@@ -181,25 +211,34 @@ enum PlanEngine {
     static func schedule(
         _ plan: Plan,
         pace: WalkingPace,
-        start: ClockTime = SampleJourney.planStart,
-        target: ClockTime = SampleJourney.gateArrivalTarget,
-        gateCloses: ClockTime = SampleJourney.outbound.gateCloses ?? SampleJourney.gateArrivalTarget,
+        context: PlanningContext,
         directWalk: Int? = nil,
         gateWalkAdjustment: Int = 0,
         notBefore: ClockTime? = nil
-    ) -> Schedule {
+    ) -> Schedule? {
+        let target = context.gateArrivalTarget
+        guard context.gateCloses.map({ target <= $0 }) ?? true,
+              plan.stops.allSatisfy({
+                  $0.id != .start && $0.id != .gate
+                    && (0...1440).contains($0.waitMinutes)
+                    && (0...1440).contains($0.plannedVisitMinutes)
+              }),
+              Set(plan.stops.map(\.id)).count == plan.stops.count else { return nil }
+        let start = context.planStart
         guard let first = plan.stops.first else {
-            let walk = directWalk ?? WalkMatrix.minutes(.start, .gate, pace: pace)
-            return Schedule(stops: [], leave: target - walk, walkToGate: walk, arriveAtGate: target, gateCloses: gateCloses)
+            guard let walk = directWalk ?? context.walkMinutes(.start, .gate, pace: pace),
+                  (0...1440).contains(walk) else { return nil }
+            return Schedule(stops: [], leave: target - walk, walkToGate: walk,
+                            arriveAtGate: target, gateCloses: context.gateCloses)
         }
-        let firstWalk = WalkMatrix.minutes(.start, first.id, pace: pace)
+        guard let firstWalk = context.walkMinutes(.start, first.id, pace: pace) else { return nil }
         let requestedStart = min(start, first.arrive.map { $0 - firstWalk } ?? start)
         var time = max(requestedStart, notBefore ?? requestedStart)
         var previousPlace = PlaceID.start
         var previousStop: PlanStop?
         var items: [ScheduledStop] = []
         for stop in plan.stops {
-            let walk = WalkMatrix.minutes(previousPlace, stop.id, pace: pace)
+            guard let walk = context.walkMinutes(previousPlace, stop.id, pace: pace) else { return nil }
             time = max(time + walk, stop.arrive ?? time)
             let item = ScheduledStop(stop: stop, walkFromPrevious: walk, previous: previousStop, start: time)
             items.append(item)
@@ -207,14 +246,16 @@ enum PlanEngine {
             previousPlace = stop.id
             previousStop = stop
         }
-        let walk = max(1, WalkMatrix.minutes(previousPlace, .gate, pace: pace) + gateWalkAdjustment)
-        return Schedule(stops: items, leave: time, walkToGate: walk, arriveAtGate: time + walk, gateCloses: gateCloses)
+        guard let lastWalk = context.walkMinutes(previousPlace, .gate, pace: pace) else { return nil }
+        let walk = max(1, lastWalk + gateWalkAdjustment)
+        return Schedule(stops: items, leave: time, walkToGate: walk, arriveAtGate: time + walk, gateCloses: context.gateCloses)
     }
 
     /// Applies a queue update to a stop's wait without changing anything else.
     static func applying(_ update: QueueUpdate, to plan: Plan) -> Plan {
         var plan = plan
-        guard let index = plan.index(of: update.stopID) else { return plan }
+        guard (0...1440).contains(update.waitMinutes),
+              let index = plan.index(of: update.stopID) else { return plan }
         plan.stops[index].visitMinutes = plan.stops[index].plannedVisitMinutes
         plan.stops[index].leave = nil
         plan.stops[index].waitMinutes = update.waitMinutes
@@ -226,14 +267,17 @@ enum PlanEngine {
     /// proposes shortening a later stop in the selected plan. Returns nil when no change is needed
     /// or no later stop can absorb the delay.
     static func suggestion(
-        for plan: Plan, update: QueueUpdate, pace: WalkingPace,
+        for plan: Plan, update: QueueUpdate, pace: WalkingPace, context: PlanningContext,
         gateWalkAdjustment: Int = 0, notBefore: ClockTime? = nil
     ) -> PlanSuggestion? {
-        guard let index = plan.index(of: update.stopID) else { return nil }
+        guard (0...1440).contains(update.waitMinutes),
+              let index = plan.index(of: update.stopID) else { return nil }
         let extra = update.waitMinutes - plan.stops[index].waitMinutes
         guard extra > 0 else { return nil }
         let updated = applying(update, to: plan)
-        let overrun = schedule(updated, pace: pace, gateWalkAdjustment: gateWalkAdjustment, notBefore: notBefore).arriveAtGate - SampleJourney.gateArrivalTarget
+        guard let updatedSchedule = schedule(updated, pace: pace, context: context,
+                                             gateWalkAdjustment: gateWalkAdjustment, notBefore: notBefore) else { return nil }
+        let overrun = updatedSchedule.arriveAtGate - context.gateArrivalTarget
         guard overrun > 0 else { return nil }
         for candidate in plan.stops.indices.reversed() where candidate > index {
             let shortened = updated.stops[candidate].plannedVisitMinutes - overrun
@@ -241,14 +285,17 @@ enum PlanEngine {
             var proposed = updated
             proposed.stops[candidate].visitMinutes = shortened
             proposed.stops[candidate].leave = nil
-            guard schedule(proposed, pace: pace, gateWalkAdjustment: gateWalkAdjustment, notBefore: notBefore).arriveAtGate <= SampleJourney.gateArrivalTarget else { continue }
+            guard let revised = schedule(proposed, pace: pace, context: context,
+                                         gateWalkAdjustment: gateWalkAdjustment, notBefore: notBefore),
+                  revised.arriveAtGate <= context.gateArrivalTarget else { continue }
             return PlanSuggestion(
                 basePlan: plan,
                 update: update,
                 proposed: proposed,
                 extraMinutes: extra,
                 delayedStop: updated.stops[index],
-                shortenedStop: proposed.stops[candidate]
+                shortenedStop: proposed.stops[candidate],
+                gateArrivalTarget: context.gateArrivalTarget
             )
         }
         return nil
@@ -261,37 +308,23 @@ enum PlanEngine {
 /// latest time that still reaches the gate by the arrival target.
 enum StopTimes {
     static let step = 15
-    /// The plan strip starts here; nothing is scheduled earlier.
-    static let earliest = ClockTime(15, 0)
-
-    static func defaultArrive(_ id: PlaceID) -> ClockTime {
-        switch id {
-        case .anaLounge: ClockTime(16, 30)
-        case .skyLounge: ClockTime(15, 30)
-        case .bento: ClockTime(16, 15)
-        case .udon: ClockTime(15, 45)
-        case .sushi: ClockTime(15, 15)
-        default: ClockTime(16, 0)
-        }
-    }
-
-    static func arrive(_ stop: PlanStop) -> ClockTime { stop.arrive ?? defaultArrive(stop.id) }
+    private static let gridOrigin = ClockTime(minutes: 0)
 
     /// The previous point on the 15-minute grid strictly before `time`.
     static func stepBefore(_ time: ClockTime) -> ClockTime {
-        let offset = time - earliest
+        let offset = time - gridOrigin
         let steps = offset > 0 ? (offset - 1) / step : (offset - step) / step
-        return earliest + steps * step
+        return gridOrigin + steps * step
     }
 
     /// The next point on the 15-minute grid strictly after `time`.
     static func stepAfter(_ time: ClockTime) -> ClockTime {
-        let offset = time - earliest
+        let offset = time - gridOrigin
         let steps = offset >= 0 ? offset / step + 1 : -((-offset - 1) / step)
-        return earliest + steps * step
+        return gridOrigin + steps * step
     }
 
-    static func earlierArrive(_ arrive: ClockTime, earliestAllowed: ClockTime = earliest) -> ClockTime? {
+    static func earlierArrive(_ arrive: ClockTime, earliestAllowed: ClockTime) -> ClockTime? {
         guard earliestAllowed < arrive else { return nil }
         return max(stepBefore(arrive), earliestAllowed)
     }
@@ -330,7 +363,7 @@ enum PlanText {
     static func walk(_ item: ScheduledStop) -> String? {
         guard item.walkFromPrevious > 0 else { return nil }
         guard let previous = item.previous else { return "\(item.walkFromPrevious) min walk" }
-        let from = previous.id == .cafe ? "the café" : previous.name
+        let from = previous.shortName == "café" ? "the café" : previous.name
         return "\(item.walkFromPrevious) min walk from \(from)"
     }
 
@@ -339,7 +372,7 @@ enum PlanText {
     }
 
     static func arrivalDetail(_ schedule: Schedule) -> String {
-        let closes = "Gate closes at \(schedule.gateCloses)."
+        let closes = schedule.gateCloses.map { "Gate closes at \($0)." } ?? "Gate closing time unavailable."
         guard let last = schedule.stops.last else { return closes }
         return "Leave \(last.stop.name) at \(schedule.leave). \(closes)"
     }
