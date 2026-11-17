@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker, { backendTesting, resetProviderStateForTesting } from "../src/index.js";
+import worker, { airportFacilities, backendTesting, resetProviderStateForTesting } from "../src/index.js";
 
 const ORIGIN = "https://airportxr-proxy.example";
 
@@ -122,7 +122,7 @@ test("Cloudflare Access mode cryptographically accepts a valid RS256 assertion",
       CF_ACCESS_AUD: fixture.audience
     });
     assert.equal(response.status, 200);
-    assert.equal((await responseBody(response)).version, "provider-policy-2026-11-17-v4");
+    assert.equal((await responseBody(response)).version, "provider-policy-2026-11-17-v5");
   });
 });
 
@@ -589,7 +589,7 @@ test("provider-policy endpoint is versioned and denies all current commercial tr
   const response = await worker.fetch(request("/v1/provider-policies"), developmentEnv());
   assert.equal(response.status, 200);
   const body = await responseBody(response);
-  assert.equal(body.version, "provider-policy-2026-11-17-v4");
+  assert.equal(body.version, "provider-policy-2026-11-17-v5");
   assert.ok(body.policies.flightaware);
   assert.ok(body.policies.amadeusFlights);
   assert.ok(body.policies.sherpa);
@@ -622,7 +622,7 @@ test("normalized live response carries complete provider-policy metadata", async
     const body = await responseBody(response);
     assert.equal(body.flights[0].providerRecordID, "FA-AX204-20260714");
     assert.equal(body.source.providerPolicy, "flightaware");
-    assert.equal(body.source.providerPolicyVersion, "provider-policy-2026-11-17-v4");
+    assert.equal(body.source.providerPolicyVersion, "provider-policy-2026-11-17-v5");
     assert.equal(body.source.trainingAllowed, false);
     assert.deepEqual(body.source.trainingPurposes, []);
   });
@@ -846,4 +846,37 @@ test("Google Tasks fails before mutation when an idempotency scan exceeds its bo
     assert.deepEqual(await responseBody(response), { error: "google_task_list_too_large_for_safe_sync" });
   });
   assert.equal(calls, 20);
+});
+
+test("facility selection is airport-keyed and returns no demo records for unsupported destinations", async () => {
+  const known = await worker.fetch(request("/v1/facilities/airports/hnd"), developmentEnv());
+  const unknown = await worker.fetch(request("/v1/facilities/airports/SEA"), developmentEnv());
+  const health = await responseBody(await worker.fetch(request("/health"), developmentEnv()));
+  const haneda = await responseBody(known);
+  const seattle = await responseBody(unknown);
+  assert.equal(haneda.availability, "officialRecordsIndexed");
+  assert.ok(haneda.facilities.length > 0);
+  assert.ok(haneda.facilities.every(facility => facility.airportCode === "HND"));
+  assert.equal(seattle.airportCode, "SEA");
+  assert.equal(seattle.availability, "registryUnavailable");
+  assert.deepEqual(seattle.facilities, []);
+  assert.equal(seattle.registryVersion, undefined);
+  assert.equal(seattle.source.dataMode, "publicRegistry");
+  assert.equal(known.headers.get("cache-control"), "public, max-age=86400, stale-while-revalidate=86400");
+  assert.ok(health.facilityRegistryAirports.includes("HND"));
+  assert.ok(!health.facilityRegistryAirports.includes("SEA"));
+  assert.equal(airportFacilities(undefined).status, 400);
+});
+
+test("an added airport directory is served without changing the airport selector", async () => {
+  const facility = { id: "sea-test", airportCode: "SEA", name: "Synthetic test facility" };
+  const mismatched = { id: "hnd-mismatched", airportCode: "HND", name: "Do not return" };
+  const source = { SEA: { version: "fixture-v1", provider: "Test fixture", facilities: [facility, mismatched] } };
+  const response = await responseBody(airportFacilities("sea", source));
+  assert.deepEqual(response.facilities, [facility]);
+  assert.equal(response.registryVersion, "fixture-v1");
+  assert.equal(response.source.provider, "Test fixture");
+  const noFallback = await responseBody(airportFacilities("HND", source));
+  assert.equal(noFallback.availability, "registryUnavailable");
+  assert.deepEqual(noFallback.facilities, []);
 });
