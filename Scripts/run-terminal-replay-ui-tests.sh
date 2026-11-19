@@ -23,7 +23,7 @@ start_driver() {
   python3 "$root_dir/Scripts/indoor-signal-emulator.py" "$@" \
     --paused --no-loop --port 0 >"$log_file" 2>&1 &
   driver_pids+=("$!")
-  for _ in {1..60}; do
+  for _ in {1..900}; do
     port=$(sed -n 's/^Indoor signal emulator: http:\/\/127\.0\.0\.1:\([0-9][0-9]*\)\/reading$/\1/p' "$log_file" | head -n 1)
     if [[ -n "$port" ]] && curl -fsS "http://127.0.0.1:$port/status" >/dev/null; then
       export "$variable=$port"
@@ -51,10 +51,11 @@ start_driver TEST_RUNNER_OFFICIAL_WALK_PORT haneda-105 --trace "$fixtures/haneda
 start_driver TEST_RUNNER_OFFICIAL_WALK_108A_PORT haneda-108a --trace "$fixtures/haneda-gate-108a-walk.json"
 
 airport_log="$driver_logs/airport-provider.log"
+: >"$airport_log"
 python3 "$root_dir/Scripts/airport-provider-driver.py" --offline-map --port 0 >"$airport_log" 2>&1 &
 driver_pids+=("$!")
 airport_port=""
-for _ in {1..60}; do
+for _ in {1..900}; do
   airport_port=$(sed -n 's|^Airport provider replay: http://127.0.0.1:\([0-9][0-9]*\)/v1/assignment$|\1|p' "$airport_log" | head -n 1)
   if [[ -n "$airport_port" ]] && curl -fsS "http://127.0.0.1:$airport_port/v1/assignment" >/dev/null; then
     export TEST_RUNNER_AIRPORT_PROVIDER_PORT="$airport_port"

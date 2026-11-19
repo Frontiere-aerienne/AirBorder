@@ -53,7 +53,9 @@ class WalkSession:
         child = subprocess.Popen([sys.executable, str(ROOT / "Scripts" / script),
                                   *arguments, "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
         self.processes.append(child)
-        deadline = time.monotonic() + 12
+        # Cold Python imports on a hosted Mac can exceed a few seconds. Poll
+        # readiness, with a bound, instead of assuming a local startup speed.
+        deadline = time.monotonic() + 45
         while time.monotonic() < deadline:
             if child.poll() is not None:
                 raise RuntimeError(f"{name.title()} driver stopped. Details: {path}")
@@ -62,7 +64,8 @@ class WalkSession:
                 request(match[1], health)
                 return match[1]
             time.sleep(0.05)
-        raise RuntimeError(f"{name.title()} driver did not become ready. Details: {path}")
+        tail = path.read_text()[-2000:]
+        raise RuntimeError(f"{name.title()} driver did not become ready. Details: {path}\n{tail}")
 
     def close(self):
         for child in self.processes:
