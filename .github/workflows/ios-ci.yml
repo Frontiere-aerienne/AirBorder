@@ -32,6 +32,11 @@ jobs:
       - name: Xcode version
         run: xcodebuild -version
 
+      - name: Independent driver tests
+        run: |
+          python3 -m unittest discover -s Scripts/tests -p 'test_*.py'
+          python3 Scripts/haneda-walk.py --check-drivers
+
       - name: Select and boot available iOS simulator
         run: python3 Scripts/select-ci-simulator.py
 
@@ -73,6 +78,9 @@ jobs:
             -derivedDataPath "$DERIVED_DATA" \
             CODE_SIGNING_ALLOWED=NO \
             test -only-testing:AirportXRCompanionUITests
+
+      - name: Terminal replay UI test
+        run: ./Scripts/run-terminal-replay-ui-tests.sh
 
       - name: Upload test results
         if: always()

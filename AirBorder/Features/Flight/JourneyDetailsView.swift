@@ -10,6 +10,7 @@ struct JourneyDetailsView: View {
     @State private var flightOneOpen = false
 
     var body: some View {
+        let gateAction: (() -> Void)? = store.canOpenGateMap ? { store.openGateMap() } : nil
         ScrollView {
             VStack(spacing: 16) {
                 HStack {
@@ -42,7 +43,8 @@ struct JourneyDetailsView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("flightTwo")
                 } else {
-                    TicketCard(flight: store.outbound, status: store.flightStatus, gate: store.gate)
+                    TicketCard(flight: store.outbound, status: store.flightStatus, gate: store.gate,
+                               openGateMap: gateAction)
                 }
                 Color.clear.frame(height: 24)
                 CTAButton(title: "Baggage for this flight", height: 52, fullWidth: false) {

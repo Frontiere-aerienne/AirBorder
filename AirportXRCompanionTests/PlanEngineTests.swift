@@ -1,7 +1,449 @@
 // PROCEDURAL: Verifies timing and journey state with controlled inputs.
 
 @testable import AirBorder
+import RealityKit
 import XCTest
+
+final class TerminalReplayStateTests: XCTestCase {
+    private func reading(point: TerminalReading.Point? = .init(x: 0.46, y: 0.72), level: Int? = 3,
+                         confirmed: Bool = true, node: String? = "t3-elevator-north",
+                         source: String = "externalSignalReplay") -> TerminalReading {
+        TerminalReading(point: point, level: level, floorConfirmed: confirmed, matchedNodeID: node, source: source)
+    }
+
+    func testUnconfirmedFloorRetainsTheLastConfirmedThreeFloorPositionAndHoldsControls() {
+        var state = TerminalReplayState()
+        let threeFloor = reading()
+        state.receive(threeFloor)
+        state.receive(reading(point: .init(x: 0.65, y: 0.55), level: 4, confirmed: false,
+                              node: "t3-gates-center"))
+
+        XCTAssertEqual(state.confirmed, threeFloor)
+        XCTAssertTrue(state.awaitingFloor)
+        XCTAssertTrue(state.hasConnection)
+    }
+
+    func testConfirmedFourFloorReadingsAdvanceTheVisiblePoseWithoutChangingTheRouteStep() {
+        var state = TerminalReplayState()
+        let firstFourFloor = reading(point: .init(x: 0.65, y: 0.55), level: 4, node: "t3-gates-center")
+        let secondFourFloor = reading(point: .init(x: 0.74, y: 0.48), level: 4, node: "t3-gates-center")
+
+        state.receive(firstFourFloor)
+        state.receive(secondFourFloor)
+
+        XCTAssertEqual(state.confirmed, secondFourFloor)
+        XCTAssertFalse(state.awaitingFloor)
+        XCTAssertTrue(state.hasConnection)
+    }
+
+    func testUnsupportedOrWrongSourceReadingsCannotReplaceConfirmedPosition() {
+        var state = TerminalReplayState()
+        let accepted = reading()
+        state.receive(accepted)
+        state.receive(reading(node: "gate-105", source: "untrusted"))
+        state.receive(reading(level: 4, node: "not-a-route-node"))
+
+        XCTAssertEqual(state.confirmed, accepted)
+        XCTAssertFalse(state.awaitingFloor)
+    }
+
+    func testDeckReplayRequiresClearanceEvenWhenFloorAndCoordinatesMatch() {
+        var state = TerminalReplayState(route: .observationDeck)
+        let checkpoint = reading(level: 3, node: "t3-return-security")
+        var airside = reading(level: 3, node: "t3-after-security")
+        state.receive(checkpoint)
+        state.receive(airside)
+        XCTAssertEqual(state.confirmed, checkpoint)
+        XCTAssertTrue(state.awaitingCheckpoint)
+        airside.clearanceConfirmed = true
+        state.receive(airside)
+        XCTAssertEqual(state.confirmed, airside)
+        XCTAssertFalse(state.awaitingCheckpoint)
+        state.receive(checkpoint)
+        XCTAssertEqual(state.confirmed?.landmark?.location, "T3 · 3F · Landside")
+    }
+
+    func testQueueWaitIsIndependentOfPedestriansAndEndsAfterClearance() {
+        var state = TerminalReplayState(route: .observationDeck)
+        var checkpoint = reading(level: 3, node: "t3-return-security")
+        let walker = DriverPedestrian(id: 0, x: 0.6, z: -4, headingDegrees: 0, stride: 0)
+        checkpoint.securityQueue = .init(additionalWaitMinutes: 0, pedestrians: [walker])
+        state.receive(checkpoint)
+        let position = state.confirmed
+        XCTAssertEqual(state.securityQueue?.additionalWaitMinutes, 0)
+        XCTAssertEqual(state.securityQueue?.scenePedestrians.count, 1)
+
+        checkpoint.securityQueue = .init(additionalWaitMinutes: 12, pedestrians: [])
+        state.receive(checkpoint)
+        XCTAssertEqual(state.securityQueue?.additionalWaitMinutes, 12, "The wait comes from the report")
+        XCTAssertEqual(state.confirmed, position)
+        XCTAssertEqual(state.guidance.instruction, "Go through security")
+
+        var airside = reading(level: 3, node: "t3-after-security")
+        airside.securityQueue = checkpoint.securityQueue
+        state.receive(airside)
+        XCTAssertEqual(state.securityQueue?.additionalWaitMinutes, 12)
+        XCTAssertTrue(state.awaitingCheckpoint)
+        airside.clearanceConfirmed = true
+        state.receive(airside)
+        XCTAssertNil(state.securityQueue, "A live report remains irrelevant once screening is complete")
+        XCTAssertEqual(state.guidance.instruction, "Gate 105 ahead")
+
+        var direct = TerminalReplayState()
+        var gateReading = reading()
+        gateReading.securityQueue = checkpoint.securityQueue
+        direct.receive(gateReading)
+        XCTAssertNil(direct.securityQueue)
+    }
+
+    func testFacilityQueuesFollowTheirRouteAndConfirmedCheckpoint() {
+        let reports = [
+            DriverFacilityQueue(kind: .lounge, additionalWaitMinutes: 8, pedestrians: []),
+            DriverFacilityQueue(kind: .immigration, additionalWaitMinutes: 18, pedestrians: []),
+            DriverFacilityQueue(kind: .customs, additionalWaitMinutes: 6, pedestrians: [])
+        ]
+        func observation(_ node: String, level: Int, clearance: Bool? = nil) -> TerminalReading {
+            var result = reading(level: level, node: node)
+            result.clearanceConfirmed = clearance
+            result.facilityQueues = reports
+            return result
+        }
+
+        var lounge = TerminalReplayState(route: .lounge)
+        lounge.receive(observation("t3-lounge-entrance", level: 4))
+        XCTAssertEqual(lounge.facilityQueue?.kind, .lounge)
+        XCTAssertEqual(lounge.facilityQueue?.additionalWaitMinutes, 8)
+        XCTAssertFalse(lounge.cameraRestricted)
+        lounge.receive(observation("gate-105", level: 4))
+        XCTAssertNil(lounge.facilityQueue)
+        XCTAssertFalse(lounge.cameraRestricted)
+
+        var unrelated = TerminalReplayState(route: .gate)
+        unrelated.receive(observation("t3-lounge-entrance", level: 4))
+        XCTAssertNil(unrelated.facilityQueue)
+        unrelated.receive(observation("gate-105", level: 4))
+        XCTAssertNil(unrelated.facilityQueue)
+
+        var arrivals = TerminalReplayState(route: .arrivals)
+        arrivals.receive(observation("t3-arrivals-immigration", level: 2))
+        XCTAssertTrue(arrivals.cameraRestricted)
+        XCTAssertEqual(arrivals.facilityQueue?.kind, .immigration)
+        XCTAssertEqual(arrivals.facilityQueue?.additionalWaitMinutes, 18)
+        arrivals.receive(observation("t3-arrivals-baggage", level: 2, clearance: false))
+        XCTAssertTrue(arrivals.awaitingCheckpoint)
+        XCTAssertTrue(arrivals.cameraRestricted)
+        XCTAssertEqual(arrivals.confirmed?.landmark, .immigration)
+        XCTAssertEqual(arrivals.facilityQueue?.additionalWaitMinutes, 18)
+        arrivals.receive(observation("t3-arrivals-baggage", level: 2, clearance: true))
+        XCTAssertFalse(arrivals.awaitingCheckpoint)
+        XCTAssertTrue(arrivals.cameraRestricted)
+        XCTAssertNil(arrivals.facilityQueue)
+        arrivals.receive(observation("t3-arrivals-customs", level: 2))
+        XCTAssertTrue(arrivals.cameraRestricted)
+        XCTAssertEqual(arrivals.facilityQueue?.kind, .customs)
+        XCTAssertEqual(arrivals.facilityQueue?.additionalWaitMinutes, 6)
+        arrivals.receive(observation("t3-arrivals-exit", level: 2, clearance: false))
+        XCTAssertTrue(arrivals.awaitingCheckpoint)
+        XCTAssertTrue(arrivals.cameraRestricted)
+        XCTAssertEqual(arrivals.confirmed?.landmark, .customs)
+        XCTAssertEqual(arrivals.facilityQueue?.additionalWaitMinutes, 6)
+        arrivals.receive(observation("t3-arrivals-exit", level: 2, clearance: true))
+        XCTAssertFalse(arrivals.awaitingCheckpoint)
+        XCTAssertFalse(arrivals.cameraRestricted)
+        XCTAssertNil(arrivals.facilityQueue)
+    }
+
+    func testCameraRestrictionEndsOnlyAfterSecurityClearance() {
+        var state = TerminalReplayState(route: .observationDeck)
+        state.receive(reading(level: 3, node: "t3-return-security"))
+        XCTAssertTrue(state.cameraRestricted)
+        var airside = reading(level: 3, node: "t3-after-security")
+        airside.clearanceConfirmed = false
+        state.receive(airside)
+        XCTAssertTrue(state.awaitingCheckpoint)
+        XCTAssertTrue(state.cameraRestricted)
+        airside.clearanceConfirmed = true
+        state.receive(airside)
+        XCTAssertFalse(state.awaitingCheckpoint)
+        XCTAssertFalse(state.cameraRestricted)
+    }
+
+    func testFacilityQueueRejectsInvalidOrAmbiguousReports() {
+        var state = TerminalReplayState(route: .lounge)
+        var entrance = reading(level: 4, node: "t3-lounge-entrance")
+        entrance.facilityQueues = [.init(kind: .lounge, additionalWaitMinutes: -1, pedestrians: [])]
+        state.receive(entrance)
+        XCTAssertNil(state.facilityQueue)
+        entrance.facilityQueues = [.init(kind: .lounge, additionalWaitMinutes: 8, pedestrians: []),
+                                   .init(kind: .lounge, additionalWaitMinutes: 9, pedestrians: [])]
+        state.receive(entrance)
+        XCTAssertNil(state.facilityQueue)
+    }
+
+    func testFullShuttleOnlyHoldsThatBoardingStep() {
+        var deck = TerminalReplayState(route: .observationDeck)
+        var atStop = reading(level: 1, node: "t3-shuttle-stop-0")
+        atStop.shuttleFull = true
+        deck.receive(atStop)
+        XCTAssertTrue(deck.awaitingShuttle)
+        var boarding = reading(level: 1, node: "shuttle-to-t2")
+        boarding.shuttleFull = true
+        deck.receive(boarding)
+        XCTAssertEqual(deck.confirmed, atStop)
+        boarding.shuttleFull = false
+        deck.receive(boarding)
+        XCTAssertEqual(deck.confirmed, boarding)
+        XCTAssertFalse(deck.awaitingShuttle)
+
+        var gateRoute = TerminalReplayState()
+        var gateReading = reading()
+        gateReading.shuttleFull = true
+        gateRoute.receive(gateReading)
+        XCTAssertEqual(gateRoute.confirmed, gateReading)
+        XCTAssertFalse(gateRoute.awaitingShuttle)
+    }
+
+    func testLiftOutageKeepsTheLastConfirmedPosition() {
+        var state = TerminalReplayState()
+        var lift = reading()
+        lift.liftAvailable = false
+        state.receive(lift)
+        XCTAssertTrue(state.awaitingLift)
+        var upper = reading(level: 4, node: "t3-gates-center")
+        upper.liftAvailable = false
+        state.receive(upper)
+        XCTAssertEqual(state.confirmed, lift)
+        upper.liftAvailable = true
+        state.receive(upper)
+        XCTAssertEqual(state.confirmed, upper)
+        XCTAssertFalse(state.awaitingLift)
+    }
+
+    func testOfficialWalkRejectsOldAndConflictingReadingsAndKeepsItsPosition() {
+        let frame = "hnd-t3-3f-gate-wing"
+        let start = TerminalReading.Point(x: 0.2, y: 0.5)
+        let end = TerminalReading.Point(x: 0.3, y: 0.5)
+        let path = OfficialGateWalkPath(frameID: frame, destination: "t3-departure-gate-108a",
+                                        points: [start, end], revision: 1)
+        var walk = OfficialGateWalkState(path: path)
+        var first = reading(point: start)
+        first.mapFrameID = frame
+        first.sequence = 4
+        first.routeRevision = 1
+        walk.receive(first)
+        XCTAssertEqual(walk.index, 0)
+        XCTAssertTrue(walk.positionAvailable)
+        var conflict = TerminalReading(point: end, level: 3, floorConfirmed: true, matchedNodeID: nil,
+                                   source: "externalSignalReplay", mapFrameID: frame, sequence: 4, routeRevision: 1)
+        walk.receive(conflict)
+        XCTAssertFalse(walk.positionAvailable)
+        XCTAssertEqual(walk.confirmed, first)
+        conflict.sequence = 5
+        walk.receive(conflict)
+        XCTAssertTrue(walk.atGate)
+        walk.receive(first)
+        XCTAssertFalse(walk.positionAvailable)
+        XCTAssertEqual(walk.confirmed, conflict)
+        XCTAssertFalse(walk.atGate)
+    }
+
+    func testCafeLandmarkIssueHoldsAtTheLastPositionAndAcceptsTheNextConfirmedReading() {
+        let frame = OfficialGateWalkPath.cafeConcourse
+        let start = TerminalReading.Point(x: 0.03, y: 0.5)
+        let cafe = TerminalReading.Point(x: 0.07, y: 0.5)
+        let path = OfficialGateWalkPath(frameID: frame, destination: "t3-departure-gate-105",
+                                        points: [start, cafe], revision: 1, cafePending: true)
+        var walk = OfficialGateWalkState(path: path)
+        var entrance = reading(point: cafe)
+        entrance.mapFrameID = frame
+        entrance.sequence = 8
+        entrance.routeRevision = 1
+        walk.receive(entrance)
+        XCTAssertTrue(walk.atCafe)
+        XCTAssertFalse(walk.atGate)
+
+        let wrong = TerminalReading(point: start, level: 3, floorConfirmed: true, matchedNodeID: "wrong-concourse",
+                                    source: "externalSignalReplay", mapFrameID: frame, sequence: 9,
+                                    routeRevision: 1, landmarkToken: 9)
+        walk.receive(wrong)
+        XCTAssertEqual(walk.confirmed?.point, cafe)
+        XCTAssertEqual(walk.landmarkToken, 9)
+        XCTAssertFalse(walk.atCafe)
+
+        entrance.sequence = 10
+        walk.receive(entrance)
+        XCTAssertTrue(walk.atCafe)
+        XCTAssertNil(walk.landmarkToken)
+    }
+
+    func testCafeConcourseRerouteKeepsTheLastConfirmedCoordinateAndHeading() {
+        let frame = OfficialGateWalkPath.cafeConcourse
+        let point = TerminalReading.Point(x: 0.78, y: 0.5)
+        let path105 = OfficialGateWalkPath(frameID: frame, destination: "t3-departure-gate-105",
+                                           points: [point, .init(x: 0.95, y: 0.5)], revision: 1)
+        var original = OfficialGateWalkState(path: path105)
+        var pose = reading(point: point)
+        pose.mapFrameID = frame
+        pose.sequence = 20
+        pose.routeRevision = 1
+        pose.headingDegrees = 90
+        original.receive(pose)
+        let path108A = OfficialGateWalkPath(frameID: frame, destination: "t3-departure-gate-108a",
+                                            points: [point, .init(x: 0.64, y: 0.5)], revision: 2)
+        var updated = OfficialGateWalkState(path: path108A, retaining: original)
+        XCTAssertEqual(updated.guidance(gate: "108A").position, pose)
+        pose.sequence = 21
+        pose.routeRevision = 2
+        updated.receive(pose)
+        XCTAssertEqual(updated.guidance(gate: "108A").position?.point, original.confirmed?.point)
+        XCTAssertEqual(updated.guidance(gate: "108A").position?.headingDegrees, original.confirmed?.headingDegrees)
+        XCTAssertTrue(updated.shouldTurnBack)
+    }
+
+    func testCrowdDelayUsesOnlyTheRemainingOverlapWithTheReportedStrip() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let stripStart = TerminalReading.Point(x: 0.2, y: 0.5)
+        let stripEnd = TerminalReading.Point(x: 0.4, y: 0.5)
+        let report = OfficialGateWalkPath.CrowdReport(start: stripStart, end: stripEnd,
+                                                     reportedAt: now.timeIntervalSince1970, delayMinutes: 3)
+        let direct: [TerminalReading.Point] = [.init(x: 0.1, y: 0.5), .init(x: 0.3, y: 0.5),
+                                               .init(x: 0.5, y: 0.5), .init(x: 0.7, y: 0.5)]
+        let overlap = try XCTUnwrap(WalkCrowdImpact(report: report, remaining: direct[...], now: now))
+        XCTAssertEqual(overlap.delayMinutes, 3, "The estimate applies once across the whole strip")
+        XCTAssertEqual(overlap.segments.first?.start, stripStart)
+        XCTAssertEqual(overlap.segments.last?.end, stripEnd)
+        XCTAssertEqual(WalkCrowdImpact(report: report, remaining: direct[1...], now: now)?.segments.first?.start, direct[1])
+        XCTAssertNil(WalkCrowdImpact(report: report, remaining: direct[2...], now: now))
+
+        let bypass: [TerminalReading.Point] = [direct[0], stripStart, .init(x: 0.2, y: 0.44),
+                                               .init(x: 0.4, y: 0.44), stripEnd, direct[3]]
+        XCTAssertNil(WalkCrowdImpact(report: report, remaining: bypass[...], now: now))
+        let expired = try XCTUnwrap(WalkCrowdImpact(report: report, remaining: direct[...], now: now + 300))
+        XCTAssertNil(expired.delayMinutes)
+        XCTAssertNil(WalkCrowdImpact(report: report, remaining: bypass[...], now: now + 300))
+    }
+
+    func testBlockedJunctionUsesFacingDirectionAndRetainsTheAcceptedPose() {
+        let frame = OfficialGateWalkPath.gateWing
+        let west = TerminalReading.Point(x: 0.2, y: 0.5)
+        let east = TerminalReading.Point(x: 0.4, y: 0.5)
+        let north = TerminalReading.Point(x: 0.2, y: 0.44)
+        let junction = OfficialGateWalkPath.Junction(start: west, end: east)
+        let direct = OfficialGateWalkPath(frameID: frame, destination: "t3-departure-gate-105",
+                                         points: [west, east], revision: 1, junction: junction)
+        var before = OfficialGateWalkState(path: direct)
+        var pose = reading(point: west)
+        pose.mapFrameID = frame
+        pose.sequence = 4
+        pose.routeRevision = 1
+        pose.headingDegrees = 90
+        before.receive(pose)
+
+        let blocked = OfficialGateWalkPath(frameID: frame, destination: direct.destination,
+                                          points: [west, north, east], revision: 2, junction: junction, closure: .detour)
+        var after = OfficialGateWalkState(path: blocked, retaining: before)
+        pose.routeRevision = 2
+        pose.sequence = 5
+        after.receive(pose)
+        XCTAssertTrue(after.showsClosure)
+        XCTAssertEqual(after.guidance(gate: "105").turn, .left)
+        XCTAssertEqual(after.guidance(gate: "105").instruction, "Turn left onto the side passage")
+        XCTAssertEqual(after.confirmed?.point, before.confirmed?.point)
+        XCTAssertEqual(after.confirmed?.headingDegrees, before.confirmed?.headingDegrees)
+
+        pose.headingDegrees = -90
+        pose.sequence = 6
+        after.receive(pose)
+        XCTAssertEqual(after.guidance(gate: "105").turn, .right)
+    }
+
+    func testSidePassageRenderKeepsTheEntryThenSeparatesTheTwoAisles() {
+        let west = GateWingSidePassage.west
+        let east = GateWingSidePassage.east
+        let middle = (west + east) / 2
+        let entry = HanedaReplayScene.gateWing.cameraPose(.init(x: west, y: 0.5), headingDegrees: 90)
+        let turning = HanedaReplayScene.gateWing.cameraPose(.init(x: west, y: 0.47), headingDegrees: 45)
+        let side = HanedaReplayScene.gateWing.cameraPose(.init(x: middle, y: 0.44), headingDegrees: 90)
+        let main = HanedaReplayScene.gateWing.cameraPose(.init(x: middle, y: 0.5), headingDegrees: 90)
+        XCTAssertEqual(entry.translation.x, 0, accuracy: 0.001)
+        XCTAssertEqual(entry.translation.z, turning.translation.z, accuracy: 0.001)
+        XCTAssertNotEqual(entry.rotation.vector, turning.rotation.vector)
+        XCTAssertGreaterThan(main.translation.x - GateWingSidePassage.dividerX, 0.5)
+        XCTAssertGreaterThan(GateWingSidePassage.dividerX - side.translation.x, 1)
+        XCTAssertLessThan(side.translation.z, entry.translation.z)
+        XCTAssertEqual(GateWingSidePassage.depth(0.85), 3 - 0.85 * 20, accuracy: 0.001)
+    }
+
+    func testVoiceFollowUpReadsTheNewGateAndPreservesAnUncertainPosition() {
+        var voice = RouteVoiceConversation()
+        let initial = RouteVoiceConversation.Guidance(gate: "105", instruction: "Follow the concourse")
+        let change = RouteVoiceConversation.Guidance(gate: "108A", instruction: "Position unavailable")
+        XCTAssertEqual(voice.answer("Which gate?", using: initial), "Gate 105.")
+        XCTAssertEqual(voice.answer("What about now?", using: change), "Gate 108A.")
+        XCTAssertEqual(voice.answer("What's next?", using: change), "Position unavailable")
+        XCTAssertEqual(voice.answer("Repeat that", using: change), "Position unavailable")
+        XCTAssertEqual(voice.answer("When is dinner?", using: change), "You can ask which gate, or what’s next.")
+    }
+
+    func testNewReplayUsesHeadingAndBothPositionAxes() {
+        let scene = HanedaReplayScene.deck
+        let first = scene.cameraPose(.init(x: 0.1, y: 0.4), headingDegrees: 0)
+        let second = scene.cameraPose(.init(x: 0.4, y: 0.6), headingDegrees: 35)
+        XCTAssertLessThan(second.translation.z, first.translation.z)
+        XCTAssertGreaterThan(second.translation.x, first.translation.x)
+        XCTAssertNotEqual(first.rotation.vector, second.rotation.vector)
+    }
+
+    @MainActor
+    func testHanedaReplayLoadsTheBoxedAssetsWithExpectedAxes() throws {
+        for name in ["ReplayShuttle", "ReplayCoach", "ReplayHanedaT2", "ReplayHanedaT3"] {
+            let url = try XCTUnwrap(Bundle.main.url(forResource: name, withExtension: "usdz"))
+            let model = try Entity.load(contentsOf: url)
+            let size = model.visualBounds(relativeTo: nil).extents
+            XCTAssertTrue(size.x > 0 && size.y > 0 && size.z > 0, name)
+            if name == "ReplayShuttle" || name == "ReplayCoach" {
+                // A bus stands on Y, with length along X and a smaller width along Z.
+                XCTAssertTrue(size.x > size.y && size.y > size.z, name)
+            }
+        }
+        _ = try XCTUnwrap(Bundle.main.url(forResource: "ReplayTerrazzo", withExtension: "jpg"))
+    }
+
+    @MainActor
+    func testRailReplayLoadsTrainAndTrackAndTurnsInPlace() throws {
+        for (name, length) in [("ReplayRailCar", Float(20.5)), ("ReplayRailTrack", Float(6))] {
+            let url = try XCTUnwrap(Bundle.main.url(forResource: name, withExtension: "usdz"))
+            let model = try Entity.load(contentsOf: url)
+            XCTAssertEqual(model.visualBounds(relativeTo: nil).extents.z, length, accuracy: 0.1)
+        }
+        let point = TerminalReading.Point(x: 0.82, y: 0.63)
+        let walking = HanedaReplayScene.railPlatform.cameraPose(point, headingDegrees: 13)
+        let turned = HanedaReplayScene.railPlatform.cameraPose(point, headingDegrees: 51)
+        XCTAssertEqual(walking.translation, turned.translation)
+        XCTAssertNotEqual(walking.rotation.vector, turned.rotation.vector)
+        XCTAssertTrue(TerminalReplayRoute.naritaRail.includes(.railDestination))
+        XCTAssertFalse(TerminalReplayRoute.narita.includes(.railDestination))
+        XCTAssertFalse(TerminalReplayRoute.observationDeck.includes(.railDestination))
+    }
+}
+
+final class LoungeDirectoryTests: XCTestCase {
+    func testHanedaTerminalThreeLoungesUseKnownGateWalks() {
+        let options = LoungeDirectory.options(for: SampleJourney.outbound, gate: "105", pace: .average)
+        XCTAssertEqual(options.map(\.id), [.anaLounge, .skyLounge])
+        XCTAssertEqual(options.map(\.walkToGate), [4, 8])
+    }
+
+    func testUnknownGateKeepsSameTerminalListingsWithoutInventingADistance() {
+        let options = LoungeDirectory.options(for: SampleJourney.outbound, gate: "108A", pace: .average)
+        XCTAssertEqual(options.map(\.id), [.anaLounge, .skyLounge])
+        XCTAssertTrue(options.allSatisfy { $0.walkToGate == nil })
+    }
+
+    func testHanedaLoungesAreExcludedForNaritaDeparture() {
+        XCTAssertTrue(LoungeDirectory.options(for: SampleJourney.naritaOutbound, gate: "", pace: .average).isEmpty)
+    }
+}
 
 final class PlanEngineTests: XCTestCase {
     private let both = Plan(stops: [.cafe, .anaLounge])
@@ -147,6 +589,81 @@ final class JourneyStoreTests: XCTestCase {
         store.add(.anaLounge)
         store.remove(.anaLounge)
         XCTAssertNil(store.suggestion)
+    }
+
+    func testDriverCafeOffersOnlyAPreservedPlanWithAnUpToDateWait() throws {
+        let store = makeStore()
+        XCTAssertNil(store.fittingCafe(waitMinutes: 8))
+        store.receiveDriverCafeWait(8)
+        let offer = try XCTUnwrap(store.fittingCafe(waitMinutes: 8))
+        XCTAssertEqual(offer.arrival.description, "16:36")
+        XCTAssertTrue(store.plan.stops.isEmpty)
+
+        store.receiveDriverCafeWait(nil)
+        XCTAssertNil(store.fittingCafe(waitMinutes: 8))
+
+        store.receiveDriverCafeWait(28)
+        store.add(.anaLounge)
+        XCTAssertNil(store.fittingCafe(waitMinutes: 8))
+        XCTAssertNil(store.fittingCafe(waitMinutes: 28), "Adding the café would extend the earlier commitment")
+        XCTAssertEqual(store.plan.stops.map(\.id), [.anaLounge])
+    }
+
+    func testDriverCafeUsesTheSameWaitInTheOfferedAndSavedPlan() throws {
+        let store = makeStore()
+        store.receiveDriverCafeWait(8)
+        let offer = try XCTUnwrap(store.fittingCafe(waitMinutes: 8))
+        store.add(offer.stop)
+        XCTAssertEqual(store.schedule.arriveAtGate, offer.arrival)
+        XCTAssertNil(store.fittingCafe(waitMinutes: 8))
+        store.receiveDriverCafeWait(28)
+        XCTAssertEqual(store.schedule.stops.first?.stop.waitMinutes, 28)
+        store.receiveDriverCafeWait(nil)
+        XCTAssertEqual(store.schedule.stops.first?.stop.waitMinutes, 28)
+        XCTAssertNil(store.suggestion)
+    }
+
+    func testExpiredCafeWaitCannotShortenAnExistingPlanAndFreshWaitRestoresOffer() throws {
+        let store = makeStore()
+        store.add(.cafe)
+        store.add(.anaLounge)
+        let originalPlan = store.plan
+
+        store.receiveDriverCafeWait(18)
+        XCTAssertEqual(try XCTUnwrap(store.suggestion).extraMinutes, 10)
+
+        store.receiveDriverCafeWait(nil)
+        XCTAssertTrue(store.planTimingUnavailable)
+        XCTAssertNil(store.suggestion)
+        XCTAssertNil(store.times(.cafe))
+        XCTAssertNil(store.times(.anaLounge))
+        XCTAssertEqual(store.conditionInputs.leaveBy, SampleJourney.gateArrivalTarget - store.gateWalkMinutes)
+        store.applySuggestion()
+        store.setTimes(.anaLounge, leave: ClockTime(16, 59))
+        XCTAssertEqual(store.plan, originalPlan)
+
+        store.receiveDriverCafeWait(17)
+        XCTAssertFalse(store.planTimingUnavailable)
+        XCTAssertEqual(try XCTUnwrap(store.suggestion).extraMinutes, 9)
+        XCTAssertEqual(store.times(.cafe)?.leave, ClockTime(16, 37))
+        XCTAssertEqual(store.plan, originalPlan)
+    }
+
+    func testUnavailableFirstCafeReportAffectsOnlyPlansThatIncludeTheCafe() {
+        let store = makeStore()
+        store.add(.anaLounge)
+        store.receiveDriverCafeWait(nil)
+        XCTAssertFalse(store.planTimingUnavailable)
+        XCTAssertNotNil(store.times(.anaLounge))
+
+        store.add(.cafe)
+        XCTAssertTrue(store.planTimingUnavailable)
+        XCTAssertNil(store.times(.anaLounge))
+        XCTAssertNil(store.suggestion)
+
+        store.remove(.cafe)
+        XCTAssertFalse(store.planTimingUnavailable)
+        XCTAssertNotNil(store.times(.anaLounge))
     }
 
     func testAppleHealthRefinesAirportWalkEstimate() async {
@@ -373,6 +890,14 @@ final class SignMatcherTests: XCTestCase {
         XCTAssertTrue(SignMatcher.matches(["航空会社ラウンジ"], .lounges))
         XCTAssertTrue(SignMatcher.matches(["Airline Lounges"], .lounges))
         XCTAssertFalse(SignMatcher.matches(["Restrooms"], .lounges))
+    }
+
+    func testRejectsSignTextEmbeddedInOtherGateCodesAndWords() {
+        XCTAssertFalse(SignMatcher.matches(["Gates 105–109A"], .gates105to109))
+        XCTAssertFalse(SignMatcher.matches(["Gates 1105–109"], .gates105to109))
+        XCTAssertFalse(SignMatcher.matches(["Business center"], .bus))
+        XCTAssertFalse(SignMatcher.matches(["Loungewear"], .lounges))
+        XCTAssertTrue(SignMatcher.matches(["Shuttle bus →"], .bus))
     }
 }
 

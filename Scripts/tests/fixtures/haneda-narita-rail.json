@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "samples": [
+    {"offsetMs": 0, "point": {"x": 0.12, "y": 0.48}, "level": 2, "matchedNodeID": "t3-keikyu-gates", "headingDegrees": 0, "floorConfirmed": true},
+    {"offsetMs": 1100, "point": {"x": 0.53, "y": 0.53}, "level": 2, "matchedNodeID": "t3-keikyu-platform-lift", "headingDegrees": 7, "floorConfirmed": true},
+    {"offsetMs": 2600, "point": {"x": 0.08, "y": 0.38}, "level": 1, "matchedNodeID": "t3-keikyu-platform-approach", "headingDegrees": 3, "floorConfirmed": true},
+    {"offsetMs": 3600, "point": {"x": 0.20, "y": 0.42}, "level": 1, "matchedNodeID": "t3-keikyu-platform-approach", "headingDegrees": 4, "floorConfirmed": true},
+    {"offsetMs": 4650, "point": {"x": 0.34, "y": 0.46}, "level": 1, "matchedNodeID": "t3-keikyu-platform-walk", "headingDegrees": 5, "floorConfirmed": true},
+    {"offsetMs": 5600, "point": {"x": 0.47, "y": 0.49}, "level": 1, "matchedNodeID": "t3-keikyu-platform-walk", "headingDegrees": 7, "floorConfirmed": true},
+    {"offsetMs": 6600, "point": {"x": 0.64, "y": 0.55}, "level": 1, "matchedNodeID": "t3-keikyu-platform-walk", "headingDegrees": 9, "floorConfirmed": true},
+    {"offsetMs": 7900, "point": {"x": 0.82, "y": 0.63}, "level": 1, "matchedNodeID": "t3-keikyu-platform-walk", "headingDegrees": 13, "floorConfirmed": true},
+    {"offsetMs": 8650, "point": {"x": 0.82, "y": 0.63}, "level": 1, "matchedNodeID": "t3-keikyu-platform-destination", "headingDegrees": 51, "floorConfirmed": true}
+  ]
+}

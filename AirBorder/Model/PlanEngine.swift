@@ -102,6 +102,32 @@ enum WalkMatrix {
     }
 }
 
+/// Terminal and walking estimates for the two lounge fixtures in the Haneda directory.
+enum LoungeDirectory {
+    struct Option {
+        let id: PlaceID
+        let walkToGate: Int?
+    }
+
+    static func options(for flight: FlightLeg, gate: String, pace: WalkingPace) -> [Option] {
+        let reference = SampleJourney.outbound
+        guard covers(flight) else { return [] }
+
+        let lounges: [PlaceID] = [.anaLounge, .skyLounge]
+        let hasWalkEstimates = gate == reference.departureGate
+        let options = lounges.map { id in
+            Option(id: id, walkToGate: hasWalkEstimates ? WalkMatrix.minutes(id, .gate, pace: pace) : nil)
+        }
+        guard hasWalkEstimates else { return options }
+        return options.sorted { ($0.walkToGate ?? Int.max) < ($1.walkToGate ?? Int.max) }
+    }
+
+    static func covers(_ flight: FlightLeg) -> Bool {
+        let reference = SampleJourney.outbound
+        return flight.from.code == reference.from.code && flight.departureTerminal == reference.departureTerminal
+    }
+}
+
 // MARK: - Plan
 
 struct PlanStop: Identifiable, Equatable, Codable {

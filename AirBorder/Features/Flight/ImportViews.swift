@@ -1,6 +1,7 @@
 // SUBSTANTIVE: Implements flight import and ticket review flows.
 
 import AVFoundation
+import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -54,6 +55,12 @@ struct CameraPermissionView: View {
             message: "Use your camera to capture your ticket. Review the flight details before saving.",
             primary: ("Continue", {
                 Task { @MainActor in
+                    #if DEBUG && targetEnvironment(simulator)
+                    if SimulatorTicketPhotos.isConfigured {
+                        open(.ticketCamera)
+                        return
+                    }
+                    #endif
                     let granted = await AVCaptureDevice.requestAccess(for: .video)
                     let hasCamera = AVCaptureDevice.default(for: .video) != nil
                     open(granted && hasCamera ? .ticketCamera : .cameraUnavailable)
@@ -385,7 +392,7 @@ struct ReviewImportedView: View {
                     store.beginEditingFlight()
                     open(.editFlight)
                 } else {
-                    open(.manualEntry)
+                    open(.editImported(ticket))
                 }
             }
         }
@@ -456,6 +463,9 @@ final class TicketCamera: NSObject, ObservableObject, AVCapturePhotoCaptureDeleg
     @Published private(set) var isRunning = false
 
     func start() {
+        #if DEBUG && targetEnvironment(simulator)
+        if SimulatorTicketPhotos.isConfigured { return }
+        #endif
         guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized,
               let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
               let input = try? AVCaptureDeviceInput(device: device) else { return }
@@ -473,6 +483,9 @@ final class TicketCamera: NSObject, ObservableObject, AVCapturePhotoCaptureDeleg
     }
 
     func capture() async -> UIImage? {
+        #if DEBUG && targetEnvironment(simulator)
+        if SimulatorTicketPhotos.isConfigured { return SimulatorTicketPhotos.next() }
+        #endif
         guard isRunning else { return nil }
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
@@ -488,6 +501,35 @@ final class TicketCamera: NSObject, ObservableObject, AVCapturePhotoCaptureDeleg
         }
     }
 }
+
+#if DEBUG && targetEnvironment(simulator)
+/// Test-driver images replace only the camera sensor; Vision and all subsequent
+/// navigation remain the same as a photographed ticket. The sequence persists
+/// across camera-screen recreation so Retake advances to the next image.
+@MainActor
+private enum SimulatorTicketPhotos {
+    private static let paths = (ProcessInfo.processInfo.environment["AIRBORDER_TICKET_PHOTO_FIXTURES"] ?? "")
+        .split(separator: "\n").map(String.init)
+    private static var index = 0
+
+    static var isConfigured: Bool { !paths.isEmpty }
+
+    static func next() -> UIImage? {
+        guard !paths.isEmpty else { return nil }
+        let path = paths[min(index, paths.count - 1)]
+        index += 1
+        let url = URL(fileURLWithPath: path)
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        guard size > 0, size <= 5_000_000,
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 1600
+              ] as CFDictionary) else { return nil }
+        return UIImage(cgImage: image)
+    }
+}
+#endif
 
 private struct TicketCameraPreview: UIViewRepresentable {
     let session: AVCaptureSession

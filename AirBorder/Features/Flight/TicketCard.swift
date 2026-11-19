@@ -8,6 +8,7 @@ struct TicketCard: View {
     /// Live values from the flight-status feed, when they differ from the ticket.
     var status: String?
     var gate: String?
+    var openGateMap: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: previous == nil ? 18 : 8) {
@@ -110,10 +111,11 @@ struct TicketCard: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
-                    if flight.departureGate.isEmpty {
+                    let currentGate = gate ?? flight.departureGate
+                    if currentGate.isEmpty {
                         TerminalSign(terminal: flight.departureTerminal, size: 26)
                     } else {
-                        GateSign(gate: gate ?? flight.departureGate, size: 26, previous: gate.flatMap { $0 == flight.departureGate ? nil : flight.departureGate })
+                        gateSign(currentGate)
                         if !flight.departureTerminal.isEmpty {
                             Text("Terminal \(flight.departureTerminal)").outfitText(13, .medium, AB.ice.opacity(0.7))
                         }
@@ -130,6 +132,22 @@ struct TicketCard: View {
                 Spacer()
                 detail("BAGS", flight.baggageBelt ?? "–")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func gateSign(_ current: String) -> some View {
+        let previous = flight.departureGate
+        let sign = GateSign(gate: current, size: 26, previous: previous.isEmpty || previous == current ? nil : previous)
+        if let openGateMap {
+            Button(action: openGateMap) {
+                sign.frame(minHeight: 44).contentShape(Rectangle())
+            }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the map to this gate")
+                .accessibilityIdentifier("ticketGateMap")
+        } else {
+            sign
         }
     }
 

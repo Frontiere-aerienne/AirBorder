@@ -1,3 +1,4 @@
+// SUBSTANTIVE: Implements flight entry, validation and review.
 import SwiftUI
 
 // MARK: - Shared pieces
@@ -96,7 +97,11 @@ struct LargeTitleHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Button(action: back) {
-                Image("icBack").resizable().frame(width: 26, height: 26).frame(width: 44, height: 44, alignment: .leading)
+                Image("icBack")
+                    .resizable()
+                    .frame(width: 26, height: 26)
+                    .frame(width: 44, height: 44, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Back")
@@ -344,6 +349,11 @@ struct ManualEntryView: View {
     @State private var number = ""
     @State private var date = ""
     @State private var errors: (number: String?, date: String?) = (nil, nil)
+
+    init(ticket: ParsedTicket? = nil) {
+        _number = State(initialValue: ticket?.number ?? "")
+        _date = State(initialValue: ticket?.date ?? "")
+    }
 
     var body: some View {
         SubScreen(spacing: 16, top: 40) {

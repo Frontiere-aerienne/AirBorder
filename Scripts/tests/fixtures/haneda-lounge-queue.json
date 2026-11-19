@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "samples": [
+    {
+      "offsetMs": 0,
+      "point": {
+        "x": 0.15,
+        "y": 0.5
+      },
+      "level": 4,
+      "matchedNodeID": "t3-lounge-entrance",
+      "headingDegrees": 0,
+      "floorConfirmed": true
+    },
+    {
+      "offsetMs": 1500,
+      "point": {
+        "x": 0.25,
+        "y": 0.5
+      },
+      "level": 4,
+      "matchedNodeID": "gate-105",
+      "headingDegrees": 0,
+      "floorConfirmed": true
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "coordinateFrame": {
+    "id": "hnd-t3-3f-gate-wing",
+    "sourceSizePixels": [
+      2778,
+      1700
+    ],
+    "cropPixels": [
+      1740,
+      740,
+      1050,
+      420
+    ]
+  },
+  "samples": [
+    {"offsetMs": 0, "point": {"x": 0.061905, "y": 0.5}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 722, "point": {"x": 0.12381, "y": 0.5}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 1500, "point": {"x": 0.190476, "y": 0.5}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 2389, "point": {"x": 0.266667, "y": 0.5}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 3111, "point": {"x": 0.266667, "y": 0.345238}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 3800, "point": {"x": 0.266667, "y": 0.197619}, "level": 3, "matchedNodeID": "t3-departure-gate-108a", "floorConfirmed": true}
+  ]
+}

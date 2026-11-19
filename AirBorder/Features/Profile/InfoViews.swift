@@ -54,7 +54,7 @@ struct AboutView: View {
             }
             InfoCard {
                 Text("Where the details come from").outfitText(18, .bold)
-                Text("The trip in this version is a saved sample journey through Tokyo Haneda. Flight times, gates, venues, queues and previous trips are not live.")
+                Text("The Haneda journey and previous trips are preloaded. Live updates for flight times, gates, venues and queues are unavailable.")
                     .outfitText(15, .regular, AB.secondary)
                 Text("Walking times start from your walks on previous trips through Haneda. When you connect Apple Health, its walking speed refines them.")
                     .outfitText(15, .regular, AB.secondary)

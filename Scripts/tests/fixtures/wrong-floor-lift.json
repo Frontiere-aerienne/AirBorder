@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "samples": [
+    {
+      "offsetMs": 0,
+      "point": { "x": 0.46, "y": 0.72 },
+      "level": 3,
+      "matchedNodeID": "t3-elevator-north",
+      "headingDegrees": 0,
+      "floorConfirmed": true
+    },
+    {
+      "offsetMs": 1200,
+      "point": { "x": 0.65, "y": 0.55 },
+      "level": 4,
+      "matchedNodeID": "t3-gates-center",
+      "headingDegrees": 0,
+      "floorConfirmed": false
+    },
+    {
+      "offsetMs": 4700,
+      "point": { "x": 0.65, "y": 0.55 },
+      "level": 4,
+      "matchedNodeID": "t3-gates-center",
+      "headingDegrees": 0,
+      "floorConfirmed": true
+    },
+    {
+      "offsetMs": 5900,
+      "point": { "x": 0.74, "y": 0.48 },
+      "level": 4,
+      "matchedNodeID": "t3-gates-center",
+      "headingDegrees": 18,
+      "floorConfirmed": true
+    },
+    {
+      "offsetMs": 8100,
+      "point": { "x": 0.87, "y": 0.34 },
+      "level": 4,
+      "matchedNodeID": "gate-105",
+      "headingDegrees": 130,
+      "floorConfirmed": true
+    }
+  ]
+}
