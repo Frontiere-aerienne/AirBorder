@@ -1,5 +1,15 @@
 # Project Context Ledger: AirportXRCompanion
 
+## November 13 — advisory report review scoring
+
+The Claude Code review contract now requires evidence, an advisory point
+award, and specific corrective feedback for every deduction. The formatter
+reads the point limits from the course rubric, computes the total, and marks
+inaccessible evidence as unassessed rather than treating it as zero. The
+report-review queue links to these instructions; deterministic CI and merge
+requirements are unchanged. Five formatter tests passed locally. A real
+Claude Code review on the new contract remains to be observed.
+
 ## Current handoff — HCI review and merge protection
 
 Updated November 8, 2026 (America/New_York). This checkpoint supersedes older **current status** statements below for the HCI browser/PR work. Historical native architecture and evidence remain available below; do not treat their dated build, disk-space, completion or workflow claims as current. Verify repository state and the exact PR head before acting.

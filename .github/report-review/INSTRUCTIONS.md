@@ -25,6 +25,8 @@ The request names the **mode**:
 
 - The queued request (or the PR): the trigger, commit range, changed files and, for CI-result
   triggers, the latest test outcomes. Use `git diff`, `git log` and `git show` on that range.
+  Score the exact report revision named in the review; if you edit it in consistency mode,
+  identify the resulting revision and score that version.
 - The deterministic rubric and citation checks in the request. Rerun them locally with
   `python3 Scripts/reporting/check_rubric.py` and `check_citations.py`. They match keywords,
   so confirm each item by reading the report.
@@ -50,8 +52,10 @@ Read only the report sections the change touches. Check for:
 
 ## Rubric checks (both modes)
 
-Grade each criterion in `RUBRIC.md` as *meets*, *needs improvement* or *unacceptable*,
-quoting the evidence (section name or line). Focus on what keywords cannot show:
+Assign advisory points to each scored criterion in `RUBRIC.md`, citing the
+reviewed evidence by file and section or line. Read the whole report for scoring;
+in consistency mode, keep edits limited to the sections touched by the change.
+Focus on what keywords cannot show:
 
 - **System (15):** could someone replicate the system from this section alone?
 - **Initial Design (10):** does it state what changed after the class critiques, or why nothing changed?
@@ -71,6 +75,31 @@ quoting the evidence (section name or line). Focus on what keywords cannot show:
   sentence citing an anchor paper states what that paper actually shows, and flag any claim that
   needs outside evidence the anchors or project materials do not supply. Never add a citation.
 - **Communication style (5):** grammar, spelling, clarity and concision in the sections you read.
+
+For every scored row, explain what earns the points. For every deduction, name
+the unmet requirement, where it affects the report, and the smallest concrete
+revision that would address it. Quote a short passage where useful. When a claim
+depends on implementation or test results, check the relevant source or artifact
+at the reviewed revision. Distinguish a failed check, missing report content, and
+evidence you could not access. If a required detail is visibly absent, deduct
+points; if you cannot assess the criterion from the material available, use
+`null`, name the missing evidence, and say how to obtain it. Never invent study
+results, participants, or verification. Report format, citations, and plan-versus-
+results violations separately; do not invent point weights or count the same
+gap twice.
+
+Produce a temporary JSON array with one object per scored rubric ID. Each row
+uses `id`, integer `points` (or `null`), `evidence`, `gap`, and `revision`.
+The following is an illustrative row, not an assessment of the current report:
+
+```json
+{"id":"R-METHOD","points":7,"evidence":"Report/main.tex, Evaluation Plan / Method: identifies within-subjects design and both tasks.","gap":"The procedure omits how presentation order is assigned, so a second researcher cannot replicate the comparison.","revision":"In Method, state how participants are assigned to AirBorder-first or Flighty-first and when each task begins."}
+```
+
+Run `python3 Scripts/reporting/format_review_score.py <review.json>` to validate
+the rows and render the grade table. Use its total and bands verbatim. This is
+an advisory estimate for the written report, separate from CI outcomes and
+official grading. Keep the temporary input out of the repository.
 
 ## What you may change (consistency mode only)
 
@@ -99,13 +128,13 @@ off on the issue, and close the issue when no requests remain.
 STATUS: consistent | updated | needs-human
 
 ## Summary
-<one or two sentences>
+<reviewed commit, overall assessment, and the most important unresolved issue>
 
 ## Rubric
-| Criterion | Grade | Evidence / gap |
-|---|---|---|
-| Introduction (10) | meets / needs improvement / unacceptable | ... |
-| ... one row per RUBRIC.md criterion you can grade from the report ... |
+<validated advisory total and completed table from format_review_score.py>
+
+## Priority revisions
+<up to three, ranked by impact; give the section, required change and how the author can verify it>
 
 ## Findings
 - [updated|needs-human|ok] <report section / line>: <what was inconsistent or non-compliant, the evidence (file:line or commit), and what you did>
@@ -113,7 +142,7 @@ STATUS: consistent | updated | needs-human
 
 - `consistent`: no consistency problems, and every rubric criterion *meets*. No edits.
 - `updated` (consistency mode only): you edited `Report/`, and every finding is resolved.
-- `needs-human`: an author must act. This covers a rubric criterion below *meets* that you
+- `needs-human`: an author must act. This covers an unassessed criterion, a criterion below *meets* that you
   could not safely fix, a stale figure, or an unverifiable number. In consistency mode you may
   also have made safe edits.
 
