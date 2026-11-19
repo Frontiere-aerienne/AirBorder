@@ -1,4 +1,6 @@
+// SUBSTANTIVE: Recognises and matches signs during camera guidance.
 import AVFoundation
+import ImageIO
 import SwiftUI
 import Vision
 
@@ -12,20 +14,24 @@ struct SignTarget: Equatable {
     let label: String
     /// How the sign is named in a sentence: "Gates 105–109", "Bus", "Airline lounges".
     let name: String
-    /// Text that identifies the sign once read.
-    let tokens: [String]
+    /// Patterns that identify a complete gate range or sign label in the recognized text.
+    let patterns: [String]
 
-    static let gates105to109 = SignTarget(kind: "gate", scanTitle: "Scan the gate sign", label: "搭乗口 / Gates 105–109", name: "Gates 105–109", tokens: ["105-109"])
-    static let gates108to149 = SignTarget(kind: "gate", scanTitle: "Scan the gate sign", label: "搭乗口 / Gates 108–149", name: "Gates 108–149", tokens: ["108-149"])
-    static let bus = SignTarget(kind: "bus", scanTitle: "Reading the bus sign", label: "Bus, 2F access hall", name: "Bus", tokens: ["BUS", "バス"])
-    static let lounges = SignTarget(kind: "lounge", scanTitle: "Scan the lounge sign", label: "航空会社ラウンジ / Airline lounges", name: "Airline lounges", tokens: ["LOUNGE", "ラウンジ"])
+    static let gates105to109 = SignTarget(kind: "gate", scanTitle: "Scan the gate sign", label: "搭乗口 / Gates 105–109", name: "Gates 105–109",
+                                          patterns: [#"(?<![0-9])105\h*-\h*109(?![A-Z0-9])"#])
+    static let gates108to149 = SignTarget(kind: "gate", scanTitle: "Scan the gate sign", label: "搭乗口 / Gates 108–149", name: "Gates 108–149",
+                                          patterns: [#"(?<![0-9])108\h*-\h*149(?![A-Z0-9])"#])
+    static let bus = SignTarget(kind: "bus", scanTitle: "Reading the bus sign", label: "Bus, 2F access hall", name: "Bus",
+                                patterns: [#"\bBUS(?:ES)?\b"#, "バス"])
+    static let lounges = SignTarget(kind: "lounge", scanTitle: "Scan the lounge sign", label: "航空会社ラウンジ / Airline lounges", name: "Airline lounges",
+                                    patterns: [#"\bLOUNGES?\b"#, "ラウンジ"])
 }
 
 enum SignMatcher {
-    /// True when any recognised line contains one of the sign's tokens. Dashes and spaces are ignored.
+    /// Keep word boundaries and allow horizontal spacing around the range dash.
     static func matches(_ lines: [String], _ target: SignTarget) -> Bool {
         let text = lines.map(normalise).joined(separator: "\n")
-        return target.tokens.map(normalise).contains { text.contains($0) }
+        return target.patterns.contains { text.range(of: $0, options: .regularExpression) != nil }
     }
 
     private static func normalise(_ value: String) -> String {
@@ -33,7 +39,6 @@ enum SignMatcher {
             .replacingOccurrences(of: "–", with: "-")
             .replacingOccurrences(of: "—", with: "-")
             .replacingOccurrences(of: "〜", with: "-")
-            .replacingOccurrences(of: " ", with: "")
     }
 }
 
@@ -51,6 +56,9 @@ final class SignCamera: NSObject, ObservableObject {
     private var deadline: Date?
     private var lastRead = Date.distantPast
     private var configured = false
+    #if DEBUG && targetEnvironment(simulator)
+    private var fixtureScanID: UUID?
+    #endif
 
     /// How long to look for a sign before saying it could not be read.
     static let scanTimeout: TimeInterval = 10
@@ -73,6 +81,22 @@ final class SignCamera: NSObject, ObservableObject {
         self.target = target
         self.completion = completion
         deadline = Date().addingTimeInterval(Self.scanTimeout)
+        #if DEBUG && targetEnvironment(simulator)
+        if AVCaptureDevice.authorizationStatus(for: .video) == .authorized,
+           let path = SimulatorSignPhotos.nextPath() {
+            let id = UUID()
+            fixtureScanID = id
+            Task { @MainActor in
+                let lines = await SimulatorSignPhotos.read(path)
+                guard self.fixtureScanID == id else { return }
+                self.read(lines)
+                try? await Task.sleep(for: .seconds(Self.scanTimeout + 0.1))
+                guard self.fixtureScanID == id else { return }
+                self.read(lines)
+            }
+            return
+        }
+        #endif
         if !hasCamera {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(Self.scanTimeout))
@@ -82,6 +106,9 @@ final class SignCamera: NSObject, ObservableObject {
     }
 
     func cancelScan() {
+        #if DEBUG && targetEnvironment(simulator)
+        fixtureScanID = nil
+        #endif
         target = nil
         completion = nil
         deadline = nil
@@ -122,6 +149,44 @@ final class SignCamera: NSObject, ObservableObject {
 
     fileprivate var isScanning: Bool { target != nil }
 }
+
+#if DEBUG && targetEnvironment(simulator)
+/// A driver image replaces sensor frames only; recognition and matching use the
+/// same Vision settings and read method as the camera. Access still requires consent.
+@MainActor
+private enum SimulatorSignPhotos {
+    private static let paths = (ProcessInfo.processInfo.environment["AIRBORDER_SIGN_PHOTO_FIXTURES"] ?? "")
+        .split(separator: "\n").map(String.init)
+    private static var index = 0
+
+    static func nextPath() -> String? {
+        guard !paths.isEmpty else { return nil }
+        let path = paths[min(index, paths.count - 1)]
+        index += 1
+        return path
+    }
+
+    static func read(_ path: String) async -> [String] {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let url = URL(fileURLWithPath: path)
+                let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                guard size > 0, size <= 5_000_000,
+                      let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                      let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                          kCGImageSourceCreateThumbnailFromImageAlways: true,
+                          kCGImageSourceThumbnailMaxPixelSize: 1600
+                      ] as CFDictionary) else { return continuation.resume(returning: []) }
+                let request = VNRecognizeTextRequest()
+                request.recognitionLevel = .fast
+                request.recognitionLanguages = ["en-US", "ja-JP"]
+                try? VNImageRequestHandler(cgImage: image, orientation: .up).perform([request])
+                continuation.resume(returning: (request.results ?? []).compactMap { $0.topCandidates(1).first?.string })
+            }
+        }
+    }
+}
+#endif
 
 extension SignCamera: AVCaptureVideoDataOutputSampleBufferDelegate {
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {

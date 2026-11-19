@@ -9,39 +9,54 @@
 /* Begin PBXBuildFile section */
 		02FF57DCA880696DD55C9484 /* RouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206D62B7EF2E4FA4AD8F81F5 /* RouteView.swift */; };
 		0484AAD4D1B13B2CF56A44B2 /* CameraGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15DFAAFE69F02373AE1996B6 /* CameraGuide.swift */; };
+		05D9F2AD2274BF2331EE1DD8 /* AirportProviderReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6497B0C5E41BEFC830825CD /* AirportProviderReplay.swift */; };
 		0B82B24464F71E474A45B491 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */; };
 		0E128501DE17973C18734F71 /* ScenarioViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B20A0264BDE33D0498E7DD /* ScenarioViews.swift */; };
 		15C14D83166459D45575B7BA /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35D0E684FB8E26A6D99380E /* RootView.swift */; };
+		16209394A2278DFA79F593CE /* ReplayTerrazzo.jpg in Resources */ = {isa = PBXBuildFile; fileRef = FFBB636CCEFC889C85811713 /* ReplayTerrazzo.jpg */; };
 		1779DB0CE93258609A1107DB /* AirBorderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1C49F70E935C66E48A524C /* AirBorderApp.swift */; };
 		1E22B1B61102371DE6A02DFD /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55D99B0F84774035FC9ED7B2 /* Motion.swift */; };
 		1EFA4704AEA810D15E41B4E9 /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9E6B26198D4AF3E207D0EB /* TransferViews.swift */; };
 		1F968042E2EF93687BF7F29F /* FlightSetupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176D00FDA71936FB2CFB2C7B /* FlightSetupViews.swift */; };
+		1FD2DBFA760E808C2E3F6F6D /* ReplayHanedaT2.usdz in Resources */ = {isa = PBXBuildFile; fileRef = 73F7B7504C467EDFFAEC6DF1 /* ReplayHanedaT2.usdz */; };
 		202A5D8E334B6F090E07F28A /* PlanEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 780C31AB5EB373B7FECE9184 /* PlanEngineTests.swift */; };
+		25030A0548DB110BD4E53D45 /* RouteVoiceSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45C0765DCDB341057A0672D2 /* RouteVoiceSession.swift */; };
 		26BF226A2D9F359E52D318BC /* Outfit-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FCC775D0DF9CEB8BFA1FE6A1 /* Outfit-Variable.ttf */; };
 		276E6A623D357D1014C39A5C /* PlanExtrasViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5090071A59E95C9D6209297D /* PlanExtrasViews.swift */; };
+		2F6D392AF432A654102288BE /* TerminalReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1D0522B665DE21C95905BC /* TerminalReplay.swift */; };
 		33AD7F0E132A7BF113A76331 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69EFAEA6D6A322BD89886D57 /* OnboardingView.swift */; };
+		3B68BC5608710E1C6E7837F0 /* ReplayCoach.usdz in Resources */ = {isa = PBXBuildFile; fileRef = 357191342D8194EB1FD2DC72 /* ReplayCoach.usdz */; };
 		3DB5393532B0BCC5D2C17EB5 /* JourneyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1527CA8422A99977E427163 /* JourneyStore.swift */; };
 		3E6D155A7A05C0B36726A1B3 /* JourneyConditions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC5E53A713576E960CFDBDF0 /* JourneyConditions.swift */; };
 		57CC2BBE1D10A29071CF895A /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11BF6BFD48C8B1D6D05919BE /* ProfileView.swift */; };
 		607F87E330693D0755C3E1C8 /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 9F73FBCBE2B5EAE2DFF18757 /* OFL.txt */; };
 		6582436B9DF058E38ABD7EEB /* JourneyDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A248953DD47963CEC8591259 /* JourneyDetailsView.swift */; };
 		6B303D7D228CBEF65E4C0572 /* WalkingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5DDEF82303233576B3C6A2B /* WalkingViews.swift */; };
+		6E207D64CAC27AFD177706A1 /* RouteVoiceConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C66C60EC87DF6DC7DCA99BE /* RouteVoiceConversation.swift */; };
 		6EE78EB791D865C045BB0092 /* InfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998FBF528BDDFFD99A97AC4F /* InfoSheet.swift */; };
 		73BA941E46BFD35D6717AA55 /* ImportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A073F11675156DF67200492F /* ImportViews.swift */; };
 		777AE13CF1A8641BD2E328C1 /* FlightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 257AD23015436307CB73F8DD /* FlightView.swift */; };
 		7AA0EED91EFF970BFF22FD74 /* Journey.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB268ECE71E817D7A889B470 /* Journey.swift */; };
 		8288295C92B33B01AF2482CC /* TicketReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3115B11DE02A901AC9C5FD64 /* TicketReader.swift */; };
+		85DBAA75AD413E306888B930 /* ReplayShuttle.usdz in Resources */ = {isa = PBXBuildFile; fileRef = 5DE37DBA064E01C5096F933D /* ReplayShuttle.usdz */; };
 		8E4308EA4FC86F821CF146C8 /* AirBorderUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B236BD847C0EBAB4E5B5CB6D /* AirBorderUITests.swift */; };
 		907A7B5A605192A18529163C /* WalkingData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D38F3674EE327922577614 /* WalkingData.swift */; };
 		9F96B738899CF4BCFBBD2E75 /* LayoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F95E134F514A15FD5FC28E /* LayoverView.swift */; };
+		A62B1AD3FCED51D1D88A0F4B /* HanedaReplayScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F646A6058198D0B7F0DD2489 /* HanedaReplayScenes.swift */; };
 		A8E96570A5A7ACA0875D64C3 /* JourneyChecklist.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0041E6B70C05EDC05BF9D79 /* JourneyChecklist.swift */; };
 		ADD5C5066BCBB25A7AAE6EAE /* PlaceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9672B292408F58FA2DF30D /* PlaceViews.swift */; };
 		AE1485E8F5B43897BDEA39E0 /* TicketCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30F32830129F626BD0E9528C /* TicketCard.swift */; };
 		B5DF28BD298F03F89728F5C4 /* JourneyStepsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039240FB336A17A5B64CE0A1 /* JourneyStepsView.swift */; };
 		BBB3D8B442EB5DC2EE7078FC /* PlanEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D3AC5EDD4F7C0D9B0CBDFF /* PlanEngine.swift */; };
+		C2669F5A4D64512A0F385B0D /* ReplayRailCar.usdz in Resources */ = {isa = PBXBuildFile; fileRef = 97764271F58498B951EF6862 /* ReplayRailCar.usdz */; };
+		D50948B6DDAB5184485FBE0C /* OfficialGateWalk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D57DA35A19EDBEE6824452C /* OfficialGateWalk.swift */; };
+		D681962C38199A0874D895BD /* ReplayHanedaT3.usdz in Resources */ = {isa = PBXBuildFile; fileRef = 660CD739560F06036BA774F8 /* ReplayHanedaT3.usdz */; };
 		DD7983047A493A397AAF8437 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = B772C8BD27CEBE135ED10D44 /* Components.swift */; };
 		DEFD289DA0BFC38986681F70 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA44710E401393BF38EC76EE /* Theme.swift */; };
+		E3BCFD6F965E16F0743A2C2C /* ReplayRailTrack.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A2BB763792200AF41ED3E257 /* ReplayRailTrack.usdz */; };
+		E8978CBB7590695F286F3A12 /* SimulatorRouteSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = 350DC37D71EDB537642E95E1 /* SimulatorRouteSpeech.swift */; };
 		E9201C084AEAE6BB2CF79F63 /* InfoViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C31B377B076676FD7B68E28 /* InfoViews.swift */; };
+		EE81778F04E092B4D815E352 /* TerminalReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1827B6B03FD114220B55CB /* TerminalReplayView.swift */; };
 		FB98A0677EE042FB0694B639 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7E8D6B107D284C2971B25AA3 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -65,36 +80,49 @@
 /* Begin PBXFileReference section */
 		00425084C3399000BF3B7149 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		039240FB336A17A5B64CE0A1 /* JourneyStepsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyStepsView.swift; sourceTree = "<group>"; };
+		0C66C60EC87DF6DC7DCA99BE /* RouteVoiceConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteVoiceConversation.swift; sourceTree = "<group>"; };
 		11BF6BFD48C8B1D6D05919BE /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		15DFAAFE69F02373AE1996B6 /* CameraGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraGuide.swift; sourceTree = "<group>"; };
 		176D00FDA71936FB2CFB2C7B /* FlightSetupViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightSetupViews.swift; sourceTree = "<group>"; };
+		1D1827B6B03FD114220B55CB /* TerminalReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalReplayView.swift; sourceTree = "<group>"; };
 		206D62B7EF2E4FA4AD8F81F5 /* RouteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteView.swift; sourceTree = "<group>"; };
 		257AD23015436307CB73F8DD /* FlightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightView.swift; sourceTree = "<group>"; };
 		2C31B377B076676FD7B68E28 /* InfoViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoViews.swift; sourceTree = "<group>"; };
 		30F32830129F626BD0E9528C /* TicketCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketCard.swift; sourceTree = "<group>"; };
 		3115B11DE02A901AC9C5FD64 /* TicketReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketReader.swift; sourceTree = "<group>"; };
+		350DC37D71EDB537642E95E1 /* SimulatorRouteSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorRouteSpeech.swift; sourceTree = "<group>"; };
 		355FB91ACC7FAD5B10872093 /* AirBorder.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AirBorder.entitlements; sourceTree = "<group>"; };
+		357191342D8194EB1FD2DC72 /* ReplayCoach.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = ReplayCoach.usdz; sourceTree = "<group>"; };
 		3731214417E05D1595431317 /* AirportXRCompanionTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AirportXRCompanionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		39D38F3674EE327922577614 /* WalkingData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalkingData.swift; sourceTree = "<group>"; };
 		3B2419B78F1D71A8ECA1BAB1 /* AirportXRCompanionUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AirportXRCompanionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		45C0765DCDB341057A0672D2 /* RouteVoiceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteVoiceSession.swift; sourceTree = "<group>"; };
 		4B9672B292408F58FA2DF30D /* PlaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceViews.swift; sourceTree = "<group>"; };
+		4F1D0522B665DE21C95905BC /* TerminalReplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalReplay.swift; sourceTree = "<group>"; };
 		5090071A59E95C9D6209297D /* PlanExtrasViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanExtrasViews.swift; sourceTree = "<group>"; };
 		515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		55D99B0F84774035FC9ED7B2 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motion.swift; sourceTree = "<group>"; };
+		5DE37DBA064E01C5096F933D /* ReplayShuttle.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = ReplayShuttle.usdz; sourceTree = "<group>"; };
+		660CD739560F06036BA774F8 /* ReplayHanedaT3.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = ReplayHanedaT3.usdz; sourceTree = "<group>"; };
 		69EFAEA6D6A322BD89886D57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		73F7B7504C467EDFFAEC6DF1 /* ReplayHanedaT2.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = ReplayHanedaT2.usdz; sourceTree = "<group>"; };
 		780C31AB5EB373B7FECE9184 /* PlanEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEngineTests.swift; sourceTree = "<group>"; };
 		7E8D6B107D284C2971B25AA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8D57DA35A19EDBEE6824452C /* OfficialGateWalk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfficialGateWalk.swift; sourceTree = "<group>"; };
+		97764271F58498B951EF6862 /* ReplayRailCar.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = ReplayRailCar.usdz; sourceTree = "<group>"; };
 		97B20A0264BDE33D0498E7DD /* ScenarioViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioViews.swift; sourceTree = "<group>"; };
 		97F95E134F514A15FD5FC28E /* LayoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoverView.swift; sourceTree = "<group>"; };
 		998FBF528BDDFFD99A97AC4F /* InfoSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoSheet.swift; sourceTree = "<group>"; };
 		9F73FBCBE2B5EAE2DFF18757 /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
 		A073F11675156DF67200492F /* ImportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportViews.swift; sourceTree = "<group>"; };
 		A248953DD47963CEC8591259 /* JourneyDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyDetailsView.swift; sourceTree = "<group>"; };
+		A2BB763792200AF41ED3E257 /* ReplayRailTrack.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = ReplayRailTrack.usdz; sourceTree = "<group>"; };
 		AC9E6B26198D4AF3E207D0EB /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
 		B236BD847C0EBAB4E5B5CB6D /* AirBorderUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBorderUITests.swift; sourceTree = "<group>"; };
 		B295EE1DB9471DAA4B19FC3B /* AirBorder.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AirBorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B772C8BD27CEBE135ED10D44 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		BF1C49F70E935C66E48A524C /* AirBorderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBorderApp.swift; sourceTree = "<group>"; };
+		C6497B0C5E41BEFC830825CD /* AirportProviderReplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportProviderReplay.swift; sourceTree = "<group>"; };
 		CA44710E401393BF38EC76EE /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		D1527CA8422A99977E427163 /* JourneyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyStore.swift; sourceTree = "<group>"; };
 		D35D0E684FB8E26A6D99380E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -103,8 +131,10 @@
 		DB268ECE71E817D7A889B470 /* Journey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Journey.swift; sourceTree = "<group>"; };
 		E5D3AC5EDD4F7C0D9B0CBDFF /* PlanEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanEngine.swift; sourceTree = "<group>"; };
 		F0041E6B70C05EDC05BF9D79 /* JourneyChecklist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyChecklist.swift; sourceTree = "<group>"; };
+		F646A6058198D0B7F0DD2489 /* HanedaReplayScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HanedaReplayScenes.swift; sourceTree = "<group>"; };
 		FC5E53A713576E960CFDBDF0 /* JourneyConditions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyConditions.swift; sourceTree = "<group>"; };
 		FCC775D0DF9CEB8BFA1FE6A1 /* Outfit-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Outfit-Variable.ttf"; sourceTree = "<group>"; };
+		FFBB636CCEFC889C85811713 /* ReplayTerrazzo.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = ReplayTerrazzo.jpg; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -194,11 +224,14 @@
 		6AD2318E1987D3599F110F68 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				C6497B0C5E41BEFC830825CD /* AirportProviderReplay.swift */,
 				DB268ECE71E817D7A889B470 /* Journey.swift */,
 				F0041E6B70C05EDC05BF9D79 /* JourneyChecklist.swift */,
 				FC5E53A713576E960CFDBDF0 /* JourneyConditions.swift */,
 				D1527CA8422A99977E427163 /* JourneyStore.swift */,
 				E5D3AC5EDD4F7C0D9B0CBDFF /* PlanEngine.swift */,
+				0C66C60EC87DF6DC7DCA99BE /* RouteVoiceConversation.swift */,
+				4F1D0522B665DE21C95905BC /* TerminalReplay.swift */,
 				3115B11DE02A901AC9C5FD64 /* TicketReader.swift */,
 				39D38F3674EE327922577614 /* WalkingData.swift */,
 			);
@@ -263,6 +296,13 @@
 			children = (
 				053BD7DCA9708AFA16CA8EBD /* Fonts */,
 				515D0E8E56B1497DDA6C0989 /* PrivacyInfo.xcprivacy */,
+				357191342D8194EB1FD2DC72 /* ReplayCoach.usdz */,
+				73F7B7504C467EDFFAEC6DF1 /* ReplayHanedaT2.usdz */,
+				660CD739560F06036BA774F8 /* ReplayHanedaT3.usdz */,
+				97764271F58498B951EF6862 /* ReplayRailCar.usdz */,
+				A2BB763792200AF41ED3E257 /* ReplayRailTrack.usdz */,
+				5DE37DBA064E01C5096F933D /* ReplayShuttle.usdz */,
+				FFBB636CCEFC889C85811713 /* ReplayTerrazzo.jpg */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -279,7 +319,12 @@
 			isa = PBXGroup;
 			children = (
 				15DFAAFE69F02373AE1996B6 /* CameraGuide.swift */,
+				F646A6058198D0B7F0DD2489 /* HanedaReplayScenes.swift */,
+				8D57DA35A19EDBEE6824452C /* OfficialGateWalk.swift */,
 				206D62B7EF2E4FA4AD8F81F5 /* RouteView.swift */,
+				45C0765DCDB341057A0672D2 /* RouteVoiceSession.swift */,
+				350DC37D71EDB537642E95E1 /* SimulatorRouteSpeech.swift */,
+				1D1827B6B03FD114220B55CB /* TerminalReplayView.swift */,
 			);
 			path = Route;
 			sourceTree = "<group>";
@@ -392,6 +437,13 @@
 				607F87E330693D0755C3E1C8 /* OFL.txt in Resources */,
 				26BF226A2D9F359E52D318BC /* Outfit-Variable.ttf in Resources */,
 				0B82B24464F71E474A45B491 /* PrivacyInfo.xcprivacy in Resources */,
+				3B68BC5608710E1C6E7837F0 /* ReplayCoach.usdz in Resources */,
+				1FD2DBFA760E808C2E3F6F6D /* ReplayHanedaT2.usdz in Resources */,
+				D681962C38199A0874D895BD /* ReplayHanedaT3.usdz in Resources */,
+				C2669F5A4D64512A0F385B0D /* ReplayRailCar.usdz in Resources */,
+				E3BCFD6F965E16F0743A2C2C /* ReplayRailTrack.usdz in Resources */,
+				85DBAA75AD413E306888B930 /* ReplayShuttle.usdz in Resources */,
+				16209394A2278DFA79F593CE /* ReplayTerrazzo.jpg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -403,10 +455,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				1779DB0CE93258609A1107DB /* AirBorderApp.swift in Sources */,
+				05D9F2AD2274BF2331EE1DD8 /* AirportProviderReplay.swift in Sources */,
 				0484AAD4D1B13B2CF56A44B2 /* CameraGuide.swift in Sources */,
 				DD7983047A493A397AAF8437 /* Components.swift in Sources */,
 				1F968042E2EF93687BF7F29F /* FlightSetupViews.swift in Sources */,
 				777AE13CF1A8641BD2E328C1 /* FlightView.swift in Sources */,
+				A62B1AD3FCED51D1D88A0F4B /* HanedaReplayScenes.swift in Sources */,
 				73BA941E46BFD35D6717AA55 /* ImportViews.swift in Sources */,
 				6EE78EB791D865C045BB0092 /* InfoSheet.swift in Sources */,
 				E9201C084AEAE6BB2CF79F63 /* InfoViews.swift in Sources */,
@@ -418,6 +472,7 @@
 				3DB5393532B0BCC5D2C17EB5 /* JourneyStore.swift in Sources */,
 				9F96B738899CF4BCFBBD2E75 /* LayoverView.swift in Sources */,
 				1E22B1B61102371DE6A02DFD /* Motion.swift in Sources */,
+				D50948B6DDAB5184485FBE0C /* OfficialGateWalk.swift in Sources */,
 				33AD7F0E132A7BF113A76331 /* OnboardingView.swift in Sources */,
 				ADD5C5066BCBB25A7AAE6EAE /* PlaceViews.swift in Sources */,
 				BBB3D8B442EB5DC2EE7078FC /* PlanEngine.swift in Sources */,
@@ -425,7 +480,12 @@
 				57CC2BBE1D10A29071CF895A /* ProfileView.swift in Sources */,
 				15C14D83166459D45575B7BA /* RootView.swift in Sources */,
 				02FF57DCA880696DD55C9484 /* RouteView.swift in Sources */,
+				6E207D64CAC27AFD177706A1 /* RouteVoiceConversation.swift in Sources */,
+				25030A0548DB110BD4E53D45 /* RouteVoiceSession.swift in Sources */,
 				0E128501DE17973C18734F71 /* ScenarioViews.swift in Sources */,
+				E8978CBB7590695F286F3A12 /* SimulatorRouteSpeech.swift in Sources */,
+				2F6D392AF432A654102288BE /* TerminalReplay.swift in Sources */,
+				EE81778F04E092B4D815E352 /* TerminalReplayView.swift in Sources */,
 				DEFD289DA0BFC38986681F70 /* Theme.swift in Sources */,
 				AE1485E8F5B43897BDEA39E0 /* TicketCard.swift in Sources */,
 				8288295C92B33B01AF2482CC /* TicketReader.swift in Sources */,
@@ -646,6 +706,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera view shows directions over what is in front of you, and you can take a profile photo. Frames stay on this iPhone.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "AirBorder reads your walking speed to time your walks to the gate and between stops. It stays on this iPhone.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "AirBorder listens while Talk is active so you can ask about your route.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "AirBorder recognizes route questions on this iPhone.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -691,6 +753,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera view shows directions over what is in front of you, and you can take a profile photo. Frames stay on this iPhone.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "AirBorder reads your walking speed to time your walks to the gate and between stops. It stays on this iPhone.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "AirBorder listens while Talk is active so you can ask about your route.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "AirBorder recognizes route questions on this iPhone.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

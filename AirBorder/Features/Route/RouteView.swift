@@ -1,16 +1,31 @@
+// SUBSTANTIVE: Presents route choices, confirmed progress and current directions.
 import AVFoundation
 import SwiftUI
+import WebKit
 
 /// One route instruction (Figma "Map step", 1121:17357).
 struct RouteStep: Equatable {
     enum Turn {
-        case straight, left, right, stairs, lift, stop, gate
+        case straight, left, right, turnBack, stairs, lift, stop, gate
 
         var cameraArrow: String? {
             switch self {
             case .straight: "camArrowForward"
             case .left, .right: "camArrowRight"
-            case .stairs, .lift, .stop, .gate: nil
+            case .turnBack, .stairs, .lift, .stop, .gate: nil
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .straight: "arrow.up"
+            case .left: "arrow.turn.up.left"
+            case .right: "arrow.turn.up.right"
+            case .turnBack: "arrow.uturn.down"
+            case .stairs: "figure.stairs"
+            case .lift: "arrow.up.arrow.down"
+            case .stop: "mappin.and.ellipse"
+            case .gate: "airplane.departure"
             }
         }
 
@@ -156,43 +171,242 @@ enum RouteSteps {
 /// Figma "Route" (858:10477): Map/Camera switch and one white route card.
 struct RouteView: View {
     @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var terminalReplay: TerminalReplay
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
     @State private var mode: Mode = .map
     @State private var showsMapInfo = false
+    @State private var gateMap: GateMapLink?
     @State private var cameraCovers = false
+    @StateObject private var voice = RouteVoiceSession()
+    @Environment(\.scenePhase) private var scenePhase
+
+    @State private var endedTerminalRoute = false
 
     enum Mode { case map, camera }
+    private enum ScrollTarget { case bottom }
+
+    private struct GateMapLink: Identifiable {
+        let url: URL
+        var id: URL { url }
+    }
+
+    private var followsDriver: Bool {
+        guard terminalReplay.endpoint != nil, !endedTerminalRoute else { return false }
+        if let route = terminalReplay.officialGate {
+            return canShowOfficialWalk && (terminalReplay.isAdaptiveWalk || route == store.gate)
+        }
+        if terminalReplay.route.usesNaritaItinerary { return store.isAirportTransfer }
+        return !store.isAirportTransfer && store.gate == SampleJourney.outbound.departureGate
+            && (terminalReplay.route == .observationDeck || RouteSteps.stopsInOrder(store).isEmpty)
+    }
+
+    private var cameraRestricted: Bool {
+        followsDriver && terminalReplay.officialGate == nil && terminalReplay.state.cameraRestricted
+    }
+
+    private var visibleMode: Mode { cameraRestricted ? .map : mode }
+
+    private var scenePedestrians: [DriverPedestrian] {
+        if let walk = activeOfficialWalk, walk.positionAvailable { return walk.path.scenePedestrians }
+        return terminalReplay.state.securityQueue?.scenePedestrians
+            ?? terminalReplay.state.facilityQueue?.scenePedestrians ?? []
+    }
+
+    private var drivenGuidance: TerminalGuidance? {
+        guard followsDriver else { return nil }
+        guard terminalReplay.officialGate != nil else { return terminalReplay.state.guidance }
+        if let walk = activeOfficialWalk { return walk.guidance(gate: store.gate) }
+        // Keep the last view visible while waiting for the new path to match the gate.
+        let previous = terminalReplay.officialWalk?.confirmed
+        return .init(instruction: "Position unavailable", position: previous,
+                     location: previous?.level.map { "\($0)F" }, lastConfirmedFloor: previous?.level)
+    }
+
+    private var routeTitle: String {
+        if followsDriver {
+            if terminalReplay.route == .naritaRail { return "Train to Narita" }
+            if terminalReplay.route == .narita { return "Bus to Narita" }
+            switch terminalReplay.route {
+            case .observationDeck:
+                return terminalReplay.state.confirmed?.landmark?.routeTitle ?? "Route to Terminal 2"
+            case .lounge:
+                return terminalReplay.state.confirmed?.landmark?.routeTitle ?? "Route to lounge"
+            case .arrivals:
+                return "Route to arrivals"
+            default: break
+            }
+        }
+        return store.isAirportTransfer ? "Route to Narita" : "Route to Gate \(store.gate)"
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                if !(mode == .camera && cameraCovers) {
-                    Text(store.isAirportTransfer ? "Route to Narita" : "Route to Gate \(store.gate)").outfitText(30, .bold).tracking(-1.1)
-                        .accessibilityAddTraits(.isHeader)
-                    modeSwitch
-                    if let condition = store.primaryCondition, !store.isAirportTransfer {
-                        TravelUpdateBanner(condition: condition, place: .route)
-                    }
-                }
-                if mode == .camera {
-                    CameraGuide(sign: sign, arrow: currentTurn.cameraArrow, mirrorArrow: currentTurn.mirrorsCameraArrow,
-                                exit: { mode = .map }, covers: $cameraCovers) { routeCard(map: false) }
-                } else {
-                    routeCard(map: true)
-                    if store.isAirportTransfer {
-                        TransferRouteContent().padding(.top, 14)
-                    }
+        ScrollViewReader { scroll in
+            ScrollView {
+                VStack(spacing: 0) {
+                    routeContent
+                    // Scroll the clearance into view with the controls so the floating bar stays clear.
+                    Color.clear.frame(height: tabBarClearance)
+                        .accessibilityHidden(true)
+                        .id(ScrollTarget.bottom)
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 54)
-            .padding(.bottom, tabBarClearance)
+            .onChange(of: voice.isActive) {
+                if voice.isActive { scroll.scrollTo(ScrollTarget.bottom, anchor: .bottom) }
+            }
+            .onChange(of: voice.answer) {
+                if voice.answer != nil { scroll.scrollTo(ScrollTarget.bottom, anchor: .bottom) }
+            }
         }
         .scrollIndicators(.hidden)
         .background(AB.screen.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         // Camera access is asked in the AirBorder pop-up (RootView); open the camera once it's allowed.
-        .onChange(of: store.cameraAllowed) { mode = .camera }
+        .onChange(of: store.cameraAllowed) {
+            if !cameraRestricted { mode = .camera }
+        }
+        .onChange(of: cameraRestricted) {
+            if cameraRestricted {
+                mode = .map
+                cameraCovers = false
+                voice.stop()
+            }
+        }
+        .onChange(of: store.gateMapRequest) { mode = .map }
+        .onChange(of: followsDriver) {
+            if !followsDriver { mode = .map }
+        }
         .onChange(of: store.guidesDirectlyToGate) { store.routeStep = 1 }
+        .onChange(of: store.gateAssignmentRevision) {
+            gateMap = nil
+            voice.invalidateGuidance()
+        }
+        .onChange(of: voiceGuidance.instruction) { voice.invalidateGuidance() }
+        .onChange(of: mode) { if mode != .map { voice.stop() } }
+        .onChange(of: store.tab) { if store.tab != .route { voice.stop() } }
+        .onChange(of: showsMapInfo) { if showsMapInfo { voice.stop() } }
+        .onChange(of: scenePhase) { if scenePhase == .background { voice.stop() } }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
+            let interruption = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            if interruption == AVAudioSession.InterruptionType.began.rawValue { voice.stop() }
+        }
+        .onDisappear { voice.stop() }
+        .sheet(item: $gateMap) { link in
+            NavigationStack {
+                GateMapBrowser(url: link.url) {
+                    guard gateMap?.id == link.id else { return }
+                    gateMap = nil
+                    store.showToast(ToastMessage(text: "Gate map unavailable. Continue in AirBorder."))
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { gateMap = nil }
+                    }
+                }
+                .toolbarBackground(.visible, for: .navigationBar)
+            }
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var routeContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !(visibleMode == .camera && cameraCovers) {
+                Text(routeTitle).outfitText(30, .bold).tracking(-1.1)
+                    .accessibilityAddTraits(.isHeader)
+                modeSwitch
+                if let condition = store.primaryCondition, !store.isAirportTransfer {
+                    TravelUpdateBanner(condition: condition, place: .route)
+                }
+                if activeOfficialWalk?.showsClosure == true {
+                    concourseUpdate("Passage blocked", symbol: "minus.circle", warning: true, id: "routeClosureUpdate")
+                } else if let queue = terminalReplay.state.securityQueue, followsDriver, queue.additionalWaitMinutes > 0 {
+                    concourseUpdate("Security queue", symbol: "person.2", warning: true,
+                                    delay: queue.additionalWaitMinutes, id: "securityQueueUpdate")
+                } else if let queue = terminalReplay.state.facilityQueue, followsDriver,
+                          let title = queue.kind?.title, queue.additionalWaitMinutes > 0 {
+                    concourseUpdate(title, symbol: "person.2", warning: true,
+                                    delay: queue.additionalWaitMinutes, id: "facilityQueueUpdate")
+                } else if let crowd = activeOfficialWalk?.crowdImpact {
+                    concourseUpdate(crowd.delayMinutes == nil ? "Crowding update unavailable" : "Crowding ahead",
+                                    symbol: "person.2", warning: crowd.delayMinutes != nil, delay: crowd.delayMinutes,
+                                    id: "routeCrowdingUpdate")
+                }
+            }
+            if let guidance = drivenGuidance {
+                if visibleMode == .camera {
+                    DrivenCameraGuidanceView(guidance: guidance,
+                                             passageBlocked: activeOfficialWalk?.showsClosure == true,
+                                             pedestrians: scenePedestrians,
+                                             end: finishDrivenRoute) {
+                        checkpointActions(guidance)
+                    }
+                } else {
+                    drivenMapCard(guidance)
+                }
+            } else if visibleMode == .camera {
+                CameraGuide(sign: sign, arrow: currentTurn.cameraArrow, mirrorArrow: currentTurn.mirrorsCameraArrow,
+                            exit: { mode = .map }, covers: $cameraCovers) { routeCard(map: false) }
+            } else {
+                routeCard(map: true)
+                if store.isAirportTransfer { TransferRouteContent().padding(.top, 14) }
+            }
+            if visibleMode == .map && !cameraRestricted && !store.isAirportTransfer { voiceControls }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 54)
+    }
+
+    private var canShowOfficialWalk: Bool {
+        let stops = RouteSteps.stopsInOrder(store).map(\.id)
+        return ["105", "108A"].contains(store.gate) && !store.isAirportTransfer
+            && store.tripFlight.number == TripFlight.sample.number && store.tripFlight.date == TripFlight.sample.date
+            && (store.routeChoice == .direct || terminalReplay.isAdaptiveWalk)
+            && (stops.isEmpty || (terminalReplay.isCafeWalk && stops == [.cafe]))
+    }
+
+    private var activeOfficialWalk: OfficialGateWalkState? {
+        guard canShowOfficialWalk, let walk = terminalReplay.officialWalk,
+              walk.path.matches(gate: store.gate, frame: terminalReplay.frame,
+                                viaCafe: terminalReplay.shouldVisitCafe(store: store))
+        else { return nil }
+        if terminalReplay.isAdaptiveWalk, walk.path.prefersQuieter != (store.routeChoice == .lessCrowded) {
+            return nil
+        }
+        return walk
+    }
+
+    private var voiceGuidance: RouteVoiceConversation.Guidance {
+        if let guidance = drivenGuidance {
+            return .init(gate: store.gate, instruction: guidance.instruction)
+        }
+        let steps = guidanceSteps
+        return .init(gate: store.gate, instruction: steps[min(max(store.routeStep, 1), steps.count) - 1].text)
+    }
+
+    private var voiceControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if voice.isActive || voice.answer != nil {
+                Text(voice.answer ?? (voice.state == .preparing ? "Starting voice…" : "Listening…"))
+                    .outfitText(16, .medium, AB.ticket)
+                    .accessibilityIdentifier("routeVoiceStatus")
+            }
+            Button {
+                if voice.isActive { voice.stop() }
+                else { voice.start { voiceGuidance } }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: voice.isActive ? "stop.fill" : "mic").foregroundStyle(AB.primary)
+                    Text(voice.isActive ? "Stop" : "Talk").outfitText(16, .semibold, AB.primary)
+                }
+                .padding(.horizontal, 17)
+                .frame(minHeight: 44)
+                .background(.white, in: Capsule())
+                .overlay(Capsule().strokeBorder(AB.border))
+            }
+            .buttonStyle(.pressable)
+            .accessibilityHint(voice.isActive ? "Ends voice guidance" : "Ask which gate or what’s next")
+            .accessibilityIdentifier("routeVoiceToggle")
+        }
     }
 
     private var currentTurn: RouteStep.Turn {
@@ -212,7 +426,7 @@ struct RouteView: View {
     }
 
     private func routeCard(map: Bool) -> some View {
-        RouteCard(step: $store.routeStep, steps: guidanceSteps, showsChoice: !store.isAirportTransfer) {
+        RouteCard(guide: .manual($store.routeStep, guidanceSteps), showsChoice: !store.isAirportTransfer) {
             if map && !store.isAirportTransfer { concourse }
         } end: {
             mode = .map
@@ -221,6 +435,117 @@ struct RouteView: View {
             guard !store.isAirportTransfer else { return }
             if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
             store.showToast(ToastMessage(text: "Arrived, Gate \(store.gate), \(store.outbound.number), boarding \(SampleJourney.boarding)."))
+        }
+    }
+
+    private func drivenMapCard(_ guidance: TerminalGuidance) -> some View {
+        let gate = store.gate
+        let walk = activeOfficialWalk
+        let lastWalk = walk ?? (terminalReplay.isCafeWalk ? terminalReplay.officialWalk : nil)
+        return VStack(alignment: .leading, spacing: 10) {
+            RouteCard(guide: .continuous(guidance), showsChoice: walk != nil,
+                      sameFloorChoices: terminalReplay.isAdaptiveWalk,
+                      offersQuieterRoute: walk?.crowdImpact?.delayMinutes != nil) {
+                if cameraRestricted, let stage = terminalReplay.state.checkpointStage {
+                    Text(stage.sign)
+                        .outfitText(15, .semibold, AB.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if terminalReplay.state.isApproachingCheckpoint, let position = guidance.position {
+                        TerminalCheckpointOverview(reading: position, pedestrians: scenePedestrians)
+                    } else {
+                        TerminalCheckpointStrip(stage: stage)
+                    }
+                } else if let image = terminalReplay.floorImage, let lastWalk {
+                    OfficialGateWalkMap(image: image, gate: gate, state: lastWalk, showRoute: walk != nil)
+                        .contentShape(Rectangle())
+                        .onTapGesture { showsMapInfo = true }
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityIdentifier("officialGateWalkMap")
+                        .sheet(isPresented: $showsMapInfo) {
+                            routeSheet(step: RouteStep(distance: "", text: guidance.instruction,
+                                                      turn: guidance.turn ?? .straight, remaining: "", remainingDetail: ""))
+                        }
+                }
+            } end: {
+                finishDrivenRoute()
+            }
+            if guidance.checkpoint != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    checkpointActions(guidance)
+                }
+                .padding(16)
+                .background(AB.ticket, in: RoundedRectangle(cornerRadius: 18))
+            }
+        }
+    }
+
+    private func concourseUpdate(_ title: String, symbol: String, warning: Bool,
+                                 delay: Int? = nil, id: String) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(warning ? AB.amber : AB.secondary)
+                .accessibilityHidden(true)
+            Text(title)
+                .outfitText(14, .bold)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            if let delay {
+                Text("+\(delay) min").outfitText(14, .bold, AB.gateText)
+                    .fixedSize()
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 8))
+                    .accessibilityLabel("About \(delay) minutes longer")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .frame(minHeight: 44)
+        .background(warning ? AB.warningTint : .white, in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(id)
+    }
+
+    @ViewBuilder
+    private func checkpointActions(_ guidance: TerminalGuidance) -> some View {
+        switch guidance.checkpoint {
+        case .cafeStop:
+            checkpointButton("Finish stop", id: "finishCafeStop", primary: true) {
+                terminalReplay.resolveCafe(store: store)
+            }
+            checkpointButton("Skip stop", id: "skipCafeStop", primary: false) {
+                terminalReplay.resolveCafe(store: store)
+            }
+        case let .confirmCafe(token):
+            Text("Are you by the café entrance?").outfitText(16, .regular, AB.ice)
+            checkpointButton("Confirm landmark", id: "confirmCafeLandmark", primary: true) {
+                Task { await terminalReplay.confirmCafe(token: token, store: store) }
+            }
+            if mode == .camera {
+                checkpointButton("Use map", id: "landmarkUseMap", primary: false) { mode = .map }
+            }
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private func checkpointButton(_ title: String, id: String, primary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).outfitText(15, .bold, primary ? AB.gateText : AB.navy)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(primary ? AB.gateYellow : AB.ice, in: Capsule())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityIdentifier(id)
+    }
+
+    private func finishDrivenRoute() {
+        mode = .map
+        if terminalReplay.officialGate != nil {
+            store.finishRoute()
+            Haptics.success()
+        } else {
+            endedTerminalRoute = true
         }
     }
 
@@ -234,20 +559,29 @@ struct RouteView: View {
     }
 
     private func segment(_ title: String, _ value: Mode) -> some View {
-        let selected = mode == value
+        let selected = visibleMode == value
+        let cameraOff = value == .camera && cameraRestricted
         return Button {
-            if value == .camera, AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
+            if value == .camera, !followsDriver, AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
                 store.asksForCamera = true
             } else {
                 mode = value
             }
         } label: {
-            Text(title).outfitText(14, .semibold, selected ? .white : AB.primary)
-                .frame(maxWidth: .infinity, minHeight: 47)
-                .background(selected ? AB.primary : .clear, in: Capsule())
-                .contentShape(Capsule())
+            HStack(spacing: 6) {
+                if cameraOff {
+                    Image(systemName: "camera.slash").accessibilityHidden(true)
+                }
+                Text(cameraOff ? "Camera off" : title)
+                    .outfitText(14, .semibold, selected ? .white : AB.primary)
+            }
+            .foregroundStyle(AB.primary)
+            .frame(maxWidth: .infinity, minHeight: 47)
+            .background(selected ? AB.primary : .clear, in: Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.pressable)
+        .disabled(cameraOff)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("mode-\(title.lowercased())")
     }
@@ -267,7 +601,101 @@ struct RouteView: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("About this map")
             .accessibilityIdentifier("routeSummary")
-            .sheet(isPresented: $showsMapInfo) { Sheets.aboutMap(walk: store.gateWalkMinutes) }
+            .sheet(isPresented: $showsMapInfo) { routeSheet(step: steps[index]) }
+    }
+
+    private func routeSheet(step: RouteStep) -> InfoSheet {
+        guard airportProvider.supports(store.tripFlight) else { return Sheets.aboutMap(walk: store.gateWalkMinutes) }
+        let gate = store.gate
+        let revision = store.gateAssignmentRevision
+        return InfoSheet(title: "Your route", rows: [
+            SheetRow(icon: "tileGate", label: "Gate \(gate)", detail: "Haneda · Terminal 3, 3F"),
+            SheetRow(icon: "tileMap", label: "Current step", detail: step.text),
+        ], button: ("Open gate map", {
+            Task { await openGateMap(gate: gate, revision: revision) }
+        }))
+    }
+
+    private func openGateMap(gate: String, revision: Int) async {
+        let assignment = await airportProvider.refresh(store: store)
+        // A new gate invalidates this sheet's destination. The usual gate alert handles the update.
+        guard store.tab == .route else { return }
+        guard store.gate == gate, store.gateAssignmentRevision == revision else {
+            showsMapInfo = false
+            return
+        }
+        guard let assignment, assignment.gate == gate, let url = airportProvider.mapURL(for: assignment) else {
+            showsMapInfo = false
+            store.showToast(ToastMessage(text: "Gate map unavailable. Continue in AirBorder."))
+            return
+        }
+        gateMap = GateMapLink(url: url)
+    }
+}
+
+private struct GateMapBrowser: UIViewRepresentable {
+    let url: URL
+    let onFailure: () -> Void
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        let browser = WKWebView(frame: .zero, configuration: configuration)
+        browser.navigationDelegate = context.coordinator
+        browser.load(URLRequest(url: url, timeoutInterval: 5))
+        return browser
+    }
+
+    func updateUIView(_ browser: WKWebView, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(url: url, onFailure: onFailure) }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        let url: URL
+        let onFailure: () -> Void
+
+        init(url: URL, onFailure: @escaping () -> Void) {
+            self.url = url
+            self.onFailure = onFailure
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction) async -> WKNavigationActionPolicy {
+            // The handoff is scoped to the validated gate URL.
+            action.targetFrame?.isMainFrame == true && action.request.url == url ? .allow : .cancel
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigation: WKNavigationResponse) async -> WKNavigationResponsePolicy {
+            guard let response = navigation.response as? HTTPURLResponse,
+                  response.url == url, response.statusCode == 200, navigation.canShowMIMEType else {
+                onFailure()
+                return .cancel
+            }
+            return .allow
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            onFailure()
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // A successful page load can still contain a failed map image. Return to native guidance in that case.
+            webView.callAsyncJavaScript("""
+                const map = document.querySelector('img[data-gate-map]');
+                return !map || (map.complete
+                    && map.naturalWidth === Number(map.getAttribute('width'))
+                    && map.naturalHeight === Number(map.getAttribute('height')));
+                """, arguments: [:], in: nil, in: .defaultClient) { [weak self] result in
+                guard case .success(let value) = result, value as? Bool == true else {
+                    self?.onFailure()
+                    return
+                }
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            onFailure()
+        }
     }
 }
 
@@ -506,66 +934,138 @@ struct RouteLine: Shape {
     }
 }
 
-/// Figma route card: time left and route choice, progress, the current instruction, map, Back / Next / End.
+enum RouteCardGuide {
+    case manual(Binding<Int>, [RouteStep])
+    case continuous(TerminalGuidance)
+
+    var manual: (step: Binding<Int>, steps: [RouteStep])? {
+        guard case let .manual(step, steps) = self else { return nil }
+        return (step, steps)
+    }
+
+    var continuous: TerminalGuidance? {
+        guard case let .continuous(guidance) = self else { return nil }
+        return guidance
+    }
+}
+
+private struct TerminalCheckpointStrip: View {
+    let stage: TerminalCheckpointStage
+
+    var body: some View {
+        let labels = stage.isArrival ? ["Immigration", "Bags", "Customs"] : ["Departures", "Security", "Gate"]
+        HStack(spacing: 0) {
+            ForEach(labels.indices, id: \.self) { index in
+                VStack(spacing: 8) {
+                    ZStack {
+                        Rectangle()
+                            .fill(AB.secondary.opacity(0.45))
+                            .frame(height: 2)
+                            .padding(.leading, index == 0 ? 44 : 0)
+                            .padding(.trailing, index == labels.count - 1 ? 44 : 0)
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 16, height: 16)
+                            .overlay {
+                                Circle().strokeBorder(index == stage.currentStep ? AB.amber : AB.secondary, lineWidth: 2)
+                            }
+                    }
+                    Text(labels[index]).outfitText(13, .semibold, AB.ticket)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(stage.isArrival ? "Arrival steps" : "Departure steps")
+        .accessibilityValue(labels[stage.currentStep])
+    }
+}
+
+/// Route card with the current guidance, map and applicable route controls.
 struct RouteCard<Map: View>: View {
     @EnvironmentObject private var store: JourneyStore
-    @Binding var step: Int
-    let steps: [RouteStep]
+    let guide: RouteCardGuide
     var showsChoice = true
+    var sameFloorChoices = false
+    var offersQuieterRoute = false
     @ViewBuilder let map: Map
     let end: () -> Void
     @State private var choosing = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let index = min(max(step, 1), steps.count) - 1
-        let current = steps[index]
+        let manual = guide.manual
+        let continuous = guide.continuous
+        let index = manual.map { min(max($0.step.wrappedValue, 1), $0.steps.count) - 1 }
+        let current = index.flatMap { manual?.steps[$0] }
+        let turn = continuous?.turn ?? current?.turn
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(current.remaining).outfitText(20, .semibold).contentTransition(.numericText())
-                Text(current.remainingDetail).outfitText(15, .regular, AB.secondary)
-                Spacer()
-                if showsChoice { choiceButton }
-            }
-            .frame(minHeight: 36)
-            .zIndex(1)
-            HStack(spacing: 4) {
-                ForEach(steps.indices, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 2).fill(i <= index ? AB.ticket : AB.screen).frame(height: 4)
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Step \(index + 1) of \(steps.count)")
-            .accessibilityIdentifier("routeProgress")
-            HStack(alignment: .top, spacing: 14) {
-                Image(systemName: Self.symbol(current.turn))
-                    .contentTransition(.symbolEffect(.replace))
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(AB.ice)
-                    .frame(width: 52, height: 52)
-                    .background(AB.ticket, in: RoundedRectangle(cornerRadius: 14))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    if !current.distance.isEmpty {
-                        Text(current.distance).outfitText(15, .semibold, AB.secondary)
+            if current != nil || showsChoice {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if let current {
+                        Text(current.remaining).outfitText(20, .semibold).contentTransition(.numericText())
+                        Text(current.remainingDetail).outfitText(15, .regular, AB.secondary)
                     }
-                    Text(current.text).outfitText(22, .bold, AB.ticket)
+                    Spacer()
+                    if showsChoice { choiceButton }
+                }
+                .frame(minHeight: 36)
+                .zIndex(1)
+            }
+            if let index, let manual {
+                HStack(spacing: 4) {
+                    ForEach(manual.steps.indices, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 2).fill(i <= index ? AB.ticket : AB.screen).frame(height: 4)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Step \(index + 1) of \(manual.steps.count)")
+                .accessibilityIdentifier("routeProgress")
+            }
+            HStack(alignment: .top, spacing: 14) {
+                if let turn {
+                    Image(systemName: turn.symbol)
+                        .contentTransition(.symbolEffect(.replace))
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(AB.ice)
+                        .frame(width: 52, height: 52)
+                        .background(AB.ticket, in: RoundedRectangle(cornerRadius: 14))
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    if let distance = current?.distance, !distance.isEmpty {
+                        Text(distance).outfitText(15, .semibold, AB.secondary)
+                    }
+                    if let location = continuous?.location, !showsChoice {
+                        Text(location).outfitText(15, .semibold, AB.secondary)
+                            .accessibilityIdentifier("guidanceLocation")
+                    }
+                    Text(continuous?.instruction ?? current?.text ?? "")
+                        .outfitText(22, .bold, AB.ticket)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("routeInstruction")
+                        .drivenPoseValue(continuous?.position)
+                    if let floor = continuous?.lastConfirmedFloor {
+                        Text("Last confirmed floor \(floor)F").outfitText(15, .medium, AB.secondary)
+                    }
                 }
                 .id(index)
                 .transition(reduceMotion ? AnyTransition.opacity : AnyTransition(.blurReplace))
             }
             map
-            HStack(spacing: 8) {
-                if index > 0 {
-                    button("Back", fill: AB.screen, text: AB.ticket, id: "previousStep") { go(to: index) }
+            if let index, let manual {
+                HStack(spacing: 8) {
+                    if index > 0 {
+                        button("Back", fill: AB.screen, text: AB.ticket, id: "previousStep") { go(to: index) }
+                    }
+                    if index < manual.steps.count - 1 {
+                        button("Next", fill: AB.ticket, text: .white, arrow: true, id: "nextStep") { go(to: index + 2) }
+                    } else {
+                        button("End", fill: AB.primary, text: .white, id: "endRoute", action: end)
+                    }
                 }
-                if index < steps.count - 1 {
-                    button("Next", fill: AB.ticket, text: .white, arrow: true, id: "nextStep") { go(to: index + 2) }
-                } else {
-                    button("End", fill: AB.primary, text: .white, id: "endRoute", action: end)
-                }
+            } else if continuous?.canFinish == true {
+                button("End", fill: AB.primary, text: .white, id: "endRoute", action: end)
             }
         }
         .padding(20)
@@ -581,7 +1081,7 @@ struct RouteCard<Map: View>: View {
 
     private func go(to newStep: Int) {
         Haptics.tick()
-        withAnimation(.abOut) { step = newStep }
+        withAnimation(.abOut) { guide.manual?.step.wrappedValue = newStep }
     }
 
     private var choiceButton: some View {
@@ -609,7 +1109,8 @@ struct RouteCard<Map: View>: View {
     }
 
     private var menu: some View {
-        let choices = RouteChoice.allCases
+        let choices: [RouteChoice] = sameFloorChoices && !offersQuieterRoute && store.routeChoice != .lessCrowded
+            ? [.direct, .stepFree] : RouteChoice.allCases
         return VStack(spacing: 0) {
             ForEach(Array(choices.enumerated()), id: \.element) { i, choice in
                 if i > 0 { Rectangle().fill(Color(hex: 0xDFE7EA)).frame(height: 1) }
@@ -617,7 +1118,7 @@ struct RouteCard<Map: View>: View {
                     Haptics.tick()
                     withAnimation(.abOut) {
                         store.routeChoice = choice
-                        step = 1
+                        guide.manual?.step.wrappedValue = 1
                         choosing = false
                     }
                 } label: {
@@ -629,16 +1130,19 @@ struct RouteCard<Map: View>: View {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
                                 Text(choice.title).outfitText(15, .semibold)
-                                if choice == .direct {
+                                if choice == .direct && !sameFloorChoices {
                                     Text("Fastest").outfitText(11, .medium, AB.primary)
                                         .padding(.horizontal, 6).padding(.vertical, 1)
                                         .background(AB.screen, in: RoundedRectangle(cornerRadius: 6))
                                 }
                             }
-                            Text(choice.detail).outfitText(13, .regular, AB.secondary)
+                            Text(sameFloorChoices
+                                 ? (choice == .lessCrowded ? "Quieter concourse route" : "Same-floor concourse")
+                                 : choice.detail)
+                                .outfitText(13, .regular, AB.secondary)
                         }
                         Spacer()
-                        Text("\(choice.averageMinutes) min").outfitText(15, .semibold)
+                        if !sameFloorChoices { Text("\(choice.averageMinutes) min").outfitText(15, .semibold) }
                     }
                     .padding(.vertical, 12)
                     .contentShape(Rectangle())
@@ -668,17 +1172,5 @@ struct RouteCard<Map: View>: View {
         }
         .buttonStyle(.pressable)
         .accessibilityIdentifier(id)
-    }
-
-    static func symbol(_ turn: RouteStep.Turn) -> String {
-        switch turn {
-        case .straight: "arrow.up"
-        case .left: "arrow.turn.up.left"
-        case .right: "arrow.turn.up.right"
-        case .stairs: "figure.stairs"
-        case .lift: "arrow.up.arrow.down"
-        case .stop: "mappin.and.ellipse"
-        case .gate: "airplane.departure"
-        }
     }
 }

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "coordinateFrame": {
+    "id": "hnd-t3-3f-gate-wing",
+    "sourceSizePixels": [
+      2778,
+      1700
+    ],
+    "cropPixels": [
+      1740,
+      740,
+      1050,
+      420
+    ]
+  },
+  "samples": [
+    {"offsetMs": 0, "point": {"x": 0.061905, "y": 0.5}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 850, "point": {"x": 0.2, "y": 0.5}, "level": 4, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": false},
+    {"offsetMs": 1722, "point": {"x": 0.209524, "y": 0.5}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 3389, "point": {"x": 0.352381, "y": 0.5}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 4278, "point": {"x": 0.428571, "y": 0.504762}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 5097, "point": {"x": 0.495238, "y": 0.559524}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 6091, "point": {"x": 0.571429, "y": 0.654762}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 6418, "point": {"x": 0.598095, "y": 0.67619}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 6896, "point": {"x": 0.639048, "y": 0.67619}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 7233, "point": {"x": 0.666667, "y": 0.654762}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 8789, "point": {"x": 0.8, "y": 0.654762}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 9678, "point": {"x": 0.87619, "y": 0.654762}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 10689, "point": {"x": 0.962857, "y": 0.654762}, "level": 3, "matchedNodeID": "t3-departure-concourse", "floorConfirmed": true},
+    {"offsetMs": 11922, "point": {"x": 0.962857, "y": 0.390476}, "level": 3, "matchedNodeID": "t3-departure-gate-105", "floorConfirmed": true}
+  ]
+}

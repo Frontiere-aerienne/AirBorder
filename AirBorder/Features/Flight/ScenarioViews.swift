@@ -1,3 +1,4 @@
+// SUBSTANTIVE: Presents journey warnings and recovery choices.
 import AVFoundation
 import SwiftUI
 
@@ -153,6 +154,11 @@ struct TravelUpdateBanner: View {
 /// and two actions along the bottom. Used for gate changes and for asking to use the camera.
 struct AirBorderPopup<Visual: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    @AccessibilityFocusState(for: .voiceOver) private var titleFocused: Bool
+    @ScaledMetric(relativeTo: .headline) private var titleSize = 17.0
+    @ScaledMetric(relativeTo: .body) private var messageSize = 15.0
+    @ScaledMetric(relativeTo: .body) private var actionSize = 17.0
     let title: String
     let message: String
     let id: String
@@ -164,17 +170,41 @@ struct AirBorderPopup<Visual: View>: View {
     var body: some View {
         ZStack {
             Color.black.opacity(0.4).ignoresSafeArea().onTapGesture(perform: secondary.perform)
-            VStack(spacing: 0) {
-                VStack(spacing: 14) {
-                    Text(title).outfitText(17, .bold).multilineTextAlignment(.center).accessibilityAddTraits(.isHeader)
-                    visual
-                    Text(message)
-                        .outfitText(15, .regular, AB.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(20)
+                .accessibilityHidden(true)
+            ViewThatFits(in: .vertical) {
+                card.fixedSize(horizontal: false, vertical: true)
+                ScrollView { card }
+            }
+            .frame(maxWidth: dynamicType.isAccessibilitySize ? 350 : 300)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+        }
+        .onAppear { if !reduceMotion { withAnimation(.abOut) { shown = true } } }
+        .task {
+            await Task.yield()
+            if !Task.isCancelled { titleFocused = true }
+        }
+    }
+
+    private var card: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 14) {
+                Text(title).outfitText(titleSize, .bold).multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityFocused($titleFocused)
+                visual
+                Text(message)
+                    .outfitText(messageSize, .regular, AB.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(20)
+            Rectangle().fill(AB.border).frame(height: 1)
+            if dynamicType.isAccessibilitySize {
+                action(primary.title, .bold, id: primary.id, perform: primary.perform)
                 Rectangle().fill(AB.border).frame(height: 1)
+                action(secondary.title, .regular, id: secondary.id, perform: secondary.perform)
+            } else {
                 HStack(spacing: 0) {
                     action(secondary.title, .regular, id: secondary.id, perform: secondary.perform)
                     Rectangle().fill(AB.border).frame(width: 1)
@@ -182,19 +212,23 @@ struct AirBorderPopup<Visual: View>: View {
                 }
                 .frame(height: 52)
             }
-            .frame(width: 300)
-            .background(.white, in: RoundedRectangle(cornerRadius: 16))
-            .scaleEffect(shown || reduceMotion ? 1 : 0.95)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier(id)
-            .accessibilityAddTraits(.isModal)
         }
-        .onAppear { withAnimation(.abOut) { shown = true } }
+        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .scaleEffect(shown || reduceMotion ? 1 : 0.95)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(id)
+        .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape, secondary.perform)
     }
 
     private func action(_ title: String, _ weight: OutfitWeight, id: String, perform: @escaping () -> Void) -> some View {
         Button(action: perform) {
-            Text(title).outfitText(17, weight, AB.primary).frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+            Text(title).outfitText(actionSize, weight, AB.primary)
+                .multilineTextAlignment(.center)
+                .padding(.vertical, 9)
+                .padding(.horizontal, 6)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
         .accessibilityIdentifier(id)
@@ -204,13 +238,17 @@ struct AirBorderPopup<Visual: View>: View {
 /// Figma "Gate change alert" (1157:17460).
 struct GateChangeAlert: View {
     @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var terminalReplay: TerminalReplay
     let dismiss: () -> Void
 
     var body: some View {
         let previousGate = store.feed?.previousGate ?? store.outbound.departureGate
+        let gateMessage = "\(store.outbound.number) now departs from Gate \(store.gate)."
+        let message = terminalReplay.officialGate == "adaptive" ? gateMessage
+            : gateMessage + " It’s a \(store.gateWalkMinutes) min walk."
         AirBorderPopup(
             title: "Gate changed",
-            message: "\(store.outbound.number) now departs from Gate \(store.gate). It’s a \(store.gateWalkMinutes) min walk.",
+            message: message,
             id: "gateAlert",
             secondary: ("Dismiss", "alertDismiss", dismiss),
             primary: ("View route", "alertRoute", {
@@ -386,21 +424,110 @@ struct AlertsView: View {
 /// Figma "Boarding and rebooking" sheet (858:10204), titled Boarding assistance.
 struct BoardingAssistanceSheet: View {
     @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
     @Environment(\.openDestination) private var open
 
     var body: some View {
         let arrival = store.now + store.gateWalkMinutes
         let closes = store.outbound.gateCloses?.description ?? "–"
+        let canBrowse = airportProvider.supports(store.tripFlight)
         InfoSheet(
             title: "Boarding assistance",
             rows: [
                 SheetRow(icon: "tileClock", label: "Arriving \(arrival)", detail: "Gate \(store.gate) closes \(closes)"),
-                SheetRow(icon: "tileBell", label: "Ask about the next flight", detail: "ANA can rebook \(store.outbound.number)"),
+                SheetRow(icon: "tileBell", label: "Ask about the next flight", detail: "Confirm rebooking with ANA"),
                 SheetRow(icon: "tileBag", label: "Bag tagged to \(store.outbound.to.code)", detail: store.extraBagDeclared ? "1 checked, 1 extra" : "1 checked"),
             ],
             link: ("Call ANA, \(ANAHelp.hours)", "tel:\(ANAHelp.phone)"),
-            button: ("View journey details", { open(.journeyDetails) })
+            button: (canBrowse ? "View next flights" : "View journey details", {
+                open(canBrowse ? .nextFlights : .journeyDetails)
+            })
         )
+    }
+}
+
+struct NextFlightsView: View {
+    @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @State private var selectedID: String?
+    @State private var reviewed: DriverPlanningSnapshot.Replacement?
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 15)) { timeline in
+            let options = airportProvider.onwardOptions(for: store, at: max(timeline.date, Date.now))
+            let selection = options.first { $0.id == selectedID } ?? options.first
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    StackedHeader(title: reviewed == nil ? "Next flights" : "Review flight") {
+                        if reviewed != nil { reviewed = nil } else { dismiss() }
+                    }
+                    if let reviewed, options.contains(reviewed) {
+                        flightCard(reviewed, selected: true)
+                            .accessibilityElement(children: .combine)
+                        Text("Ask ANA whether seats are available and what happens to your checked bag.")
+                            .outfitText(16, .regular, AB.secondary)
+                        callAirline
+                    } else if reviewed != nil || options.isEmpty {
+                        Text("Flight options are unavailable. Ask ANA about your next departure.")
+                            .outfitText(16, .regular, AB.secondary)
+                        callAirline
+                    } else if let selection {
+                        ForEach(options) { option in
+                            Button { selectedID = option.id } label: {
+                                flightCard(option, selected: selection.id == option.id)
+                            }
+                            .buttonStyle(.pressable)
+                            .accessibilityAddTraits(selection.id == option.id ? .isSelected : [])
+                            .accessibilityIdentifier("replacement-flight-\(option.id)")
+                        }
+                        Text("Confirm availability with the airline").outfitText(16, .regular, AB.secondary)
+                        CTAButton(title: "Review selected flight", height: 52) {
+                            if airportProvider.onwardOptions(for: store).contains(selection) { reviewed = selection }
+                        }
+                        .accessibilityIdentifier("reviewReplacementFlight")
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 24)
+            }
+        }
+        .background(AB.screen.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var callAirline: some View {
+        CTAButton(title: "Call ANA", height: 52) {
+            if let url = ANAHelp.url { openURL(url) }
+        }
+        .accessibilityIdentifier("callAirlineForReplacement")
+    }
+
+    private func flightCard(_ option: DriverPlanningSnapshot.Replacement, selected: Bool) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                .foregroundStyle(selected ? AB.gateYellow : AB.secondary)
+                .padding(.top, 4)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\(option.from) → \(option.to)").outfitText(21, .bold, selected ? .white : AB.navy)
+                Text("\(dayLabel(option.dayOffset)) · \(option.departure.description) JST")
+                    .outfitText(16, .regular, selected ? AB.ice : AB.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? AB.ticket : .white, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func dayLabel(_ offset: Int) -> String {
+        switch offset {
+        case 0: "Today"
+        case 1: "Tomorrow"
+        default: "In \(offset) days"
+        }
     }
 }
 

@@ -3,6 +3,8 @@ import SwiftUI
 /// Figma "Layover & transit" (858:10462) and its Landside / City tabs (section 858:12531).
 struct LayoverView: View {
     @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
+    @Environment(\.openDestination) private var open
     @State private var area: Area = .airside
     @State private var filter: Filter = .all
     @State private var showsAirsideInfo = false
@@ -14,12 +16,15 @@ struct LayoverView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Layover & transit").outfitText(30, .bold).tracking(-1.1).accessibilityAddTraits(.isHeader)
+                TextLink(title: "Airport guides") { open(.airportGuides) }
+                    .accessibilityIdentifier("airportGuidesLink")
                 if let condition = store.primaryCondition {
                     TravelUpdateBanner(condition: condition, place: .layover).padding(.top, 16)
                 }
                 areaTabs.padding(.top, 22)
                 switch area {
-                case .airside: airside
+                case .airside:
+                    if LoungeDirectory.covers(store.outbound) { airside }
                 case .landside: LandsideList()
                 case .city: CityList()
                 }
@@ -39,7 +44,7 @@ struct LayoverView: View {
 
     /// Figma "Plan bar" (1172:17715): pinned above the tab bar once the plan has stops.
     private var planBar: some View {
-        Button { store.tab = .flight } label: {
+        Button { open(.plan) } label: {
             HStack {
                 HStack(spacing: 8) {
                     Text("Your plan").outfitText(15, .bold, .white)
@@ -81,6 +86,8 @@ struct LayoverView: View {
                 }
                 .buttonStyle(.pressable)
                 .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityHint(item == .airside && !LoungeDirectory.covers(store.outbound)
+                                   ? "Venue listings are unavailable for this terminal" : "")
                 .accessibilityIdentifier("area-\(item.rawValue)")
             }
         }
@@ -98,7 +105,19 @@ struct LayoverView: View {
     }
 
     private var airside: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        let lounges = LoungeDirectory.options(for: store.outbound, gate: store.gate, pace: store.pace)
+        let loungeIDs = lounges.map(\.id)
+        let gateWalksAvailable = store.gate == SampleJourney.outbound.departureGate
+        let food = Venue.airside.filter { $0.filter == .food }
+        let visibleVenues: [Venue] = switch filter {
+        case .all: Venue.airside
+        case .food: gateWalksAvailable ? food.sorted {
+            store.venueToGateMinutes($0.id) < store.venueToGateMinutes($1.id)
+        } : food
+        case .rest: loungeIDs.compactMap { id in Venue.airside.first { $0.id == id } }
+        }
+
+        return VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 7) {
                 ForEach(Filter.allCases, id: \.self) { item in
                     let selected = item == filter
@@ -114,12 +133,309 @@ struct LayoverView: View {
                 }
             }
             .padding(.top, 17)
+            if filter == .rest, airportProvider.currentPlanning(for: store) != nil {
+                TextLink(title: "Lounges near your gate") { open(.nearbyLounges) }
+                    .accessibilityIdentifier("nearbyLounges")
+            }
+            if filter != .rest, let offer = airportProvider.fittingCafe(for: store) {
+                cafeOffer(offer.stop, arrival: offer.arrival)
+            }
             VStack(spacing: 13) {
-                ForEach(Venue.airside.filter { filter == .all || $0.filter == filter }) { venue in
-                    VenueCard(venue: venue)
+                ForEach(visibleVenues) { venue in
+                    let nearestLounge = lounges.first { $0.id == venue.id }
+                    let walk = if venue.filter == .rest {
+                        nearestLounge?.walkToGate
+                    } else {
+                        gateWalksAvailable ? store.venueToGateMinutes(venue.id) : nil
+                    }
+                    VenueCard(venue: venue, walkToGate: walk)
                 }
             }
         }
+    }
+
+    private func cafeOffer(_ stop: PlanStop, arrival: ClockTime) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Fits your connection", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                .outfit(21, .bold, .white)
+                .accessibilityAddTraits(.isHeader)
+            Label(stop.name, systemImage: "cup.and.saucer")
+                .outfit(18, .semibold, .white)
+            FlowRow {
+                Chip(text: "\(stop.visitMinutes) min visit · \(stop.waitMinutes) min wait")
+                Chip(text: "At Gate \(store.gate) by \(arrival)", tone: .leaveBy)
+            }
+            CTAButton(title: "Review stop", style: .light) {
+                open(.reviewCafe(wait: stop.waitMinutes, arrival: arrival))
+            }
+            .accessibilityIdentifier("reviewCafeOffer")
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AB.ticket, in: RoundedRectangle(cornerRadius: 20))
+    }
+}
+
+struct CafeOfferReview: View {
+    @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
+    @Environment(\.dismiss) private var dismiss
+    let wait: Int
+    let arrival: ClockTime
+    @State private var changed = false
+
+    private var canAdd: Bool {
+        guard !changed, let offer = airportProvider.fittingCafe(for: store) else { return false }
+        return offer.stop.waitMinutes == wait && offer.arrival == arrival
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                StackedHeader(title: PlanStop.cafe.name) { dismiss() }
+                if canAdd {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("\(PlanStop.cafe.visitMinutes) min visit · \(wait) min wait")
+                            .outfitText(16, .semibold)
+                        Text("Estimated arrival at Gate \(store.gate) at \(arrival.description)")
+                            .outfitText(16, .regular, AB.secondary)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                    CTAButton(title: "Add to plan") {
+                        var cafe = PlanStop.cafe
+                        cafe.waitMinutes = wait
+                        if airportProvider.addFittingCafe(cafe, arrival: arrival, to: store) {
+                            dismiss()
+                        } else {
+                            changed = true
+                        }
+                    }
+                    .accessibilityIdentifier("addReviewedCafe")
+                } else {
+                    Text("This stop needs a new timing check. Return to Layover for the latest options.")
+                        .outfitText(16, .regular, AB.secondary)
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 24)
+        }
+        .background(AB.screen.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+struct NearbyLoungesView: View {
+    @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @Environment(\.openDestination) private var open
+    @State private var selected: PlaceID?
+
+    var body: some View {
+        let planning = airportProvider.currentPlanning(for: store)
+        let gateIsCurrent = airportProvider.planningReachable && planning.map {
+            DriverPlanningSnapshot.isFresh($0.gateCheckedAt, at: .now)
+        } == true
+        let options = gateIsCurrent ? (planning?.lounges ?? []).sorted { $0.walkMinutes < $1.walkMinutes } : planning?.lounges ?? []
+        let choice = options.first { $0.id == selected } ?? options.first
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                StackedHeader(title: "Lounges") { dismiss() }
+                if let planning, let choice {
+                    FlowRow {
+                        TerminalSign(terminal: planning.terminal)
+                        Text(gateIsCurrent ? "Near Gate \(planning.gate)" : "Gate proximity unavailable")
+                            .outfitText(14, .semibold)
+                    }
+                    ForEach(options) { lounge in
+                        loungeCard(lounge, selected: lounge.id == choice.id, showWalk: gateIsCurrent)
+                    }
+                    CTAButton(title: "Directions") {
+                        if choice.place == .anaLounge {
+                            open(.loungeMap)
+                        } else if let url = URL(string: "https://tokyo-haneda.com/en/floor/floor-guide.html?area=9&tab=terminal3&floor=4F") {
+                            openURL(url)
+                        }
+                    }
+                } else {
+                    Text("Lounge details are unavailable for this terminal.")
+                        .outfitText(16, .regular, AB.secondary)
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 24)
+        }
+        .background(AB.screen.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func loungeCard(_ lounge: DriverPlanningSnapshot.Lounge, selected: Bool, showWalk: Bool) -> some View {
+        Button {
+            self.selected = lounge.id
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(lounge.place == .anaLounge ? "ANA LOUNGE" : "SKY LOUNGE")
+                        .outfitText(18, .bold, .white)
+                    Spacer(minLength: 0)
+                    if showWalk {
+                        let walk = WalkingTimes.minutes(average: lounge.walkMinutes, pace: store.pace)
+                        Text("\(walk) min walk").outfitText(14, .semibold, AB.ice)
+                            .accessibilityLabel("\(walk) minute walk to the gate")
+                    }
+                }
+                HStack {
+                    Text(lounge.access == .businessClass ? "Business class · Check at entrance" : "Paid entry · Check at entrance")
+                        .outfitText(14, .regular, AB.ice)
+                    Spacer(minLength: 0)
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle").foregroundStyle(AB.gateYellow)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(16)
+            .background(AB.ticket, in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.pressable)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("ranked-lounge-\(lounge.place.rawValue)")
+    }
+}
+
+private struct AirportGuide: Identifiable {
+    let code: String
+    let name: String
+    let destination: URL
+    var id: String { code }
+
+    static let guides = [
+        Self(code: "HND", name: "Tokyo Haneda",
+             destination: URL(string: "https://tokyo-haneda.com/en/shop_and_dine/search_r.html")!),
+        Self(code: "NRT", name: "Tokyo Narita",
+             destination: URL(string: "https://www.narita-airport.jp/en/shop/shop-search/?category=shop")!),
+        Self(code: "LHR", name: "London Heathrow",
+             destination: URL(string: "https://www.heathrow.com/at-the-airport")!)
+    ]
+}
+
+struct AirportGuidesView: View {
+    @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @State private var selectedGuide: String?
+
+    private var directory: [DriverPlanningSnapshot.Guide] {
+        (airportProvider.planning?.airports ?? []).filter { $0.code == "SIN" }
+    }
+
+    private var matches: [AirportGuide] {
+        let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return search.isEmpty ? AirportGuide.guides : AirportGuide.guides.filter {
+            $0.code.localizedCaseInsensitiveContains(search) || $0.name.localizedCaseInsensitiveContains(search)
+        }
+    }
+
+    private var directoryMatches: [DriverPlanningSnapshot.Guide] {
+        let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return search.isEmpty ? directory : directory.filter {
+            $0.code.localizedCaseInsensitiveContains(search) || $0.name.localizedCaseInsensitiveContains(search)
+                || $0.city.localizedCaseInsensitiveContains(search)
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                BackButton(showsText: true) { dismiss() }
+                Text("Airport guides").outfitText(30, .bold)
+                    .accessibilityAddTraits(.isHeader)
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(AB.secondary).accessibilityHidden(true)
+                    TextField("Airport or code", text: $query,
+                              prompt: Text("Airport or code").foregroundStyle(AB.secondary))
+                        .outfit(16)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("airportGuideSearch")
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 46)
+                .background(.white, in: Capsule())
+                .overlay(Capsule().strokeBorder(AB.border))
+
+                if matches.isEmpty && directoryMatches.isEmpty {
+                    Text("No matching airports").outfitText(16, .regular, AB.secondary)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(matches) { guide in
+                            if guide.id != matches.first?.id { Divider() }
+                            Link(destination: guide.destination) {
+                                guideRow(code: guide.code, name: guide.name,
+                                         subtitle: guide.code == store.outbound.from.code ? "Current trip" : nil,
+                                         icon: "arrow.right")
+                            }
+                            .accessibilityHint("Opens the airport’s official website")
+                            .accessibilityIdentifier("airport-guide-\(guide.code)")
+                        }
+                        ForEach(directoryMatches) { guide in
+                            if !matches.isEmpty || guide.id != directoryMatches.first?.id { Divider() }
+                            Button {
+                                selectedGuide = selectedGuide == guide.id ? nil : guide.id
+                            } label: {
+                                guideRow(code: guide.code, name: guide.name, subtitle: "Terminal guides",
+                                         icon: selectedGuide == guide.id ? "chevron.up" : "chevron.down")
+                            }
+                            .buttonStyle(.pressable)
+                            .accessibilityIdentifier("airport-guide-\(guide.code)")
+                            if selectedGuide == guide.id {
+                                ForEach(guide.terminals, id: \.self) { terminal in
+                                    if let url = changiGuide(terminal: terminal) {
+                                        Divider()
+                                        Link(destination: url) {
+                                            Label("Terminal \(terminal)", systemImage: "arrow.up.right")
+                                                .outfit(16, .semibold, AB.primary)
+                                                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .accessibilityHint("Opens Changi Airport’s terminal guide")
+                                        .accessibilityIdentifier("airport-guide-SIN-terminal-\(terminal)")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 20))
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 24)
+        }
+        .background(AB.screen.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func guideRow(code: String, name: String, subtitle: String?, icon: String) -> some View {
+        HStack(spacing: 12) {
+            Text(code).outfitText(17, .bold, AB.gateText)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name).outfitText(17, .semibold)
+                if let subtitle { Text(subtitle).outfitText(14, .regular, AB.primary) }
+            }
+            Spacer(minLength: 4)
+            Image(systemName: icon).foregroundStyle(AB.primary).accessibilityHidden(true)
+        }
+        .frame(minHeight: 60)
+        .contentShape(Rectangle())
+    }
+
+    private func changiGuide(terminal: String) -> URL? {
+        guard ["1", "2", "3", "4"].contains(terminal) else { return nil }
+        return URL(string: "https://www.changiairport.com/en/at-changi/terminal-guides/terminal-\(terminal).html")
     }
 }
 
@@ -159,6 +475,7 @@ private struct VenueCard: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     let venue: Venue
+    let walkToGate: Int?
     @State private var warning: (title: String, message: String)?
 
     var body: some View {
@@ -211,17 +528,20 @@ private struct VenueCard: View {
                 }
                 HStack(spacing: 8) {
                     TerminalSign(terminal: SampleJourney.outbound.departureTerminal)
-                    HStack(spacing: 6) {
-                        Image("icWalkSmall").resizable().frame(width: 15, height: 15)
-                        Text("\(walkFromYou) min")
-                            .outfitText(13, .semibold, AB.ice)
+                    if let walkToGate {
+                        HStack(spacing: 6) {
+                            Image("icWalkSmall").resizable().frame(width: 15, height: 15)
+                            Text("\(walkToGate) min")
+                                .outfitText(13, .semibold, AB.ice)
+                        }
+                        .padding(.leading, 10)
+                        .padding(.trailing, 12)
+                        .padding(.vertical, 7)
+                        .background(AB.ice.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(walkToGate) minute walk to the gate")
+                        .accessibilityIdentifier("venueWalk-\(venue.id.rawValue)")
                     }
-                    .padding(.leading, 10)
-                    .padding(.trailing, 12)
-                    .padding(.vertical, 7)
-                    .background(AB.ice.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(walkFromYou) minute walk")
                 }
             }
             .padding(.horizontal, 22)
@@ -237,8 +557,9 @@ private struct VenueCard: View {
                         Chip(text: meal.sitDown ? "Sit-down, ~\(meal.minutes) min" : "Quick, ~\(meal.minutes) min", tone: meal.sitDown ? .sitDown : .quick)
                     }
                     if let status = venue.status { Chip(text: status, tone: .open) }
-                    if venue.showsLeaveBy {
-                        Chip(text: "Leave by \(SampleJourney.gateArrivalTarget - store.walkMinutes(venue.id, .gate))", tone: .leaveBy)
+                    if venue.showsLeaveBy, let walkToGate {
+                        Chip(text: "Leave by \(SampleJourney.gateArrivalTarget - walkToGate)", tone: .leaveBy)
+                            .accessibilityIdentifier("venueLeaveBy-\(venue.id.rawValue)")
                     }
                     ForEach(venue.details, id: \.self) { Chip(text: $0) }
                     Chip(text: venue.floor)
@@ -268,9 +589,6 @@ private struct VenueCard: View {
             Text(warning?.message ?? "")
         }
     }
-
-    /// Walking time between the venue and the gate (Figma cards: 4, 6 and 8 min on average).
-    private var walkFromYou: Int { store.venueToGateMinutes(venue.id) }
 }
 
 // MARK: - Landside (Figma 858:12562)

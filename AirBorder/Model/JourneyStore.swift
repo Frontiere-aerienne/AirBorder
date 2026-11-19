@@ -104,6 +104,7 @@ final class JourneyStore: ObservableObject {
     @Published private(set) var walkingSpeedKmh: Double?
     @Published private(set) var lastHealthSync: Date?
     @Published var routeStep = 1
+    @Published private(set) var gateMapRequest = 0
     @Published private(set) var returningDirectly = false
     /// The camera pop-up on Route is showing; `cameraAllowed` ticks when access is granted.
     @Published var asksForCamera = false
@@ -119,7 +120,10 @@ final class JourneyStore: ObservableObject {
     @Published var alertToPresent: AlertKind?
 
     /// Seeded queue report for Curacion Cafe in the sample journey: the wait is now about 18 min.
-    let cafeQueueUpdate = QueueUpdate(stopID: .cafe, waitMinutes: 18)
+    @Published private var driverCafeWait: Int?
+    @Published private var driverCafeWaitIsUnavailable = false
+    var cafeQueueUpdate: QueueUpdate { QueueUpdate(stopID: .cafe, waitMinutes: driverCafeWait ?? 18) }
+    var planTimingUnavailable: Bool { driverCafeWaitIsUnavailable && plan.contains(.cafe) }
     private var queueUpdateHandled: Bool { didSet { persist() } }
 
     private let walkingData: WalkingDataSource
@@ -179,7 +183,8 @@ final class JourneyStore: ObservableObject {
 
     var conditionInputs: ConditionInputs {
         let schedule = schedule
-        let leave = schedule.stops.isEmpty
+        // A direct walk still provides a return deadline when the selected stops have unknown timing.
+        let leave = schedule.stops.isEmpty || planTimingUnavailable
             ? SampleJourney.gateArrivalTarget - gateWalkMinutes
             : min(schedule.leave, SampleJourney.gateArrivalTarget - schedule.walkToGate)
         return ConditionInputs(
@@ -303,6 +308,14 @@ final class JourneyStore: ObservableObject {
         tab = .route
     }
 
+    var canOpenGateMap: Bool { !isAirportTransfer && !gate.isEmpty }
+
+    func openGateMap() {
+        guard canOpenGateMap else { return }
+        gateMapRequest += 1
+        tab = .route
+    }
+
     func finishRoute() {
         returningDirectly = false
         routeStep = 1
@@ -371,6 +384,50 @@ final class JourneyStore: ObservableObject {
         refreshPlanGuidance()
     }
 
+    func receiveDriverCafeWait(_ minutes: Int?) {
+        let unavailable = minutes == nil
+        guard driverCafeWaitIsUnavailable != unavailable || minutes.map({ $0 != driverCafeWait }) == true else { return }
+        if let minutes, minutes != driverCafeWait {
+            driverCafeWait = minutes
+            queueUpdateHandled = plan.stops.first(where: { $0.id == .cafe })?.waitMinutes == minutes
+            clearUndo()
+        }
+        // Keep the underlying route order. Stop and gate timing become unavailable while the wait is unknown.
+        driverCafeWaitIsUnavailable = unavailable
+        refreshSuggestion()
+        refreshAlerts()
+    }
+
+    func clearDriverCafeWait() {
+        guard driverCafeWait != nil || driverCafeWaitIsUnavailable else { return }
+        driverCafeWait = nil
+        driverCafeWaitIsUnavailable = false
+        queueUpdateHandled = plan.stops.first(where: { $0.id == .cafe })?.waitMinutes == cafeQueueUpdate.waitMinutes
+        clearUndo()
+        refreshSuggestion()
+        refreshAlerts()
+    }
+
+    func fittingCafe(waitMinutes: Int) -> (stop: PlanStop, arrival: ClockTime)? {
+        guard !driverCafeWaitIsUnavailable, driverCafeWait == waitMinutes,
+              !plan.contains(.cafe), !hasTimingSituation, !returningDirectly, !isAirportTransfer,
+              checklist.steps.first(where: { $0.id == "gate" })?.state != .confirmed,
+              let closes = outbound.gateCloses else { return nil }
+        var cafe = PlanStop.cafe
+        cafe.waitMinutes = waitMinutes
+        var proposed = plan
+        proposed.stops.append(cafe)
+        proposed.stops.sort { StopTimes.arrive($0) < StopTimes.arrive($1) }
+        let scheduled = PlanEngine.schedule(proposed, pace: pace,
+                                            gateWalkAdjustment: gateWalkAdjustment(for: routeChoice), notBefore: now)
+        // Offer an addition only when it fits without moving an existing visit.
+        let remaining = scheduled.stops.filter { $0.stop.id != .cafe }
+        guard zip(remaining, schedule.stops).allSatisfy({ candidate, current in
+            candidate.stop.id == current.stop.id && candidate.start == current.start && candidate.end == current.end
+        }), scheduled.arriveAtGate <= min(closes, SampleJourney.gateArrivalTarget) else { return nil }
+        return (cafe, scheduled.arriveAtGate)
+    }
+
     func remove(_ id: PlaceID) {
         clearUndo()
         plan.stops.removeAll { $0.id == id }
@@ -379,6 +436,7 @@ final class JourneyStore: ObservableObject {
 
     /// Resolve the displayed stop times from the same schedule that drives gate guidance.
     func times(_ id: PlaceID) -> (arrive: ClockTime, leave: ClockTime, latest: ClockTime)? {
+        guard !planTimingUnavailable else { return nil }
         let timed = schedule
         guard let index = timed.stops.firstIndex(where: { $0.stop.id == id }) else { return nil }
         let stop = timed.stops[index]
@@ -437,6 +495,7 @@ final class JourneyStore: ObservableObject {
 
     /// Compare the proposed stop using the same arrival calculation as the plan.
     func fitWarning(for stop: PlanStop) -> (title: String, message: String)? {
+        guard !planTimingUnavailable, stop.id != .cafe || !driverCafeWaitIsUnavailable else { return nil }
         var proposed = plan
         proposed.stops.append(stop)
         if !queueUpdateHandled { proposed = PlanEngine.applying(cafeQueueUpdate, to: proposed) }
@@ -505,7 +564,7 @@ final class JourneyStore: ObservableObject {
 
     /// Recomputes from the active plan; a suggestion for an older plan is dropped.
     private func refreshSuggestion() {
-        guard !queueUpdateHandled, plan.contains(cafeQueueUpdate.stopID) else {
+        guard !queueUpdateHandled, plan.contains(cafeQueueUpdate.stopID), !driverCafeWaitIsUnavailable else {
             suggestion = nil
             return
         }

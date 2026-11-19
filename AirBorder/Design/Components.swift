@@ -156,12 +156,16 @@ struct TextLink: View {
 
 /// One back icon per screen (Figma "Back", 862:15938), 44 pt target.
 struct BackButton: View {
+    var showsText = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image("icBack").resizable().frame(width: 26, height: 26)
-                .frame(width: 44, height: 44)
+            HStack(spacing: 4) {
+                Image("icBack").resizable().frame(width: 26, height: 26)
+                if showsText { Text("Back").outfitText(15, .semibold, AB.primary) }
+            }
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)

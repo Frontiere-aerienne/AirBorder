@@ -3,9 +3,11 @@ import SwiftUI
 /// Figma "Flight" (858:10400).
 struct FlightView: View {
     @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
     @Environment(\.openDestination) private var open
 
     var body: some View {
+        let gateAction: (() -> Void)? = store.canOpenGateMap ? { store.openGateMap() } : nil
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(spacing: 8) {
@@ -14,7 +16,8 @@ struct FlightView: View {
                         TravelUpdateBanner(condition: condition, place: .flight)
                             .padding(.bottom, 16)
                     }
-                    TicketCard(flight: store.outbound, previous: SampleJourney.inbound, status: store.flightStatus, gate: store.gate)
+                    TicketCard(flight: store.outbound, previous: SampleJourney.inbound, status: store.flightStatus,
+                               gate: store.gate, openGateMap: gateAction)
                     links
                 }
                 if store.isAirportTransfer {
@@ -41,9 +44,13 @@ struct FlightView: View {
             Text("Your flight").outfitText(30, .bold).tracking(-1).accessibilityAddTraits(.isHeader)
             Spacer()
             Button { open(.addFlight) } label: {
-                Image("icPlusDark").resizable().frame(width: 20, height: 20)
-                    .frame(width: 44, height: 44)
-                    .background(AB.chip, in: Circle())
+                HStack(spacing: 7) {
+                    Image("icPlusDark").resizable().frame(width: 17, height: 17)
+                    Text("Add flight").outfitText(15, .semibold)
+                }
+                .padding(.horizontal, 13)
+                .frame(minHeight: 44)
+                .background(AB.chip, in: Capsule())
             }
             .buttonStyle(.pressable)
             .accessibilityLabel("Add a flight")
@@ -57,6 +64,10 @@ struct FlightView: View {
         HStack(spacing: 24) {
             TextLink(title: "Journey details") { open(.journeyDetails) }
                 .accessibilityIdentifier("journeyDetailsLink")
+            if airportProvider.supports(store.tripFlight) {
+                TextLink(title: "Airport updates") { open(.airportUpdates) }
+                    .accessibilityIdentifier("airportUpdatesLink")
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -67,6 +78,127 @@ struct FlightView: View {
         PlanStripCard()
         // ponytail: the T2 deck visit keeps its own card; it is landside and not on the airside strip.
         if store.t2VisitPlanned && store.plan.stops.isEmpty { AddedPlanCard() }
+    }
+}
+
+struct AirportUpdatesView: View {
+    @EnvironmentObject private var store: JourneyStore
+    @EnvironmentObject private var airportProvider: AirportProviderReplay
+    @Environment(\.dismiss) private var dismiss
+
+    private static let airportTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_GB")
+        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    private var checked: Date? { airportProvider.planningLastChecked }
+
+    private var checkSummary: String {
+        let prefix = if airportProvider.planningOffline {
+            "Offline"
+        } else if !airportProvider.planningReachable {
+            "Updates unavailable"
+        } else {
+            ""
+        }
+        guard let checked else { return prefix }
+        let stamp = "Last checked \(Self.airportTime.string(from: checked)) JST"
+        return prefix.isEmpty ? stamp : "\(prefix) · \(stamp)"
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 15)) { timeline in
+            let snapshot = airportProvider.currentPlanning(for: store)
+            let now = max(timeline.date, Date.now)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        StackedHeader(title: "Airport updates") { dismiss() }
+                        Text(checkSummary).outfitText(15, .regular, AB.secondary)
+                            .accessibilityIdentifier("airportUpdatesChecked")
+                    }
+                    VStack(alignment: .leading, spacing: 0) {
+                        let onTime = snapshot?.status.value == .onSchedule
+                        observation("Flight", id: "flight", value: onTime ? "On schedule" : "Delayed · Check boarding time",
+                                    timestamp: snapshot?.status.observedAt, at: now)
+                        Divider()
+                        observation("Gate", id: "gate", value: store.gate, timestamp: snapshot?.gateCheckedAt,
+                                    at: now, unavailable: "Last known: \(store.gate)")
+                        Divider()
+                        waitRow("Security", id: "security", wait: snapshot?.security, at: now)
+                        Divider()
+                        waitRow("Café wait", id: "cafe", wait: snapshot?.cafe, at: now)
+                        Divider()
+                        observation("Crowding", id: "crowd", value: snapshot?.crowd.level == .busy ? "Busy" : "Moderate",
+                                    timestamp: snapshot?.crowd.observedAt, at: now)
+                    }
+                    .padding(.horizontal, 14)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 20))
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 24)
+            }
+        }
+        .background(AB.screen.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func observation(_ label: String, id: String, value: String, timestamp: TimeInterval?, at now: Date,
+                             unavailable: String = "Updates unavailable") -> some View {
+        let fresh = isCurrent(timestamp, at: now)
+        return updateRow(label, id: id, value: fresh ? value : unavailable, detail: reportedDetail(timestamp, at: now))
+    }
+
+    private func waitRow(_ label: String, id: String, wait: DriverPlanningSnapshot.Wait?, at now: Date) -> some View {
+        let fresh = isCurrent(wait?.observedAt, at: now)
+        let value = fresh ? wait.map { "\($0.minutes) min" } ?? "Current wait unknown" : "Current wait unknown"
+        let detail: String?
+        if !fresh, airportProvider.planningReachable, let wait, wait.observedAt <= now.timeIntervalSince1970 {
+            let report = Self.airportTime.string(from: Date(timeIntervalSince1970: wait.observedAt))
+            detail = "Last estimate \(wait.minutes) min at \(report)"
+        } else {
+            detail = reportedDetail(wait?.observedAt, at: now)
+        }
+        return updateRow(label, id: id, value: value, detail: detail)
+    }
+
+    private func isCurrent(_ timestamp: TimeInterval?, at now: Date) -> Bool {
+        guard airportProvider.planningReachable, let timestamp else { return false }
+        return DriverPlanningSnapshot.isFresh(timestamp, at: now)
+    }
+
+    private func reportedDetail(_ timestamp: TimeInterval?, at now: Date) -> String? {
+        guard airportProvider.planningReachable, let checked, let timestamp, timestamp <= now.timeIntervalSince1970,
+              floor(timestamp / 60) != floor(checked.timeIntervalSince1970 / 60) else { return nil }
+        let time = Self.airportTime.string(from: Date(timeIntervalSince1970: timestamp))
+        return "Reported \(time)"
+    }
+
+    private func updateRow(_ label: String, id: String, value: String, detail: String?) -> some View {
+        let tag = Text(label).outfitText(14, .bold, AB.gateText)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(AB.gateYellow, in: RoundedRectangle(cornerRadius: 8))
+        let reading = VStack(alignment: .leading, spacing: 2) {
+            Text(value).outfitText(16, .semibold)
+            if let detail { Text(detail).outfitText(13, .regular, AB.secondary) }
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                tag.frame(width: 92, alignment: .leading)
+                reading.fixedSize(horizontal: true, vertical: false)
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                tag
+                reading
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("airportUpdate-\(id)")
     }
 }
 
@@ -87,7 +219,10 @@ struct PlanStripCard: View {
     @EnvironmentObject private var store: JourneyStore
     @Environment(\.openDestination) private var open
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.gateAlertPresented) private var gateAlertPresented
     @State private var openStop: PlaceID?
+    var usesTimeline = true
+    var chooseStop: (() -> Void)?
     /// The hint teaches the rows once; it goes away after the first stop is opened.
     @AppStorage(JourneyStore.planHintKey) private var hintSeen = false
 
@@ -96,6 +231,7 @@ struct PlanStripCard: View {
 
     var body: some View {
         let stops = store.schedule.stops.map(\.stop)
+        let showsTimeline = usesTimeline && !store.planTimingUnavailable
         VStack(alignment: .leading, spacing: 20) {
             header
             if let suggestion = store.suggestion {
@@ -110,14 +246,16 @@ struct PlanStripCard: View {
                 .transition(.opacity)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    if !hintSeen {
+                    if !hintSeen && !store.planTimingUnavailable {
                         Text("Tap a stop to change its times").outfitText(15, .regular, AB.secondary)
                             .transition(.opacity.combined(with: .offset(y: -4)))
                     }
-                    hours
+                    if showsTimeline { hours }
                     ForEach(stops) { stop in
-                        lane(stop)
-                            .transition(.opacity.combined(with: .offset(y: -8)))
+                        Group {
+                            if showsTimeline { lane(stop) } else { stopRow(stop) }
+                        }
+                        .transition(.opacity.combined(with: .offset(y: -8)))
                         if openStop == stop.id {
                             StopTimesEditor(stop: stop) { openStop = nil }
                                 .transition(reduceMotion ? .opacity : .asymmetric(
@@ -138,17 +276,21 @@ struct PlanStripCard: View {
         .animation(.abOut, value: hintSeen)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("planCard")
+        .accessibilityHidden(gateAlertPresented)
+        .allowsHitTesting(!gateAlertPresented)
     }
 
     private var header: some View {
         let timed = store.schedule
+        let timingLabel = store.planTimingUnavailable ? "Gate arrival —" :
+            (timed.stops.isEmpty ? "Leave by \(timed.leave)" : "Estimated gate arrival \(timed.arriveAtGate)")
+        let timingColor = store.planTimingUnavailable ? AB.secondary : (store.minutesToSpare < 0 ? AB.alert : AB.primary)
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Your plan").outfitText(22, .bold).accessibilityAddTraits(.isHeader)
-                Text(timed.stops.isEmpty
-                    ? "Leave by \(timed.leave)"
-                    : "Estimated gate arrival \(timed.arriveAtGate)")
-                    .outfitText(15, .semibold, store.minutesToSpare < 0 ? AB.alert : AB.primary)
+                Text(timingLabel)
+                    .outfitText(15, .semibold, timingColor)
+                    .accessibilityLabel(store.planTimingUnavailable ? "Estimated gate arrival unavailable" : timingLabel)
                     .accessibilityIdentifier("planGateTiming")
             }
             Spacer()
@@ -193,7 +335,9 @@ struct PlanStripCard: View {
     }
 
     private var addStopButton: some View {
-        Button { store.tab = .layover } label: {
+        Button {
+            if let chooseStop { chooseStop() } else { store.tab = .layover }
+        } label: {
             Text("+  Add a stop").outfitText(18, .bold, AB.primary)
                 .frame(maxWidth: .infinity, minHeight: 52)
                 .background(AB.primary.opacity(0.08), in: Capsule())
@@ -234,9 +378,7 @@ struct PlanStripCard: View {
         let times = store.times(stop.id)
         let isOpen = openStop == stop.id
         return Button {
-            Haptics.tick()
-            openStop = isOpen ? nil : stop.id
-            hintSeen = true
+            toggleEditor(stop.id)
         } label: {
             GeometryReader { proxy in
                 let width = proxy.size.width
@@ -279,6 +421,41 @@ struct PlanStripCard: View {
         .accessibilityIdentifier("lane-\(stop.id.rawValue)")
     }
 
+    private func stopRow(_ stop: PlanStop) -> some View {
+        let isOpen = openStop == stop.id
+        return Button { toggleEditor(stop.id) } label: {
+            HStack(spacing: 12) {
+                Circle().stroke(AB.primary, lineWidth: 2).frame(width: 13, height: 13)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(stop.name).outfitText(17, .bold)
+                    if store.planTimingUnavailable {
+                        Text(stop.id == .cafe ? "Wait unavailable" : "\(stop.plannedVisitMinutes) min visit")
+                            .outfitText(14, .regular, AB.secondary)
+                    } else if let times = store.times(stop.id) {
+                        Text("Arrive \(times.arrive) · Leave \(times.leave)").outfitText(14, .regular, AB.secondary)
+                    }
+                }
+                Spacer(minLength: 5)
+                Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AB.primary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityHint(isOpen ? "Hide stop details" : store.planTimingUnavailable ? "Review stop" : "Change times")
+        .accessibilityIdentifier("plan-stop-\(stop.id.rawValue)")
+    }
+
+    private func toggleEditor(_ id: PlaceID) {
+        Haptics.tick()
+        openStop = openStop == id ? nil : id
+        hintSeen = true
+    }
+
     /// Figma home Route: opens the route, which passes every stop in the plan.
     private func route() {
         if store.alerts[.gateChange] != nil { store.acknowledge(.gateChange) }
@@ -300,32 +477,49 @@ struct PlanStripCard: View {
     static func textColor(_ id: PlaceID) -> Color { [.skyLounge, .bento, .udon].contains(id) ? AB.ticket : .white }
 }
 
+struct PlanDetailView: View {
+    @EnvironmentObject private var store: JourneyStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                BackButton(showsText: true) { dismiss() }
+                if let condition = store.primaryCondition {
+                    TravelUpdateBanner(condition: condition, place: .layover)
+                }
+                if let condition = store.timingCondition {
+                    ScenarioPlanSection(condition: condition)
+                } else {
+                    PlanStripCard(usesTimeline: false) {
+                        dismiss()
+                        store.tab = .layover
+                    }
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 24)
+        }
+        .background(AB.screen.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        .accessibilityIdentifier("planDetails")
+    }
+}
+
 /// One stop's details under its strip row: where it is, Arrive/Leave in 15-minute steps, overlaps and Remove.
 private struct StopTimesEditor: View {
     @EnvironmentObject private var store: JourneyStore
+    @Environment(\.gateAlertPresented) private var gateAlertPresented
+    @AccessibilityFocusState(for: .voiceOver) private var focusedTimeControl: String?
     let stop: PlanStop
     let close: () -> Void
     @State private var shakes: [String: CGFloat] = [:]
+    @State private var lastFocusedTimeControl: String?
 
     var body: some View {
         if let times = store.times(stop.id) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 10) {
-                    RoundedRectangle(cornerRadius: 2).fill(PlanStripCard.color(stop.id)).frame(width: 4)
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(alignment: .center) {
-                            Text(stop.name).outfitText(19, .bold)
-                            Spacer(minLength: 8)
-                            removeButton
-                        }
-                        HStack(spacing: 6) {
-                            fact("building.2", "Terminal 3, \(stop.id.floor)")
-                            fact("figure.walk", "\(store.walkMinutes(stop.id, .gate)) min to gate")
-                        }
-                    }
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                .staggered(0)
+                detailsHeader.staggered(0)
                 HStack(spacing: 12) {
                     stepper("Arrive", times.arrive, latest: false,
                             earlier: store.earliestArrival(for: stop.id).flatMap {
@@ -373,7 +567,39 @@ private struct StopTimesEditor: View {
             .padding(.top, 18)
             .padding(.bottom, 22)
             .overlay(alignment: .top) { Rectangle().fill(AB.screen).frame(height: 1).padding(.top, 8) }
+            .onChange(of: focusedTimeControl) { _, newFocus in
+                if let newFocus { lastFocusedTimeControl = newFocus }
+            }
+            .task(id: gateAlertPresented) {
+                guard !gateAlertPresented, let lastFocusedTimeControl, store.tab == .flight else { return }
+                // Wait until the modal's accessibility tree has been removed before restoring focus.
+                await Task.yield()
+                if !Task.isCancelled { focusedTimeControl = lastFocusedTimeControl }
+            }
+        } else if store.planTimingUnavailable {
+            detailsHeader
+                .padding(.top, 18)
+                .padding(.bottom, 22)
+                .overlay(alignment: .top) { Rectangle().fill(AB.screen).frame(height: 1).padding(.top, 8) }
         }
+    }
+
+    private var detailsHeader: some View {
+        HStack(alignment: .top, spacing: 10) {
+            RoundedRectangle(cornerRadius: 2).fill(PlanStripCard.color(stop.id)).frame(width: 4)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center) {
+                    Text(stop.name).outfitText(19, .bold)
+                    Spacer(minLength: 8)
+                    removeButton
+                }
+                HStack(spacing: 6) {
+                    fact("building.2", "Terminal 3, \(stop.id.floor)")
+                    fact("figure.walk", "\(store.walkMinutes(stop.id, .gate)) min to gate")
+                }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var removeButton: some View {
@@ -473,6 +699,7 @@ private struct StopTimesEditor: View {
         .buttonStyle(.pressable)
         .opacity(target == nil ? 0.35 : 1)
         .accessibilityLabel(label)
+        .accessibilityFocused($focusedTimeControl, equals: label)
         .accessibilityValue(target == nil ? "Not available" : "")
     }
 }

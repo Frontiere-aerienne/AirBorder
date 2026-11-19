@@ -3,7 +3,6 @@ import SwiftUI
 /// Figma "Welcome" (858:8326) and "Onboarding 1–3" (858:8332, 858:8356, 858:8401).
 /// Runs once on first launch; Profile › Replay tutorial starts again at Onboarding 1.
 struct OnboardingFlow: View {
-    @EnvironmentObject private var store: JourneyStore
     @State var page: Int
     let finish: () -> Void
 
@@ -16,7 +15,7 @@ struct OnboardingFlow: View {
         ZStack {
             switch page {
             case 0: WelcomeView { advance() }
-            default: OnboardingPage(page: page, next: advance, skip: done)
+            default: OnboardingPage(page: page, next: advance, skip: finish)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: page)
@@ -24,13 +23,7 @@ struct OnboardingFlow: View {
     }
 
     private func advance() {
-        if page >= 3 { done() } else { page += 1 }
-    }
-
-    private func done() {
-        store.onboardingSeen = true
-        store.tab = .flight
-        finish()
+        if page >= 3 { finish() } else { page += 1 }
     }
 }
 
@@ -85,7 +78,10 @@ private struct OnboardingPage: View {
                 Spacer()
                 if page < 3 {
                     Button(action: skip) {
-                        Text("Skip").outfitText(15, .medium, AB.ice).frame(minWidth: 44, minHeight: 44)
+                        Text("Skip")
+                            .outfitText(15, .medium, AB.ice)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("onboardingSkip")
